@@ -31,9 +31,11 @@ jobs:
       - name: Check release script shell syntax
         run: |
           set -euo pipefail
-          for script in scripts/check-release-version.sh scripts/make-update-manifest.sh scripts/update-keys.sh; do
+          for script in scripts/check-release-version.sh scripts/check-release-signing-key.sh scripts/test-release-signing-key.sh scripts/make-update-manifest.sh scripts/update-keys.sh; do
             bash -n "$script"
           done
+      - name: Reject invalid release signing keys (offline)
+        run: bash scripts/test-release-signing-key.sh
       - name: Verify dependency pins stay aligned
         run: bash scripts/check-dependency-pins.sh
       - name: Verify Windows installer bitmap and checkbox surface

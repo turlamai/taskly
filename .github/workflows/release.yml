@@ -17,7 +17,28 @@ concurrency:
 env:
   RIVET_PIN: 9d766b4acab672844093204cb4845ef4ef933d2c
 jobs:
+  signing-preflight:
+    name: Verify update signing key before native packaging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Ed25519 private key against both updater trust roots
+        env:
+          UPDATE_ED25519_PRIVATE_KEY: ${{ secrets.UPDATE_ED25519_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${UPDATE_ED25519_PRIVATE_KEY:-}" ]]; then
+            echo "::error::UPDATE_ED25519_PRIVATE_KEY is required before release packaging"
+            exit 1
+          fi
+          KEY_PEM="$(mktemp)"
+          trap 'rm -f "$KEY_PEM"' EXIT
+          chmod 600 "$KEY_PEM"
+          printf '%s\n' "$UPDATE_ED25519_PRIVATE_KEY" > "$KEY_PEM"
+          bash scripts/check-release-signing-key.sh "$KEY_PEM"
+
   macos:
+    needs: [signing-preflight]
     name: macOS (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -83,6 +104,7 @@ jobs:
           path: dist/taskly-*
 
   windows:
+    needs: [signing-preflight]
     name: Windows (x64)
     runs-on: windows-latest
     steps:
@@ -140,6 +162,7 @@ jobs:
           path: dist/taskly-*
 
   linux:
+    needs: [signing-preflight]
     name: Linux (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -258,19 +281,8 @@ jobs:
           KEY_PEM="$RUNNER_TEMP/update-signing-key.pem"
           printf '%s\n' "$UPDATE_ED25519_PRIVATE_KEY" > "$KEY_PEM"
           chmod 600 "$KEY_PEM"
-          # Refuse to publish a feed signed by a key the shipped clients do not trust.
-          DER_PUBLIC="$(openssl pkey -in "$KEY_PEM" -pubout -outform DER 2>/dev/null | base64 -w0)"
-          RAW_PUBLIC="$(openssl pkey -in "$KEY_PEM" -pubout -outform DER 2>/dev/null | tail -c 32 | base64 -w0)"
-          EXPECTED_DER="$(sed -n '/(define update-public-key-b64/{n;s/^[[:space:]]*"\([^"]*\)".*/\1/p;}' racket/taskly/updater.rkt)"
-          EXPECTED_RAW="$(sed -n 's/.*public static let publicKeyBase64 = "\([^"]*\)".*/\1/p' macos-host/Sources/RivetHost/UpdateService.swift)"
-          [[ -n "$EXPECTED_DER" && "$DER_PUBLIC" == "$EXPECTED_DER" ]] || {
-            echo "::error::Signing secret does not match the backend Ed25519 public key"
-            exit 1
-          }
-          [[ -n "$EXPECTED_RAW" && "$RAW_PUBLIC" == "$EXPECTED_RAW" ]] || {
-            echo "::error::Signing secret does not match the macOS Ed25519 public key"
-            exit 1
-          }
+          # Re-check immediately before publication; never silently downgrade.
+          bash scripts/check-release-signing-key.sh "$KEY_PEM"
           scripts/make-update-manifest.sh "$GITHUB_REF_NAME" dist "$KEY_PEM"
           test -s dist/update-manifest.json || {
             echo "::error::Signed update manifest was not generated"
