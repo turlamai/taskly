@@ -11,8 +11,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded PR checks, but never cancel a main quality gate.
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Single source of truth for the rivet pin; every install step below
 # references this so a bump is one edit, not a grep-replace across jobs.
