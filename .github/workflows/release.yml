@@ -34,7 +34,7 @@ jobs:
           KEY_PEM="$(mktemp)"
           trap 'rm -f "$KEY_PEM"' EXIT
           chmod 600 "$KEY_PEM"
-          printf '%s\\n' "$UPDATE_ED25519_PRIVATE_KEY" > "$KEY_PEM"
+          printf '%s\n' "$UPDATE_ED25519_PRIVATE_KEY" > "$KEY_PEM"
           bash scripts/check-release-signing-key.sh "$KEY_PEM"
 
   macos:
