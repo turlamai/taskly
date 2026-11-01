@@ -37,6 +37,8 @@ jobs:
           done
       - name: Reject invalid release signing keys (offline)
         run: bash scripts/test-release-signing-key.sh
+      - name: Check canonical signed artifact and update-feed URLs
+        run: python3 scripts/check-update-feed-urls.py
       - name: Verify dependency pins stay aligned
         run: bash scripts/check-dependency-pins.sh
       - name: Verify Windows installer bitmap and checkbox surface
