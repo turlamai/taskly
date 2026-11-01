@@ -141,7 +141,7 @@ Inner manifest (decoded `payload`) — rivet's manifest schema:
 - `version` must equal the root `VERSION` file (release preflight checks
   it, along with `rivet.rktd` and the updater module's embedded identity).
 - Clients fetch
-  `https://github.com/turinglambdaai/taskly/releases/latest/download/update-manifest.json`
+  `https://github.com/turlamai/taskly/releases/latest/download/update-manifest.json`
   (the moving "latest" location; redirect-following is mandatory —
   release assets 302 to the CDN, rivet#153). Artifact URLs inside the
   manifest are pinned to the concrete tag.
