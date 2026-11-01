@@ -33,6 +33,7 @@ jobs:
           version: '9.3'
       # Racket 9.3's Windows root-store importer can crash on an invalid
       # runner certificate (X509*->C #f). Export valid local trust anchors
+      # from the current GitHub runner only; no third-party CA downloads.
       # and keep TLS certificate/hostname verification enabled.
       - name: Export trusted Windows root certificates for Racket TLS
         shell: pwsh
