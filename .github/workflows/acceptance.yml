@@ -113,7 +113,7 @@ jobs:
             libadwaita-1-dev libjson-glib-dev libsecret-1-dev python3-pyatspi weston
           raco pkg install --auto --no-docs "https://github.com/turlamai/keel.git#${KEEL_PIN}"
           raco pkg install --auto --no-docs "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
-          raco pkg install --auto --no-docs --skip-installed db crypto
+          raco pkg install --auto --no-docs --skip-installed db-lib crypto-lib
       - name: Run executable acceptance contract
         shell: bash
         run: |
