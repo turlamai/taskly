@@ -352,13 +352,33 @@ do {
         findButton(window, title: "Show Completed")
     }
     try press(showCompleted, "Show Completed")
-    _ = try waitFor("completed task revealed") {
-        findTaskTitle(window, text: "Return-edited acceptance task")
+    // The reveal triggers an asynchronous snapshot reload and a row animation.
+    // A title alone can appear before the native checkbox is ready for AXPress.
+    // Require the entire completed-state surface to remain coherent for 250 ms.
+    // Do not retry a failed restore press: a second toggle would mask a bug.
+    var revealedSince: Date?
+    _ = try waitFor("stable completed task and native restore control") { () -> Bool? in
+        let countIsOne = find(window, identifier: "smart-view-completed").map { completed in
+            [kAXTitleAttribute, kAXValueAttribute, kAXDescriptionAttribute]
+                .contains { stringAttribute(completed, $0) == "1" }
+        } ?? false
+        let coherent = countIsOne &&
+            findButton(window, title: "Hide Completed") != nil &&
+            findTaskTitle(window, text: "Return-edited acceptance task") != nil &&
+            find(window, identifier: "task-complete-\(taskID)") != nil
+        if !coherent {
+            revealedSince = nil
+            return nil
+        }
+        if revealedSince == nil { revealedSince = Date() }
+        return Date().timeIntervalSince(revealedSince!) >= 0.25 ? true : nil
     }
+    try writeJSON(snapshot(window), to: output.appendingPathComponent("before-restore.json"))
     let restoreCompletion: AXUIElement = try waitFor("completed task restore control") {
         find(window, identifier: "task-complete-\(taskID)")
     }
     try press(restoreCompletion, "task-complete-\(taskID)")
+    try writeJSON(snapshot(window), to: output.appendingPathComponent("after-restore-press.json"))
     let _: Bool = try waitFor("golden-path task restored and persisted as active") { () -> Bool? in
         guard let completed = find(window, identifier: "smart-view-completed") else {
             return nil
