@@ -330,8 +330,18 @@ do {
     }
     let completionIdentifier = stringAttribute(completion, kAXIdentifierAttribute)
     try press(completion, completionIdentifier)
-    _ = try waitFor("changed Event reflected in the active view") {
-        containsStaticText(window, "Acceptance task") ? nil : true
+    // Wait for the first RPC completion to commit before revealing the
+    // completed section. The original quick-add title was renamed above;
+    // checking for "Acceptance task" here passed immediately and raced the
+    // subsequent restore click, leaving the task completed on slow runners.
+    _ = try waitFor("completed task committed and hidden from active view") { () -> Bool? in
+        guard let completed = find(window, identifier: "smart-view-completed") else {
+            return nil
+        }
+        let countIsOne = [kAXTitleAttribute, kAXValueAttribute, kAXDescriptionAttribute]
+            .contains { stringAttribute(completed, $0) == "1" }
+        return countIsOne &&
+            findTaskTitle(window, text: "Return-edited acceptance task") == nil ? true : nil
     }
 
     // Completion is covered with a real native control, but the golden-path
