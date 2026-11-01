@@ -314,29 +314,14 @@ jobs:
           # assets) behind; re-runs edit + re-upload over it instead of
           # colliding with "release already exists".
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release edit "$GITHUB_REF_NAME" --notes-file /tmp/notes.md
+            gh release edit "$GITHUB_REF_NAME" --notes-file /tmp/notes.md --prerelease
           else
             gh release create "$GITHUB_REF_NAME" \
-              --title "Taskly ${VERSION}" \
+              --title "Taskly ${VERSION} (unsigned evaluation)" \
+              --prerelease \
               --notes-file /tmp/notes.md
           fi
           gh release upload "$GITHUB_REF_NAME" --clobber "${uploads[@]}"
-      - name: Stable alias copies (versionless direct-download links)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          # Family rule: download buttons point at
-          # releases/latest/download/<alias>, so every release also ships
-          # versionless copies of the primary installers. Aliases are
-          # overwritten on each release; the versioned assets stay canonical.
-          mkdir -p stable-alias
-          cp "dist/taskly-${VERSION}-macos-arm64.dmg" stable-alias/taskly-macos-arm64.dmg
-          cp "dist/taskly-${VERSION}-macos-x64.dmg" stable-alias/taskly-macos-x64.dmg
-          cp "dist/taskly-${VERSION}-windows-x64.msi" stable-alias/taskly-windows-x64.msi
-          cp "dist/taskly-${VERSION}-linux-amd64.deb" stable-alias/taskly-linux-x64.deb
-          cp "dist/taskly-${VERSION}-linux-arm64.deb" stable-alias/taskly-linux-arm64.deb
-          cp "dist/taskly-${VERSION}-linux-x86_64.AppImage" stable-alias/taskly-linux-x64.AppImage
-          cp "dist/taskly-${VERSION}-linux-aarch64.AppImage" stable-alias/taskly-linux-arm64.AppImage
-          gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber -R turlamai/taskly
+      # Evaluation builds deliberately do not populate versionless stable aliases.
+      # Restore a stable publication path only after #80 production installer trust
+      # and the full release gate have independent evidence.
