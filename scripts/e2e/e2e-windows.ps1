@@ -5,6 +5,17 @@ Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class TasklyTitlebarNative {
+    [DllImport("user32.dll", EntryPoint = "SendMessageW", SetLastError = true)]
+    public static extern IntPtr SendMessage(IntPtr hwnd, uint msg, IntPtr wparam, IntPtr lparam);
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr GetSystemMenu(IntPtr hwnd, bool revert);
+}
+'@
+
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $output = Join-Path $repo '.rivet\acceptance\windows'
 $executable = Get-ChildItem -LiteralPath (Join-Path $repo 'dist') `
@@ -87,6 +98,56 @@ try {
             [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
             $process.Id)
         $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
+    }
+    # Validate the actual packaged WinUI window, not just the EXE resource.
+    # WM_GETICON must publish the Taskly-branded icon and the standard system
+    # menu must remain available to keyboard/assistive-technology users.
+    $hwnd = [IntPtr]::new([int]$window.Current.NativeWindowHandle)
+    if ($hwnd -eq [IntPtr]::Zero) { throw 'Taskly title bar has no native HWND' }
+    if ([TasklyTitlebarNative]::GetSystemMenu($hwnd, $false) -eq [IntPtr]::Zero) {
+        throw 'Taskly native window system menu is unavailable'
+    }
+    $iconHandle = [IntPtr]::Zero
+    foreach ($kind in @(0, 2, 1)) {
+        $iconHandle = [TasklyTitlebarNative]::SendMessage(
+            $hwnd, 0x007F, [IntPtr]::new($kind), [IntPtr]::Zero)
+        if ($iconHandle -ne [IntPtr]::Zero) { break }
+    }
+    if ($iconHandle -eq [IntPtr]::Zero) {
+        throw 'Taskly title bar did not publish an icon through WM_GETICON'
+    }
+    $assetIcon = [System.Drawing.Icon]::new(
+        (Join-Path $repo 'assets/taskly.ico'), 32, 32)
+    $expected = $null
+    $observed = $null
+    try {
+        $expected = [System.Drawing.Bitmap]::new($assetIcon.ToBitmap(), 32, 32)
+        $observed = [System.Drawing.Bitmap]::new(
+            [System.Drawing.Icon]::FromHandle($iconHandle).ToBitmap(), 32, 32)
+        $opaque = 0
+        $matching = 0
+        for ($y = 0; $y -lt 32; $y++) {
+            for ($x = 0; $x -lt 32; $x++) {
+                $a = $expected.GetPixel($x, $y)
+                if ($a.A -lt 200) { continue }
+                $opaque++
+                $b = $observed.GetPixel($x, $y)
+                if ($b.A -ge 200 -and
+                    [Math]::Abs([int]$a.R - [int]$b.R) -le 24 -and
+                    [Math]::Abs([int]$a.G - [int]$b.G) -le 24 -and
+                    [Math]::Abs([int]$a.B - [int]$b.B) -le 24) {
+                    $matching++
+                }
+            }
+        }
+        if ($opaque -lt 32 -or $matching -lt [Math]::Ceiling($opaque * 0.75)) {
+            throw ("Taskly title-bar icon differs from packaged branding: {0}/{1} opaque pixels matched" -f $matching, $opaque)
+        }
+    } finally {
+        if ($expected) { $expected.Dispose() }
+        if ($observed) { $observed.Dispose() }
+        $assetIcon.Dispose()
+        # WM_GETICON returns a window-owned HICON: do not DestroyIcon.
     }
     $quickAdd = Wait-Until 'quick-add field' { Find-ById $window 'quick-add' }
     $submit = Wait-Until 'quick-add submit button' { Find-ById $window 'quick-add-submit' }
