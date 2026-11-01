@@ -349,7 +349,7 @@ do {
         find(window, identifier: "task-complete-\(taskID)")
     }
     try press(restoreCompletion, "task-complete-\(taskID)")
-    _ = try waitFor("golden-path task restored and persisted as active") {
+    let _: Bool = try waitFor("golden-path task restored and persisted as active") { () -> Bool? in
         guard let completed = find(window, identifier: "smart-view-completed") else {
             return nil
         }
