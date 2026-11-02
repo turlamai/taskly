@@ -2875,13 +2875,13 @@ winrt::fire_and_forget MainWindow::OnAbout(
   auto changelog = mxc::HyperlinkButton{};
   changelog.Content(winrt::box_value(t("aboutChangelog")));
   changelog.NavigateUri(winrt::Windows::Foundation::Uri{
-      L"https://github.com/turinglambdaai/taskly/blob/main/CHANGELOG.md"});
+      L"https://github.com/turlamai/taskly/blob/main/CHANGELOG.md"});
   changelog.HorizontalAlignment(mx::HorizontalAlignment::Center);
   changelog.Padding({0, 0, 0, 0});
   auto issue = mxc::HyperlinkButton{};
   issue.Content(winrt::box_value(t("aboutReportIssue")));
   issue.NavigateUri(winrt::Windows::Foundation::Uri{
-      L"https://github.com/turinglambdaai/taskly/issues"});
+      L"https://github.com/turlamai/taskly/issues"});
   issue.HorizontalAlignment(mx::HorizontalAlignment::Center);
   issue.Padding({0, 0, 0, 0});
   // Diagnostics block (PRODUCT-SPEC §8): the release identity and the

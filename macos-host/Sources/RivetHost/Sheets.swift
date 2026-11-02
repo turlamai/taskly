@@ -312,9 +312,9 @@ struct AboutSheet: View {
             .tint(model.theme.accent)
             HStack(spacing: 20) {
                 Link(model.t("aboutChangelog"),
-                     destination: URL(string: "https://github.com/turinglambdaai/taskly/blob/main/CHANGELOG.md")!)
+                     destination: URL(string: "https://github.com/turlamai/taskly/blob/main/CHANGELOG.md")!)
                 Link(model.t("aboutReportIssue"),
-                     destination: URL(string: "https://github.com/turinglambdaai/taskly/issues")!)
+                     destination: URL(string: "https://github.com/turlamai/taskly/issues")!)
             }
             .font(.system(size: 12))
             .tint(model.theme.accent)

@@ -32,7 +32,7 @@
 
 ## 授权实施决策
 
-决策修订：`2026-10-auth-1`（2026-10-23）。这里确定接入设计，不表示当前应用已经实现。字段含义遵循 Permit 的[英文权益规范](https://github.com/turinglambdaai/permit/blob/main/docs/entitlement-v1.md)与[框架边界](https://github.com/turinglambdaai/permit/blob/main/docs/framework-integration.md)；本文件负责产品政策，不另造线协议。
+决策修订：`2026-10-auth-1`（2026-10-23）。这里确定接入设计，不表示当前应用已经实现。字段含义遵循 Permit 的[英文权益规范](https://github.com/turlamai/permit/blob/main/docs/entitlement-v1.md)与[框架边界](https://github.com/turlamai/permit/blob/main/docs/framework-integration.md)；本文件负责产品政策，不另造线协议。
 
 - **凭据与联网：**购买后签发 Protocol v1 的 `entitlement`，产品通过公开 `permit` 接口在本地验签。设 `activation_required=false`、`installation_id=null`。不发激活租约，不要求定期联网，不绑定硬件，也不增加设备上限。购买、重发和恢复可在线经过 Commerce；凭据导入后必须能够脱离该服务使用。
 - **永久使用与更新窗：**`use_expires_at=null`；`updates_through` 为已付更新截止时间。付费范围采用 `feature_policy="published-through"`、`features=[]`、`features_through=updates_through`。依据可信的发布及功能引入时间判断；手动复制新版不能扩大权益。免费能力不进入该门禁。更新窗结束仍保留已获资格的功能与用户数据；安全修复需有单独标识且具备资格的补丁交付路径。
@@ -45,6 +45,6 @@
 
 先完成 #58 的数据恢复、反馈与安装形态更新场景；再完成试用到期保留读取/导出、Permit 导入/恢复、更新窗边界、离线和退款状态。当前提醒/同步等活跃代码不在本次文档变更中改门禁。
 
-执行入口：[本仓 #58](https://github.com/turinglambdaai/taskly/issues/58)。先交付这个切片，再扩展商业功能。
+执行入口：[本仓 #58](https://github.com/turlamai/taskly/issues/58)。先交付这个切片，再扩展商业功能。
 
-组合定位及通用边界：[PORTFOLIO 中文版](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.zh-CN.md)。
+组合定位及通用边界：[PORTFOLIO 中文版](https://github.com/turlamai/turlamai.github.io/blob/master/PORTFOLIO.zh-CN.md)。

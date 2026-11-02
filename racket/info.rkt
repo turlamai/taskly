@@ -12,4 +12,4 @@
 (define build-deps '("rackunit-lib"))
 (define pkg-desc "Taskly shared Racket application core")
 (define version "0.2.7")
-(define pkg-authors '("turinglambdaai"))
+(define pkg-authors '("turlamai"))
