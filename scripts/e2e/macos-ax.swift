@@ -50,6 +50,14 @@ func findDeleteMenuItem(_ root: AXUIElement) -> AXUIElement? {
     }
 }
 
+func findButton(_ root: AXUIElement, title: String) -> AXUIElement? {
+    walk(root).first { element in
+        stringAttribute(element, kAXRoleAttribute) == (kAXButtonRole as String) &&
+            [kAXTitleAttribute, kAXValueAttribute, kAXDescriptionAttribute]
+                .contains { stringAttribute(element, $0) == title }
+    }
+}
+
 func containsStaticText(_ root: AXUIElement, _ expected: String) -> Bool {
     walk(root).contains { element in
         stringAttribute(element, kAXRoleAttribute) == (kAXStaticTextRole as String) &&
@@ -187,6 +195,27 @@ do {
     _ = AXUIElementSetAttributeValue(application, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
     _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
 
+    if arguments.contains("--verify-restart") {
+        _ = try waitFor("persisted task after application restart") {
+            findTaskTitle(window, text: "Return-edited acceptance task")
+        }
+        _ = try waitFor("persisted Tomorrow date after application restart") {
+            containsStaticText(window, "Tomorrow") ? true : nil
+        }
+        try writeJSON([
+            "platform": "macos",
+            "assertions": ["task title and Tomorrow date survive a cold installed-app restart"],
+        ], to: output.appendingPathComponent("persistence-restart.json"))
+        guard let running = NSRunningApplication(processIdentifier: pid), running.terminate() else {
+            throw DriverError.failure("restarted application rejected termination")
+        }
+        exit(0)
+    }
+
+    _ = try waitFor("actionable first-run empty state") {
+        containsStaticText(window, "Add your first task above — try “Plan tomorrow”") ? true : nil
+    }
+
     for view in ["today", "planned", "all", "completed"] {
         let _: AXUIElement = try waitFor("visible zero count for \(view)") {
             guard let candidate = find(window, identifier: "smart-view-\(view)") else { return nil }
@@ -245,6 +274,17 @@ do {
         find(window, identifier: "inline-task-cancel-\(taskID)")
     }
     try setValue("Edited acceptance task", on: committedEditor)
+    let addDate: AXUIElement = try waitFor("inline Add Date action") {
+        findButton(window, title: "+ Add Date") ?? findButton(window, title: "Add Date")
+    }
+    try press(addDate, "Add Date")
+    let tomorrow: AXUIElement = try waitFor("inline Tomorrow action") {
+        findButton(application, title: "Tomorrow")
+    }
+    try press(tomorrow, "Tomorrow")
+    // The quick-date choice updates the draft but intentionally keeps the
+    // native calendar visible. Toggling the date chip closes it before Save.
+    try press(addDate, "Add Date")
     try press(explicitSave, "inline-task-save-\(taskID)")
     _ = try waitFor("visible Save committed inline draft") {
         findTaskTitle(window, text: "Edited acceptance task") != nil &&
@@ -290,8 +330,63 @@ do {
     }
     let completionIdentifier = stringAttribute(completion, kAXIdentifierAttribute)
     try press(completion, completionIdentifier)
-    _ = try waitFor("changed Event reflected in the active view") {
-        containsStaticText(window, "Acceptance task") ? nil : true
+    // Wait for the first RPC completion to commit before revealing the
+    // completed section. The original quick-add title was renamed above;
+    // checking for "Acceptance task" here passed immediately and raced the
+    // subsequent restore click, leaving the task completed on slow runners.
+    _ = try waitFor("completed task committed and hidden from active view") { () -> Bool? in
+        guard let completed = find(window, identifier: "smart-view-completed") else {
+            return nil
+        }
+        let countIsOne = [kAXTitleAttribute, kAXValueAttribute, kAXDescriptionAttribute]
+            .contains { stringAttribute(completed, $0) == "1" }
+        return countIsOne &&
+            findTaskTitle(window, text: "Return-edited acceptance task") == nil ? true : nil
+    }
+
+    // Completion is covered with a real native control, but the golden-path
+    // task must remain active so the cold-restart assertion checks the same
+    // task a new user just created and dated. Reveal completed rows, restore
+    // this task, and leave its title/date untouched for restart verification.
+    let showCompleted: AXUIElement = try waitFor("Show Completed action") {
+        findButton(window, title: "Show Completed")
+    }
+    try press(showCompleted, "Show Completed")
+    // The reveal triggers an asynchronous snapshot reload and a row animation.
+    // A title alone can appear before the native checkbox is ready for AXPress.
+    // Require the entire completed-state surface to remain coherent for 250 ms.
+    // Do not retry a failed restore press: a second toggle would mask a bug.
+    var revealedSince: Date?
+    _ = try waitFor("stable completed task and native restore control") { () -> Bool? in
+        let countIsOne = find(window, identifier: "smart-view-completed").map { completed in
+            [kAXTitleAttribute, kAXValueAttribute, kAXDescriptionAttribute]
+                .contains { stringAttribute(completed, $0) == "1" }
+        } ?? false
+        let coherent = countIsOne &&
+            findButton(window, title: "Hide Completed") != nil &&
+            findTaskTitle(window, text: "Return-edited acceptance task") != nil &&
+            find(window, identifier: "task-complete-\(taskID)") != nil
+        if !coherent {
+            revealedSince = nil
+            return nil
+        }
+        if revealedSince == nil { revealedSince = Date() }
+        return Date().timeIntervalSince(revealedSince!) >= 0.25 ? true : nil
+    }
+    try writeJSON(snapshot(window), to: output.appendingPathComponent("before-restore.json"))
+    let restoreCompletion: AXUIElement = try waitFor("completed task restore control") {
+        find(window, identifier: "task-complete-\(taskID)")
+    }
+    try press(restoreCompletion, "task-complete-\(taskID)")
+    try writeJSON(snapshot(window), to: output.appendingPathComponent("after-restore-press.json"))
+    let _: Bool = try waitFor("golden-path task restored and persisted as active") { () -> Bool? in
+        guard let completed = find(window, identifier: "smart-view-completed") else {
+            return nil
+        }
+        let countIsZero = [kAXTitleAttribute, kAXValueAttribute, kAXDescriptionAttribute]
+            .contains { stringAttribute(completed, $0) == "0" }
+        return countIsZero &&
+            findTaskTitle(window, text: "Return-edited acceptance task") != nil ? true : nil
     }
 
     try writeJSON(snapshot(application), to: output.appendingPathComponent("accessibility.json"))
@@ -308,17 +403,21 @@ do {
             "type:quick-add", "press:quick-add-submit",
             "edit:escape-cancel", "edit:return-commit",
             "context-menu:delete", "press:undo-delete",
-            "press:\(completionIdentifier)",
+            "press:\(completionIdentifier)", "press:show-completed",
+            "press:task-complete-\(taskID)",
         ],
         "assertions": [
             "packaged SwiftUI window activated",
+            "fresh profile exposes an actionable first-task empty state",
             "stable AXIdentifiers exposed",
             "RPC-created task appeared",
             "Escape cancelled the focused inline draft and visible Save/Cancel actions were exposed",
             "visible Save acknowledged and committed the inline draft",
+            "Tomorrow was chosen through the native date popover before Save",
             "Return committed a subsequent inline draft",
             "delete undo restored the original task ID",
             "changed Event removed the completed task from the active view",
+            "Show Completed exposed the task and native completion restored it for the golden restart path",
             "native application accepted termination",
         ],
     ], to: output.appendingPathComponent("interaction-trace.json"))
