@@ -122,8 +122,8 @@
 
    ;; parse_due: pure date stays a date; relative days resolve to a date;
    ;; garbage raises the validation error as an error frame.
-   (define-values (due-fixed _df-err) (call-rpc 'parse_due "2026-11-03"))
-   (check-equal? due-fixed "2026-11-03")
+   (define-values (due-fixed _df-err) (call-rpc 'parse_due "2099-01-01"))
+   (check-equal? due-fixed "2099-01-01")
    (define-values (due-rel _dr-err) (call-rpc 'parse_due "tomorrow"))
    (check-true (regexp-match? date-shape due-rel))
    (define-values (_pd-val pd-err) (call-rpc 'parse_due "not a date at all"))
@@ -178,10 +178,10 @@
    (check-equal? (length (cadr (car last-events))) 3)
 
    (define-values (task-b-wire _add-b-err)
-     (call-rpc 'add_task "with due" (void) "2026-11-03" "09:30" "some notes"))
+     (call-rpc 'add_task "with due" (void) "2099-01-01" "09:30" "some notes"))
    (check-false _add-b-err)
    (check-equal? task-b-wire
-                 (list 2 1 "工作" "with due" #f "2026-11-03" "09:30"
+                 (list 2 1 "工作" "with due" #f "2099-01-01" "09:30"
                        "some notes" (list-ref task-b-wire 8)))
 
    (define-values (snap-all _ls-err) (call-rpc 'load_snapshot "all" (void) #f))
@@ -208,7 +208,7 @@
    (define-values (upd-wire _ut-err) (call-rpc 'update_task modified))
    (check-false _ut-err)
    (check-equal? (list-ref upd-wire 3) "edited over the wire")
-   (check-equal? (list-ref upd-wire 5) "2026-11-03")
+   (check-equal? (list-ref upd-wire 5) "2099-01-01")
    (check-equal? (list-ref upd-wire 7) "some notes")
 
    (define-values (renamed-wire _rt-err)
