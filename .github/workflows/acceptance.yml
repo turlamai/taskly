@@ -3,8 +3,9 @@ name: Product Acceptance
 on:
   push:
     branches: [main]
+  # Validate stacked PRs against their real base as well as PRs into main.
+  # Do not let a non-main PR silently bypass the same required suites.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -16,7 +17,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  RIVET_PIN: 9d766b4acab672844093204cb4845ef4ef933d2c
+  RIVET_PIN: 82e4b75b738269b90ef490ebc6c11d30731b8d86
   KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
 
 jobs:
@@ -32,11 +33,47 @@ jobs:
           distribution: full
           variant: CS
           version: '9.3'
-      - name: Install pinned dependencies
+      # Racket 9.3's Windows root-store importer can crash on an invalid
+      # runner certificate (X509*->C #f). Export valid local trust anchors
+      # from the current GitHub runner only; no third-party CA downloads.
+      # and keep TLS certificate/hostname verification enabled.
+      - name: Export trusted Windows root certificates for Racket TLS
         shell: pwsh
         run: |
-          raco pkg install --auto --no-docs "https://github.com/turlamai/keel.git#$env:KEEL_PIN"
-          raco pkg install --auto --no-docs "https://github.com/turlamai/rivet.git#$env:RIVET_PIN"
+          $ErrorActionPreference = 'Stop'
+          $path = Join-Path $env:RUNNER_TEMP 'taskly-trusted-roots.pem'
+          $certs = @()
+          foreach ($store in @('Cert:\LocalMachine\Root', 'Cert:\CurrentUser\Root')) {
+            foreach ($cert in (Get-ChildItem -Path $store)) {
+              try {
+                $raw = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+                if ($raw.Length -gt 0) {
+                  $base64 = [Convert]::ToBase64String(
+                    $raw, [Base64FormattingOptions]::InsertLineBreaks)
+                  $certs += "-----BEGIN CERTIFICATE-----`n$base64`n-----END CERTIFICATE-----"
+                }
+              } catch {
+                Write-Warning "Skipped an unreadable root certificate entry"
+              }
+            }
+          }
+          if ($certs.Count -lt 10) {
+            throw 'Windows root CA export returned too few anchors; refusing to bypass TLS'
+          }
+          [IO.File]::WriteAllText($path, ($certs -join "`n"), [Text.Encoding]::ASCII)
+          "TASKLY_WINDOWS_TRUSTED_ROOTS=$path" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Install pinned dependencies (verified Windows trust roots)
+        shell: pwsh
+        run: |
+          racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs "https://github.com/turlamai/keel.git#$env:KEEL_PIN"
+          racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs "https://github.com/turlamai/rivet.git#$env:RIVET_PIN"
+      # First-run acceptance installs the packaged MSI for real, so the
+      # WiX toolchain ships in this job (the trust-roots wrapper above
+      # covers the Racket TLS legs of the same install).
+      - name: Install WiX (v5; MSI packaging for installed-app acceptance)
+        shell: pwsh
+        run: dotnet tool install --global wix --version 5.0.2
       - name: Verify Windows installer artwork
         shell: pwsh
         run: python scripts/check-windows-installer-bitmaps.py
@@ -76,8 +113,8 @@ jobs:
           version: '9.3'
       - name: Install pinned dependencies
         run: |
-          raco pkg install --auto --no-docs "https://github.com/turlamai/keel.git#${KEEL_PIN}"
-          raco pkg install --auto --no-docs "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
+          bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/keel.git#${KEEL_PIN}"
+          bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
       - name: Render DMG artwork from SVG
         run: |
           brew install librsvg
@@ -99,21 +136,24 @@ jobs:
   linux:
     name: Linux packaged GTK4 acceptance
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # A single Racket catalog request can consume its built-in 30-minute
+    # timeout. Leave room for one bounded retry plus the actual product run.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@9d766b4acab672844093204cb4845ef4ef933d2c
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@82e4b75b738269b90ef490ebc6c11d30731b8d86
       - name: Install native and pinned Racket dependencies
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --yes at-spi2-core dbus-x11 libgtk-4-dev \
-            libadwaita-1-dev libjson-glib-dev libsecret-1-dev python3-pyatspi weston
-          raco pkg install --auto --no-docs "https://github.com/turlamai/keel.git#${KEEL_PIN}"
-          raco pkg install --auto --no-docs "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
-          raco pkg install --auto --no-docs --skip-installed db crypto
+            desktop-file-utils file libadwaita-1-dev libjson-glib-dev \
+            libsecret-1-dev python3-pyatspi rpm weston xvfb openbox x11-utils xdotool
+          bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/keel.git#${KEEL_PIN}"
+          bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
+          bash scripts/install-racket-packages-with-retry.sh db-lib crypto-lib
       - name: Run executable acceptance contract
         shell: bash
         run: |

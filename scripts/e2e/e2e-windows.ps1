@@ -18,11 +18,20 @@ public static class TasklyTitlebarNative {
 
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $output = Join-Path $repo '.rivet\acceptance\windows'
-$executable = Get-ChildItem -LiteralPath (Join-Path $repo 'dist') `
-    -Filter RivetHost.exe -File -Recurse |
-    Where-Object { $_.FullName -match 'taskly-windows-[^\\]+\\RivetHost\.exe$' } |
-    Select-Object -First 1
+$installRecordPath = Join-Path $output 'installed-app.json'
+$installRecord = if (Test-Path -LiteralPath $installRecordPath) {
+    Get-Content -LiteralPath $installRecordPath -Raw | ConvertFrom-Json
+} else { $null }
+$executable = if ($installRecord) {
+    Get-Item -LiteralPath ([string]$installRecord.executable)
+} else {
+    Get-ChildItem -LiteralPath (Join-Path $repo 'dist') `
+        -Filter RivetHost.exe -File -Recurse |
+        Where-Object { $_.FullName -match 'taskly-windows-[^\\]+\\RivetHost\.exe$' } |
+        Select-Object -First 1
+}
 if (-not $executable) { throw 'packaged Taskly executable was not found' }
+$expectedInstallFlavor = if ($installRecord) { 'msi' } else { 'zip' }
 
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 $testHome = Join-Path $output ("home-{0}" -f $PID)
@@ -80,6 +89,8 @@ function Capture-Screen {
 $oldHome = $env:HOME
 $oldProfile = $env:USERPROFILE
 $process = $null
+$restartProcess = $null
+$scenarioComplete = $false
 try {
     $env:HOME = $testHome
     $env:USERPROFILE = $testHome
@@ -149,16 +160,31 @@ try {
         $assetIcon.Dispose()
         # WM_GETICON returns a window-owned HICON: do not DestroyIcon.
     }
+    $windowBounds = $window.Current.BoundingRectangle
+    $screen = [System.Windows.Forms.Screen]::FromHandle(
+        [IntPtr]$window.Current.NativeWindowHandle)
+    $workArea = $screen.WorkingArea
+    $edgeTolerance = 2
+    if ($windowBounds.Left -lt ($workArea.Left - $edgeTolerance) -or
+        $windowBounds.Top -lt ($workArea.Top - $edgeTolerance) -or
+        $windowBounds.Right -gt ($workArea.Right + $edgeTolerance) -or
+        $windowBounds.Bottom -gt ($workArea.Bottom + $edgeTolerance)) {
+        throw ('Taskly window {0} is outside monitor work area {1}' -f
+            $windowBounds, $workArea)
+    }
     $quickAdd = Wait-Until 'quick-add field' { Find-ById $window 'quick-add' }
     $submit = Wait-Until 'quick-add submit button' { Find-ById $window 'quick-add-submit' }
     # The native window becomes automatable before the embedded backend has
     # opened its database. Clicking during that interval intentionally keeps
     # the draft unsent, so wait for the product's real readiness signal.
     [void](Wait-Until 'database connection' { Find-ByName $window 'Database Connected' })
-    [void](Wait-Until 'portable install flavor persisted' {
+    [void](Wait-Until "$expectedInstallFlavor install flavor persisted" {
         if ((Get-Content -LiteralPath (Join-Path $tasklyHome 'config.ini') -Raw) `
-                -match '(?m)^install-flavor = zip$') { return $true }
+                -match "(?m)^install-flavor = $expectedInstallFlavor$") { return $true }
         return $false
+    })
+    [void](Wait-Until 'actionable first-run empty state' {
+        Find-ByName $window 'Add your first task above — try “Plan tomorrow”'
     })
     foreach ($view in @('today', 'planned', 'all', 'completed')) {
         $count = Wait-Until ("visible zero count for {0}" -f $view) {
@@ -312,6 +338,12 @@ try {
     $inlineList = Wait-Until 'compact inline list action' {
         Find-ById $window 'inline-task-list-2'
     }
+    $inlineSave = Wait-Until 'visible inline save action' {
+        Find-ById $window 'inline-task-save-2'
+    }
+    $inlineCancel = Wait-Until 'visible inline cancel action' {
+        Find-ById $window 'inline-task-cancel-2'
+    }
     $compactHeightLimit = [Math]::Max(
         $inlineTitle.Current.BoundingRectangle.Height,
         $inlineNotes.Current.BoundingRectangle.Height) * 1.25
@@ -330,6 +362,16 @@ try {
             $inlineNotes.Current.BoundingRectangle.Top) {
         throw 'inline task editor hierarchy must be title, notes, then details'
     }
+
+    $inlineDateMenu.GetCurrentPattern(
+        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $inlineCalendar = Wait-Until 'native inline calendar picker' {
+        Find-ById $window 'inline-task-calendar-2'
+    }
+    if ($inlineCalendar.Current.IsOffscreen) {
+        throw 'inline task calendar picker opened offscreen'
+    }
+    [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
 
     # The visual order and keyboard order are identical: title first, quieter
     # notes second, then the date/time/list action line.
@@ -361,8 +403,8 @@ try {
         [System.Windows.Automation.ValuePattern]::Pattern).SetValue('2099-12-31')
     $inlineTime.GetCurrentPattern(
         [System.Windows.Automation.ValuePattern]::Pattern).SetValue('10:30')
-    $inlineTitle.SetFocus()
-    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    $inlineSave.GetCurrentPattern(
+        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     [void](Wait-Until 'inline task edit persisted' {
         if ($null -ne (Find-ByName $window $editedPlainTask) -and
             $null -ne (Find-ById $window 'task-notes-2')) { return $true }
@@ -394,11 +436,34 @@ try {
             [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '10:30') {
         throw 'inline task details were not persisted across the backend refresh'
     }
-    $taskInfo = Wait-Until 'collapse inline task details' {
+    $persistedCancel = Wait-Until 'persisted editor cancel action' {
+        Find-ById $window 'inline-task-cancel-2'
+    }
+    $persistedCancel.GetCurrentPattern(
+        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    [void](Wait-Until 'visible Cancel closed the unchanged editor' {
+        if ($null -eq (Find-ById $window 'inline-task-title-2')) { return $true }
+        return $false
+    })
+
+    $taskInfo = Wait-Until 'reopen for Return keyboard commit' {
         Find-ById $window 'task-info-2'
     }
     $taskInfo.GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $returnEditor = Wait-Until 'title editor for Return commit' {
+        Find-ById $window 'inline-task-title-2'
+    }
+    $returnTitle = 'Life-only task saved with Return'
+    $returnEditor.GetCurrentPattern(
+        [System.Windows.Automation.ValuePattern]::Pattern).SetValue($returnTitle)
+    $returnEditor.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    [void](Wait-Until 'Return committed the inline task draft' {
+        if ($null -ne (Find-ByName $window $returnTitle)) { return $true }
+        return $false
+    })
+    $plainTask = $returnTitle
 
     Select-TaskList 1 '工作'
     [void](Wait-Until '工作 view selected' {
@@ -436,14 +501,19 @@ try {
 
     # Native multi-selection must drive real batch completion, not only
     # report a selection capability through UI Automation.
-    $secondLife = 'Second Life batch task'
-    $quickAdd.GetCurrentPattern(
-        [System.Windows.Automation.ValuePattern]::Pattern).SetValue($secondLife)
-    $quickAdd.SetFocus()
-    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-    [void](Wait-Until 'second task saved under 生活' {
-        Find-ByName $window $secondLife
-    })
+    # Keep the golden-path task incomplete so the cold restart verifies the
+    # same list and state the user saved. Batch behavior gets two dedicated
+    # fixtures instead of consuming the persistence fixture.
+    $batchNames = @('Batch completion task one', 'Batch completion task two')
+    foreach ($title in $batchNames) {
+        $quickAdd.GetCurrentPattern(
+            [System.Windows.Automation.ValuePattern]::Pattern).SetValue($title)
+        $quickAdd.SetFocus()
+        [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+        [void](Wait-Until ("batch task saved under 生活: {0}" -f $title) {
+            Find-ByName $window $title
+        })
+    }
     function Select-TaskForBatch {
         param([string]$Title, [bool]$Append)
         $label = Wait-Until ("task label: {0}" -f $Title) {
@@ -460,8 +530,8 @@ try {
             [System.Windows.Automation.SelectionItemPattern]::Pattern)
         if ($Append) { $pattern.AddToSelection() } else { $pattern.Select() }
     }
-    Select-TaskForBatch $plainTask $false
-    Select-TaskForBatch $secondLife $true
+    Select-TaskForBatch $batchNames[0] $false
+    Select-TaskForBatch $batchNames[1] $true
     $batchComplete = Wait-Until 'multi-selection action bar' {
         Find-ById $window 'bulk-complete'
     }
@@ -474,8 +544,8 @@ try {
     $batchComplete.GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     [void](Wait-Until 'both selected tasks completed by a single command' {
-        if ($null -eq (Find-ByName $window $plainTask) -and
-            $null -eq (Find-ByName $window $secondLife)) { return $true }
+        if ($null -eq (Find-ByName $window $batchNames[0]) -and
+            $null -eq (Find-ByName $window $batchNames[1])) { return $true }
         return $false
     })
 
@@ -536,12 +606,64 @@ try {
         return $false
     } 15)
 
+    # A backend changed event proves an RPC round trip; a cold application
+    # restart additionally proves the installed host reopens the same data.
+    $restartProcess = Start-Process -FilePath $executable.FullName -PassThru `
+        -RedirectStandardOutput (Join-Path $output 'application-restart.stdout.log') `
+        -RedirectStandardError (Join-Path $output 'application-restart.stderr.log')
+    $window = Wait-Until 'Taskly window after restart' {
+        $restartProcess.Refresh()
+        if ($restartProcess.HasExited) {
+            throw "Taskly exited before restart verification (exit $($restartProcess.ExitCode))"
+        }
+        $condition = [System.Windows.Automation.PropertyCondition]::new(
+            [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
+            $restartProcess.Id)
+        $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
+    }
+    [void](Wait-Until 'database connection after restart' {
+        Find-ByName $window 'Database Connected'
+    })
+    Select-TaskList 2 '生活'
+    [void](Wait-Until 'saved task after restart' { Find-ByName $window $returnTitle })
+    $restartInfo = Wait-Until 'saved task details after restart' {
+        Find-ById $window 'task-info-2'
+    }
+    $restartInfo.GetCurrentPattern(
+        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $restartDate = Wait-Until 'saved task date after restart' {
+        Find-ById $window 'inline-task-date-2'
+    }
+    $restartTime = Wait-Until 'saved task time after restart' {
+        Find-ById $window 'inline-task-time-2'
+    }
+    if ($restartDate.GetCurrentPattern(
+            [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '2099-12-31' -or
+        $restartTime.GetCurrentPattern(
+            [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '10:30') {
+        throw 'task date/time did not survive a cold installed-app restart'
+    }
+    [ordered]@{
+        platform = 'windows'
+        assertions = @('task title, date, and time survive a cold installed-app restart')
+    } | ConvertTo-Json | Set-Content -LiteralPath `
+        (Join-Path $output 'persistence-restart.json') -Encoding utf8
+    $window.GetCurrentPattern(
+        [System.Windows.Automation.WindowPattern]::Pattern).Close()
+    [void](Wait-Until 'restarted process exit' {
+        $restartProcess.Refresh()
+        if ($restartProcess.HasExited) { return $true }
+        return $false
+    } 15)
+
     [ordered]@{
         platform = 'windows'
         artifact = $executable.FullName
         actions = @('set:quick-add', 'invoke:quick-add-submit', 'toggle:task-complete-1', 'create-list:生活', 'select-list:2', 'enter:quick-add', 'inline:escape-cancel-task-2', 'inline:tab-order-task-2', 'inline:edit-task-2', 'select-list:1', 'select-list:2')
         assertions = @(
             'packaged WinUI window activated',
+            'initial window is fully visible inside the current monitor work area',
+            'fresh profile exposes an actionable first-task empty state',
             'stable UI Automation identifiers exposed',
             'RPC-created task appeared',
             'changed Event removed the completed task from the active view',
@@ -550,16 +672,19 @@ try {
             'Windows task list exposes native multiple selection',
             'Escape cancels a focused inline draft without mutating the task',
             'inline task editor exposes compact accessible date/time/list actions with predictable Tab order',
-            'task details expand inline without PromptAsync and persist title, notes, date, and time',
+            'calendar action exposes a native date grid above visible Save and Cancel actions',
+            'visible Save and Return both persist title, notes, date, and time; visible Cancel closes without mutation',
+            'task title, date, and time survive a cold installed-app restart',
             'view switches preserve task list ownership',
             'global search shows the real owning list for every task',
             'Ctrl/Shift multi-selection completes two tasks in one command',
             'bulk deletion undo restores original rows before backend mutation',
             'batch scheduling is visible and enabled when multiple tasks are selected',
-            'native window close stopped the process'
+            'native window close stopped the process and restart verification exited cleanly'
         )
     } | ConvertTo-Json -Depth 5 |
         Set-Content -LiteralPath (Join-Path $output 'interaction-trace.json') -Encoding utf8
+    $scenarioComplete = $true
 } finally {
     # Archive process state even on a failed or timed-out launch.
     if ($process) {
@@ -581,7 +706,50 @@ try {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
         $process.WaitForExit()
     }
+    if ($restartProcess -and -not $restartProcess.HasExited) {
+        Stop-Process -Id $restartProcess.Id -Force -ErrorAction SilentlyContinue
+        $restartProcess.WaitForExit()
+    }
     if ($process) { $process.Dispose() }
+    if ($restartProcess) { $restartProcess.Dispose() }
     $env:HOME = $oldHome
     $env:USERPROFILE = $oldProfile
+
+    if ($installRecord) {
+        $uninstallLog = Join-Path $output 'msi-uninstall.log'
+        $start = [System.Diagnostics.ProcessStartInfo]::new('msiexec.exe')
+        $start.UseShellExecute = $false
+        foreach ($argument in @('/x', [string]$installRecord.artifact,
+                                 '/qn', '/norestart', '/l*v', $uninstallLog)) {
+            [void]$start.ArgumentList.Add($argument)
+        }
+        $uninstall = [System.Diagnostics.Process]::Start($start)
+        try {
+            if (-not $uninstall.WaitForExit(180000)) {
+                $uninstall.Kill()
+                throw 'MSI uninstall exceeded 180 seconds'
+            }
+            if ($uninstall.ExitCode -ne 0) {
+                throw "MSI uninstall failed with exit code $($uninstall.ExitCode)"
+            }
+        } finally {
+            $uninstall.Dispose()
+        }
+
+        $binaryRemoved = -not (Test-Path -LiteralPath ([string]$installRecord.executable))
+        $shortcutRemoved = -not (Test-Path -LiteralPath ([string]$installRecord.shortcut))
+        $dataPreserved = Test-Path -LiteralPath (Join-Path $tasklyHome 'tasks.db')
+        [ordered]@{
+            installer = 'msi'
+            binaryRemoved = $binaryRemoved
+            shortcutRemoved = $shortcutRemoved
+            dataPreserved = $dataPreserved
+        } | ConvertTo-Json |
+            Set-Content -LiteralPath (Join-Path $output 'install-lifecycle.json') -Encoding utf8
+        if (-not $binaryRemoved) { throw 'MSI uninstall left the installed executable behind' }
+        if (-not $shortcutRemoved) { throw 'MSI uninstall left the Start menu shortcut behind' }
+        if ($scenarioComplete -and -not $dataPreserved) {
+            throw 'MSI uninstall removed the disposable Taskly data unexpectedly'
+        }
+    }
 }

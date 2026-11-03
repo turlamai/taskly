@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-11-02
+
+### Changed
+- Task editing now has a discoverable, cross-platform commit contract: every
+  native inline editor exposes Save and Cancel, date actions lead with Today,
+  Tomorrow and This Weekend above the platform calendar, and saving reports
+  progress before confirmed persistence. Explicit save failures keep the full
+  draft available for correction instead of silently closing it. (#78, #79)
+- Packaged acceptance now prepares and launches the installed MSI, copied DMG
+  application or deb payload, verifies native registration/desktop integration,
+  and proves uninstall removes application files while preserving synthetic
+  user data. Package creation alone no longer counts as installation evidence.
+- Linux task editing now uses GTK4's native menu-button ownership for the date
+  popover, keeping Today/Tomorrow/This Weekend visible and accessible across
+  asynchronous row refreshes instead of leaving the calendar action dead.
+- A zero-configuration first launch now points directly at quick add with a
+  harmless example instead of a dead-end “No tasks” message.
+- Windows, macOS and Linux share Taskly's own warm terracotta action accent and
+  higher-contrast neutral text tokens. CI checks both token parity and WCAG
+  text/control contrast floors so future Rivet applications can reuse the
+  contract without inheriting three visually different palettes.
+- Windows now clamps and centers the preferred 1024×768 window inside the
+  current monitor work area, so taskbar space, small displays and DPI scaling
+  cannot hide header actions off-screen. Packaged UI acceptance enforces the
+  full-window visibility contract.
+- **Releases now publish as clearly labeled unsigned-evaluation prereleases.**
+  The release workflow creates a prerelease titled “Taskly <version>
+  (unsigned evaluation)” and no longer overwrites the versionless
+  `releases/latest/download` installer aliases; a missing or untrusted Ed25519
+  update-signing secret fails the release closed before native packaging
+  starts, and packaged acceptance exports the runner's verified Windows trust
+  roots so Racket TLS stays verified end to end. (#88, #93, #96)
+- CI retries checksum- or timeout-interrupted Racket package installation with
+  a small, bounded backoff. Linux packaged acceptance reserves enough time for
+  one catalog timeout and retry instead of reporting an infrastructure stall
+  as a Taskly interaction failure. Workflows install the declared `db-lib` and
+  `crypto-lib` runtime packages directly instead of pulling documentation-heavy
+  `db` and `crypto` meta-packages.
+- Rivet is pinned to `82e4b75b738269b90ef490ebc6c11d30731b8d86`, the exact
+  upstream PR #361 revision that also makes branded DMG detach resilient to
+  Finder's `resource busy` / already-unmounted race. Taskly's matrix verifies
+  this candidate directly; production signing and notarization remain separate
+  release gates.
+
+### Fixed
+- **In-app updates resolve the canonical release feed and signed artifact
+  URLs after the repository move to `turlamai`.** Update checks and the signed
+  manifest's asset links point at the canonical owner directly instead of
+  depending on the renamed owner's redirect. (#86, #90)
+
+### Site
+- The home page and manual lead with text-first, testable product workflow
+  instructions instead of a dated screenshot, the manual's download navigation
+  points at the existing release section, and the site clarifies the CLI's
+  distribution channel and the macOS screenshot scope. (#75, #91, #94, #97)
+
 ## [0.2.6] - 2026-10-26
 
 ### Fixed
