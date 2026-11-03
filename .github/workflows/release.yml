@@ -302,13 +302,54 @@ jobs:
           # Normalize: the Windows runner's sha256sum emits binary-mode
           # "HASH *name" lines; keep SHA256SUMS uniform in the two-space
           # text form (the msi row was the lone starred line in 0.2.0).
-          cat *.sha256 | sed 's/ \*/  /' > SHA256SUMS
-          # The signed manifest is mandatory. Assemble the remaining
-          # uploads per-glob to avoid shell failures on absent optional formats.
-          uploads=( )
-          for pattern in *.zip *.tar.gz *.dmg *.msi *.deb *.rpm *.AppImage *.sha256; do
-            uploads+=( "$pattern" )
-          done
+          cat *.sha256 | sed 's/ \*/  /' | LC_ALL=C sort -k2 > SHA256SUMS
+          # Check the actual bytes and enforce the complete public matrix.
+          # Developer artifacts stay inside the Actions artifacts.
+          sha256sum --check SHA256SUMS
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          prefix = f"taskly-{version}-"
+          required = {
+              prefix + suffix for suffix in (
+                  "macos-arm64.dmg", "macos-arm64.zip",
+                  "macos-x64.dmg", "macos-x64.zip",
+                  "windows-x64.msi", "windows-x64.zip",
+                  "linux-arm64.tar.gz", "linux-arm64.zip",
+                  "linux-x64.tar.gz", "linux-x64.zip",
+                  "linux-arm64.deb", "linux-amd64.deb",
+                  "linux-aarch64.AppImage", "linux-x86_64.AppImage",
+              )
+          }
+          rows = [line.split() for line in Path("SHA256SUMS").read_text().splitlines()]
+          actual = [row[1] for row in rows if len(row) == 2]
+          # RPM release-number is a packaging revision, not app SemVer;
+          # enforce exactly one per CPU without hard-coding the revision.
+          import re
+          rpm_arches = ("aarch64", "x86_64")
+          rpm = [
+              name for name in actual
+              if re.fullmatch(re.escape(prefix) + r"[0-9]+-linux-(aarch64|x86_64)\.rpm", name)
+          ]
+          for arch in rpm_arches:
+              matching = [name for name in rpm if name.endswith(f"-linux-{arch}.rpm")]
+              if len(matching) != 1:
+                  raise SystemExit(f"Expected one RPM for {arch}, found {matching}")
+          required.update(rpm)
+          if len(rows) != len(actual) or set(actual) != required or len(actual) != len(required):
+              raise SystemExit(
+                  f"Invalid release matrix: missing={sorted(required - set(actual))}, "
+                  f"unexpected={sorted(set(actual) - required)}, duplicates={len(actual)-len(set(actual))}"
+              )
+          for name in actual:
+              if not Path(name).is_file() or Path(name).stat().st_size == 0:
+                  raise SystemExit(f"Missing or empty public artifact: {name}")
+          PY
+          # Canonical versioned packages only. SHA256SUMS replaces public
+          # per-package checksums; the signed updater manifest stays mandatory.
+          mapfile -t uploads < <(awk '{print $2}' SHA256SUMS)
           uploads+=( SHA256SUMS update-manifest.json )
           # Idempotent publish: a failed run leaves the release (and some
           # assets) behind; re-runs edit + re-upload over it instead of
@@ -322,6 +363,15 @@ jobs:
               --notes-file /tmp/notes.md
           fi
           gh release upload "$GITHUB_REF_NAME" --clobber "${uploads[@]}"
+          # A retry against a previously partially published tag must also
+          # remove old sidecars and stale aliases; --clobber only replaces
+          # assets with matching names.
+          mapfile -t published < <(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
+          for name in "${published[@]}"; do
+            if ! printf '%s\n' "${uploads[@]}" | grep -Fxq "$name"; then
+              gh release delete-asset "$GITHUB_REF_NAME" "$name" --yes
+            fi
+          done
       # Evaluation builds deliberately do not populate versionless stable aliases.
       # Restore a stable publication path only after #80 production installer trust
       # and the full release gate have independent evidence.
