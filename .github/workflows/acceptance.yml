@@ -111,6 +111,17 @@ jobs:
           distribution: full
           variant: CS
           version: '9.3'
+      # Cache only pinned Racket packages, not app source, host builds, or
+      # acceptance evidence. A pin or architecture change invalidates cache.
+      - name: Isolate Racket dependency packages
+        run: echo "PLTADDONDIR=$RUNNER_TEMP/taskly-racket-addons" >> "$GITHUB_ENV"
+      - name: Restore pinned Racket dependency cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/taskly-racket-addons
+          key: taskly-macos-racket93-v1-${{ matrix.arch }}-${{ env.RIVET_PIN }}-${{ env.KEEL_PIN }}
+      # Always execute the original dependency-install verification below.
+      # --skip-installed reuses the restored packages when present.
       - name: Install pinned dependencies
         run: |
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/keel.git#${KEEL_PIN}"
