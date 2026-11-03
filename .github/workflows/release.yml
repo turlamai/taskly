@@ -351,6 +351,15 @@ jobs:
               --notes-file /tmp/notes.md
           fi
           gh release upload "$GITHUB_REF_NAME" --clobber "${uploads[@]}"
+          # A retry against a previously partially published tag must also
+          # remove old sidecars and stale aliases; --clobber only replaces
+          # assets with matching names.
+          mapfile -t published < <(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
+          for name in "${published[@]}"; do
+            if ! printf '%s\\n' "${uploads[@]}" | grep -Fxq "$name"; then
+              gh release delete-asset "$GITHUB_REF_NAME" "$name" --yes
+            fi
+          done
       # Evaluation builds deliberately do not populate versionless stable aliases.
       # Restore a stable publication path only after #80 production installer trust
       # and the full release gate have independent evidence.
