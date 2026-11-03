@@ -24,7 +24,7 @@ namespace mx = winrt::Microsoft::UI::Xaml;
 namespace mxc = winrt::Microsoft::UI::Xaml::Controls;
 
 constexpr wchar_t kReleasesUrl[] =
-    L"https://github.com/turinglambdaai/taskly/releases";
+    L"https://github.com/turlamai/taskly/releases";
 
 std::int64_t epoch_seconds() {
   FILETIME now{};

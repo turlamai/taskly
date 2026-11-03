@@ -160,6 +160,6 @@ If repeated native UI patterns justify an abstraction later, extract the
 smallest reusable primitive from real Taskly code.
 
 Missing Rivet capabilities surface as upstream issues/PRs against
-`turinglambdaai/rivet` as product work hits them; the historical backlog of
+`turlamai/rivet` as product work hits them; the historical backlog of
 taskly-driven framework work (and its resolution record) is in git history
 and the rivet issue tracker.

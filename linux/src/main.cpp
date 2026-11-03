@@ -1908,12 +1908,12 @@ void show_about_dialog() {
   gtk_widget_set_halign(links_row2, GTK_ALIGN_CENTER);
   gtk_box_append(GTK_BOX(content), links_row2);
   auto* changelog = gtk_link_button_new(
-      "https://github.com/turinglambdaai/taskly/blob/main/CHANGELOG.md");
+      "https://github.com/turlamai/taskly/blob/main/CHANGELOG.md");
   gtk_button_set_label(GTK_BUTTON(changelog), tr("aboutChangelog").c_str());
   gtk_widget_set_hexpand(changelog, FALSE);
   gtk_box_append(GTK_BOX(links_row2), changelog);
   auto* issue = gtk_link_button_new(
-      "https://github.com/turinglambdaai/taskly/issues");
+      "https://github.com/turlamai/taskly/issues");
   gtk_button_set_label(GTK_BUTTON(issue), tr("aboutReportIssue").c_str());
   gtk_widget_set_hexpand(issue, FALSE);
   gtk_box_append(GTK_BOX(links_row2), issue);
