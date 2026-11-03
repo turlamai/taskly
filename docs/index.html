@@ -283,7 +283,7 @@ html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}@media(
                               linux: 'linux-' + (arch === 'x64' ? 'x86_64' : 'aarch64') + '.AppImage'}[os];
                 var url = page;
                 if (release && !release.draft && !release.prerelease &&
-                    /^v[0-9]+\\.[0-9]+\\.[0-9]+$/.test(release.tag_name)) {
+                    /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(release.tag_name)) {
                     var name = 'taskly-' + release.tag_name.slice(1) + '-' + wanted;
                     var exact = 'https://github.com/turlamai/taskly/releases/download/' + release.tag_name + '/' + name;
                     if ((release.assets || []).some(function (a) {
