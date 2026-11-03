@@ -624,6 +624,15 @@ std::string MainWindow::ViewStringFor(ViewKind kind) {
 MainWindow::MainWindow() {
   InitializeComponent();
   Title(L"Taskly");
+  // Rivet embeds the declared windows-icon as RT_GROUP_ICON resource ID 1.
+  // WinUI 3 does not automatically reuse that EXE icon for AppWindow; use
+  // the shared, module-owned HICON (do not DestroyIcon). Missing resources
+  // keep the native fallback rather than crashing an unpackaged launch.
+  if (HICON const icon =
+          ::LoadIconW(::GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1))) {
+    AppWindow().SetIcon(winrt::Microsoft::UI::IconId{
+        static_cast<std::uint64_t>(reinterpret_cast<UINT_PTR>(icon))});
+  }
   // PRODUCT-SPEC §2: prefer 1024×768 logical, but keep the whole window
   // inside the current monitor's work area. A literal 1024×768 resize on a
   // 1024×768 desktop extends below the taskbar and Windows may also place the
@@ -982,15 +991,11 @@ void MainWindow::ApplyTitleBarTheme() {
   auto const muted = dark ? winrt::Windows::UI::Color{0xFF, 0xA8, 0xA5, 0xA3}
                           : winrt::Windows::UI::Color{0xFF, 0x79, 0x77, 0x75};
   auto titleBar = AppWindow().TitleBar();
-  // The default title-bar icon renders as a blank placeholder glyph for
-  // this MSI install (the exe icon resource is never picked up), which
-  // reads as broken. macOS keeps its title bar free of an app icon, so
-  // hide the icon and its click-menu for a matching look. Taskbar and
-  // Alt-Tab still show the real app icon from the exe resource. On
-  // Windows builds older than the IconShowOptions support this is
-  // simply ignored.
+  // Keep the native icon and system menu (Alt+Space, move/close) available
+  // to Windows users and assistive technology. The branded icon is installed
+  // once in the constructor; theme changes only recolor the title bar.
   titleBar.IconShowOptions(
-      winrt::Microsoft::UI::Windowing::IconShowOptions::HideIconAndSystemMenu);
+      winrt::Microsoft::UI::Windowing::IconShowOptions::ShowIconAndSystemMenu);
   titleBar.BackgroundColor(background);
   titleBar.ForegroundColor(foreground);
   titleBar.InactiveBackgroundColor(background);
