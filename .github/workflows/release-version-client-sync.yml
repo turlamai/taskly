@@ -54,7 +54,7 @@ jobs:
         run: |
           raco pkg install --auto --no-docs "https://github.com/turlamai/keel.git#${KEEL_PIN}"
           raco pkg install --auto --no-docs "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
-          raco pkg install --auto --no-docs db crypto
+          raco pkg install --auto --no-docs db-lib crypto-lib
 
       - name: Regenerate clients from the canonical RPC contract
         run: |
