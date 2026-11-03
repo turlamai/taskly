@@ -302,7 +302,7 @@ jobs:
           # Normalize: the Windows runner's sha256sum emits binary-mode
           # "HASH *name" lines; keep SHA256SUMS uniform in the two-space
           # text form (the msi row was the lone starred line in 0.2.0).
-          cat *.sha256 | sed 's/ \\*/  /' | LC_ALL=C sort -k2 > SHA256SUMS
+          cat *.sha256 | sed 's/ \*/  /' | LC_ALL=C sort -k2 > SHA256SUMS
           # Check the actual bytes and enforce the complete public matrix.
           # Developer artifacts stay inside the Actions artifacts.
           sha256sum --check SHA256SUMS
