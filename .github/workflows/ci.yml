@@ -20,6 +20,7 @@ concurrency:
 # references this so a bump is one edit, not a grep-replace across jobs.
 env:
   RIVET_PIN: 82e4b75b738269b90ef490ebc6c11d30731b8d86
+  KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
 jobs:
   contract:
     name: Contract preflight (i18n + release metadata)
@@ -145,6 +146,17 @@ jobs:
           distribution: full
           variant: CS
           version: '9.3'
+      # Cache only pinned Racket packages, not app source, host builds, or
+      # acceptance evidence. A pin or architecture change invalidates cache.
+      - name: Isolate Racket dependency packages
+        run: echo "PLTADDONDIR=$RUNNER_TEMP/taskly-racket-addons" >> "$GITHUB_ENV"
+      - name: Restore pinned Racket dependency cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/taskly-racket-addons
+          key: taskly-macos-racket93-v1-${{ matrix.arch }}-${{ env.RIVET_PIN }}-${{ env.KEEL_PIN }}
+      # Always execute the original dependency-install verification below.
+      # --skip-installed reuses the restored packages when present.
       - name: Install Rivet (catalog)
         # keel pinned just below the commit that added
         # tests/documentation — it collides with rivet v0.11.0's own
