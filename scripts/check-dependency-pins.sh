@@ -46,6 +46,17 @@ done < <(
 KEEL_PIN="$(env_pin "$ROOT/.github/workflows/acceptance.yml" KEEL_PIN)"
 [[ -n "$KEEL_PIN" ]] || fail "missing KEEL_PIN in acceptance.yml"
 
+# CI and acceptance must have the same source pin, or one workflow could
+# silently reuse a different macOS Racket dependency cache.
+MACOS_DEP_CACHE_KEY='key: taskly-macos-racket93-v1-${{ matrix.arch }}-${{ env.RIVET_PIN }}-${{ env.KEEL_PIN }}'
+for workflow in "${WORKFLOWS[0]}" "${WORKFLOWS[1]}"; do
+  cache_keel_pin="$(env_pin "$workflow" KEEL_PIN)"
+  [[ "$cache_keel_pin" == "$KEEL_PIN" ]] ||
+    fail "KEEL_PIN drift: ${workflow#"$ROOT/"} has $cache_keel_pin, expected $KEEL_PIN"
+  grep -Fq "$MACOS_DEP_CACHE_KEY" "$workflow" ||
+    fail "missing architecture- and pin-scoped macOS dependency cache in ${workflow#"$ROOT/"}"
+done
+
 while IFS= read -r keel_pin; do
   [[ "$keel_pin" == "$KEEL_PIN" ]] ||     fail "Keel pin drift: found $keel_pin, expected $KEEL_PIN"
 done < <(

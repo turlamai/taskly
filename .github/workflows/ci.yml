@@ -19,7 +19,8 @@ concurrency:
 # Single source of truth for the rivet pin; every install step below
 # references this so a bump is one edit, not a grep-replace across jobs.
 env:
-  RIVET_PIN: e9d92aacbe68da8c97d5ac42ed5e45874bc363ab
+  RIVET_PIN: 4fd6d37bef7f13170b35747bc902e436f5083e54
+  KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
 jobs:
   contract:
     name: Contract preflight (i18n + release metadata)
@@ -95,7 +96,7 @@ jobs:
       # Builds and caches the embeddable Racket CS runtime and exports
       # RIVET_RACKET_* (rivet's own composite action).
       - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@e9d92aacbe68da8c97d5ac42ed5e45874bc363ab
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@4fd6d37bef7f13170b35747bc902e436f5083e54
       # Installed after the embeddable runtime so the catalog dependency
       # closure (cext-lib, crypto-lib, keel) resolves against the minimal
       # build — it ships no packages of its own. db-lib backs taskly's storage;
@@ -145,6 +146,17 @@ jobs:
           distribution: full
           variant: CS
           version: '9.3'
+      # Cache only pinned Racket packages, not app source, host builds, or
+      # acceptance evidence. A pin or architecture change invalidates cache.
+      - name: Isolate Racket dependency packages
+        run: echo "PLTADDONDIR=$RUNNER_TEMP/taskly-racket-addons" >> "$GITHUB_ENV"
+      - name: Restore pinned Racket dependency cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/taskly-racket-addons
+          key: taskly-macos-racket93-v1-${{ matrix.arch }}-${{ env.RIVET_PIN }}-${{ env.KEEL_PIN }}
+      # Always execute the original dependency-install verification below.
+      # --skip-installed reuses the restored packages when present.
       - name: Install Rivet (catalog)
         # keel pinned just below the commit that added
         # tests/documentation — it collides with rivet v0.11.0's own

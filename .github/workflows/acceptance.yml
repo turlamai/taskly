@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  RIVET_PIN: e9d92aacbe68da8c97d5ac42ed5e45874bc363ab
+  RIVET_PIN: 4fd6d37bef7f13170b35747bc902e436f5083e54
   KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
 
 jobs:
@@ -111,6 +111,17 @@ jobs:
           distribution: full
           variant: CS
           version: '9.3'
+      # Cache only pinned Racket packages, not app source, host builds, or
+      # acceptance evidence. A pin or architecture change invalidates cache.
+      - name: Isolate Racket dependency packages
+        run: echo "PLTADDONDIR=$RUNNER_TEMP/taskly-racket-addons" >> "$GITHUB_ENV"
+      - name: Restore pinned Racket dependency cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/taskly-racket-addons
+          key: taskly-macos-racket93-v1-${{ matrix.arch }}-${{ env.RIVET_PIN }}-${{ env.KEEL_PIN }}
+      # Always execute the original dependency-install verification below.
+      # --skip-installed reuses the restored packages when present.
       - name: Install pinned dependencies
         run: |
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/keel.git#${KEEL_PIN}"
@@ -142,7 +153,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@e9d92aacbe68da8c97d5ac42ed5e45874bc363ab
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@4fd6d37bef7f13170b35747bc902e436f5083e54
       - name: Install native and pinned Racket dependencies
         shell: bash
         run: |
