@@ -43,6 +43,19 @@ grep -qF "(define app-version \"$VERSION\")" "$ROOT/racket/taskly/version.rkt" |
 grep -qF "(define version \"$VERSION\")" "$ROOT/racket/info.rkt" || \
   fail "racket/info.rkt version does not match VERSION '$VERSION'"
 
+# The release notes are part of the release, not an afterthought: the
+# publish job aborts without a matching section after all three platform
+# builds have run. Catch it in the cheap preflight instead.
+grep -qF "## [$VERSION]" "$ROOT/CHANGELOG.md" || \
+  fail "CHANGELOG.md has no '## [$VERSION]' release section"
+
+# The app manifest build number travels in the update manifest beside the
+# version; a stale build silently weakens version ordering.
+RIVET_RKTD_BUILD="$(sed -nE 's/.*\(build \. ([0-9]+)\).*/\1/p' "$ROOT/rivet.rktd" | head -n1)"
+APP_BUILD="$(sed -nE 's/^\(define app-build ([0-9]+)\).*/\1/p' "$ROOT/racket/taskly/version.rkt" | head -n1)"
+[[ -n "$RIVET_RKTD_BUILD" && "$RIVET_RKTD_BUILD" == "$APP_BUILD" ]] || \
+  fail "rivet.rktd build '${RIVET_RKTD_BUILD:-missing}' does not match app-build '${APP_BUILD:-missing}'"
+
 # The generated native clients embed the same release identity. These files
 # are marked do-not-edit: a mismatch means the tree forgot to regenerate
 # them after the version bump (the 0.1.1 release shipped a stale macOS
