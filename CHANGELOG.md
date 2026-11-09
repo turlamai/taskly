@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-11-09
+
+### Fixed
+- Releases publish as normal releases so the moving
+  `releases/latest/download/update-manifest.json` feed advances. GitHub only
+  resolves that endpoint for non-prerelease releases; while every build was
+  marked prerelease, v0.2.6 clients could never see v0.2.7.
+- The Linux AppImage in-place update no longer reports
+  `path->string: contract violation` after the image has already been
+  replaced: the target stays a path end to end and the terminal state
+  publishes `downloadedPath` before `phase=downloaded`.
+- The Windows portable-ZIP handoff resolves the packaged top-level directory
+  (`taskly-windows-x64/`) instead of assuming a flat archive, only writes
+  `update-success.txt` when the relaunch target exists, and clears a partial
+  payload before restoring the previous directory.
+- Update downloads reject HTML gateway-error pages instead of streaming them
+  into the size/SHA-256 check, and manifest fetches (Racket and macOS) retry
+  transient 5xx responses.
+- Linux persists the detected install shape immediately before every check,
+  removing the first-launch race between the 3 s silent check and the
+  fire-and-forget setting write.
+- macOS: the update service uses the real `taskly.app` bundle name, cancelling
+  a download returns to the offer, and the published update ZIP now passes
+  `codesign --verify --deep --strict` (rivet builds it with `ditto`, keeping
+  framework symlinks).
+
+### Changed
+- The macOS release job verifies the update ZIP's code signature before
+  publishing. The release preflight now also checks the CHANGELOG section,
+  the manifest build number and the client-sync rivet pin.
+- README, the site and both user guides now list the real Linux asset names,
+  the actual check-update menu locations, `/Applications/taskly.app`, the
+  deb/rpm no-download path and Gatekeeper guidance consistent with the user
+  guide.
+
 ## [0.2.7] - 2026-11-02
 
 ### Changed
