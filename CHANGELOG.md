@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-11-09
+
+### Changed
+- The update transport now rejects every non-2xx response by HTTP status
+  (rivet `3f76381`, #435) instead of sniffing for an HTML body. Gateway
+  errors that arrive as plain text or XML now fail with a network error
+  naming the status and URL before a single artifact byte is written,
+  rather than surfacing later as a misleading size/SHA-256 mismatch. The
+  HTML guard stays as defense in depth for a 2xx captive-portal body.
+- Rivet pins move to `3f76381` across CI, Product Acceptance, Release and
+  the client-regeneration workflow; the macOS update client keeps its
+  three-attempt retry for transient 5xx responses.
+
 ## [0.2.8] - 2026-11-09
 
 ### Fixed
