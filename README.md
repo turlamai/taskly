@@ -62,8 +62,9 @@ Development preview; no paid checkout is open. A future official desktop purchas
   [update manifest](shared/spec/UPDATE.md) (Ed25519) and downloads the
   artifact, the host installs it. macOS swaps the bundle in place,
   Windows swaps the install directory via a quit-and-install handoff,
-  Linux replaces an AppImage in place, directs deb/rpm copies at the
-  package manager, and opens the folder for portable tarballs.
+  Linux replaces an AppImage in place, directs deb/rpm and Flatpak
+  copies at the package manager (or `flatpak --user update`), and
+  opens the folder for portable tarballs.
 
 ## Honest gaps
 
@@ -84,8 +85,8 @@ CLI/package filename slug and does not change download URLs or data paths.
 | macOS Intel | `taskly-<version>-macos-x64.zip` | `taskly-<version>-macos-x64.dmg` |
 | Windows x64 | `taskly-<version>-windows-x64.zip` | `taskly-<version>-windows-x64.msi` |
 | Windows ARM64 | runs the x64 build via Windows on ARM's x64 emulation | — |
-| Linux x64 | `taskly-<version>-linux-x64.tar.gz` | `taskly-<version>-linux-amd64.deb` / `taskly-<version>-1-linux-x86_64.rpm` / `taskly-<version>-linux-x86_64.AppImage` |
-| Linux ARM64 | `taskly-<version>-linux-arm64.tar.gz` | `taskly-<version>-linux-arm64.deb` / `taskly-<version>-1-linux-aarch64.rpm` / `taskly-<version>-linux-aarch64.AppImage` |
+| Linux x64 | `taskly-<version>-linux-x64.tar.gz` | `taskly-<version>-linux-amd64.deb` / `taskly-<version>-1-linux-x86_64.rpm` / `taskly-<version>-linux-x86_64.AppImage` / `taskly-<version>-linux-x64.flatpak` |
+| Linux ARM64 | `taskly-<version>-linux-arm64.tar.gz` | `taskly-<version>-linux-arm64.deb` / `taskly-<version>-1-linux-aarch64.rpm` / `taskly-<version>-linux-aarch64.AppImage` / `taskly-<version>-linux-arm64.flatpak` |
 
 Every release carries a `SHA256SUMS` manifest and a signed
 `update-manifest.json` — the in-app updater's feed. Portable zip,
