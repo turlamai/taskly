@@ -1,359 +1,491 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-kit-id="taskly">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Taskly — 简洁专注的任务管理器</title>
-    <meta name="description" content="Taskly 是一款清爽、专注的任务管理器：键盘友好的排程速记、面向 AI 的 JSON CLI。一个共享的 Racket 核心（Rivet）驱动 macOS、Windows 与 Linux 原生应用——数据就是单个本地 SQLite 文件。">
+    <title>Taskly — 一次一件，把生活理顺。</title>
+    <meta name="description" content="Taskly 是 macOS、Windows 与 Linux 上的本地任务管理器：排程速记、井井有条的列表、JSON 命令行，数据存本地 SQLite，无需账号。">
+    <link rel="canonical" href="https://taskly.jrtx.site/">
+    <meta name="theme-color" content="#D97757">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Taskly">
+    <meta property="og:title" content="Taskly — Organize your life, one task at a time.">
+    <meta property="og:description" content="A local-first task manager for macOS, Windows and Linux: scheduling shorthand, organized lists, a JSON CLI, and a single local SQLite file.">
+    <meta property="og:url" content="https://taskly.jrtx.site/">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Taskly — Organize your life, one task at a time.">
+    <meta name="twitter:description" content="A local-first task manager for macOS, Windows and Linux.">
+
+    <!-- Theme pre-paint: no flash before the stylesheet paints. -->
     <script>
-        // Theme anti-flash: set data-theme before the stylesheet loads —
-        // from localStorage when the user picked manually, otherwise the
-        // OS preference.
         (function () {
             var t;
             try { t = localStorage.getItem('taskly-theme'); } catch (e) {}
-            if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            if (t !== 'dark' && t !== 'light') {
+                t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
             document.documentElement.dataset.theme = t;
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=12">
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
-    <link rel="icon" href="taskly.svg" type="image/svg+xml" sizes="any">
-<script>
-var _hmt = _hmt || [];
-(function() {
-  var hm = document.createElement("script");
-  hm.src = "https://hm.baidu.com/hm.js?8e2445912635226bcba0c400bfb6079d";
-  var s = document.getElementsByTagName("script")[0];
-  s.parentNode.insertBefore(hm, s);
-})();
-</script>
-<style id="product-start-style">
-.product-availability{font-size:.95rem;line-height:1.65;max-width:72ch;margin:18px 0;opacity:.85}
-.hero-shot-caption{max-width:72ch;margin:12px auto 0;text-align:center;font-size:.84rem;line-height:1.5;opacity:.8}
-.cli-availability{font-size:.88rem;line-height:1.6;margin:14px 0}.cli-availability a{color:inherit;text-decoration:underline;text-underline-offset:3px}.cli-availability a:focus-visible{outline:2px solid currentColor;outline-offset:3px} .hero .product-availability{margin-left:auto;margin-right:auto}
-.product-start{max-width:1120px;margin:64px auto;padding:32px 24px;border-top:1px solid var(--border,#aaa);font:inherit;line-height:1.65}
-.product-start h2{font-size:clamp(1.7rem,3vw,2.4rem);letter-spacing:-.025em;margin:0 0 16px}.product-start h3{font-size:1.05rem;margin:0 0 10px}.product-start p{margin:0 0 16px;max-width:74ch}.product-start-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;margin:28px 0}.product-start a{text-decoration:underline;text-underline-offset:4px;overflow-wrap:anywhere}.product-start a:focus-visible{outline:2px solid currentColor;outline-offset:5px}.product-start .start-links{display:flex;gap:16px 24px;flex-wrap:wrap}.product-start .start-status{font-weight:600}.product-start .start-limits{font-size:.95em}
-html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}@media(max-width:700px){.product-start{margin:40px auto;padding:24px 20px}.product-start-grid{grid-template-columns:1fr;gap:18px}}
-</style>
-<style>.lang-menu li.lang-choice{padding:0}.lang-menu .lang-choice button{display:block;width:100%;padding:8px 12px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}.lang-menu .lang-choice button:focus-visible{outline:2px solid currentColor;outline-offset:-2px;border-radius:4px}</style>
-<style id="visual-showcase-css">
-/* Visual Showcase: process illustration, intentionally not an app screenshot. */
-.vs-showcase{padding:clamp(48px,7vw,88px) 24px;background:var(--bg,var(--surface,#faf7f2));color:var(--text,var(--ink,#24211d))}
-.vs-showcase *{box-sizing:border-box}
-.vs-showcase .vs-wrap{max-width:1080px;margin:0 auto}
-.vs-showcase .vs-intro{text-align:center;max-width:680px;margin:0 auto 28px}
-.vs-showcase .vs-label{text-transform:uppercase;letter-spacing:.14em;font-size:.7rem;font-weight:700;color:var(--accent,#b85d3f)}
-.vs-showcase h2{font:inherit;font-size:clamp(1.65rem,3.3vw,2.5rem);font-weight:700;line-height:1.2;letter-spacing:-.04em;margin:12px 0}
-.vs-showcase .vs-lead,.vs-showcase .vs-caption{color:var(--text-2,var(--muted,#6b6660));line-height:1.7}
-.vs-showcase .vs-frame{padding:clamp(18px,3vw,34px);border:1px solid var(--border,var(--line,#e8e2d9));background:var(--bg-card,var(--surface,#fff));border-radius:24px;box-shadow:0 20px 60px rgba(36,29,18,.07);overflow:hidden}
-.vs-showcase .vs-stage{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.vs-showcase .vs-step{position:relative;min-height:170px;padding:22px 18px;border-radius:16px;background:var(--bg,var(--surface,#faf7f2));border:1px solid var(--border,var(--line,#e8e2d9))}
-.vs-showcase .vs-step:not(:last-child):after{content:"→";position:absolute;z-index:1;right:-15px;top:50%;transform:translateY(-50%);width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:var(--bg-card,var(--surface,#fff));color:var(--accent,#b85d3f);border:1px solid var(--border,var(--line,#e8e2d9))}
-.vs-showcase .vs-glyph{font-size:1.75rem;display:block;margin-bottom:24px;color:var(--accent,#b85d3f)}
-.vs-showcase .vs-step b{display:block;font-size:1.03rem;margin-bottom:7px}
-.vs-showcase .vs-step small{display:block;color:var(--text-2,var(--muted,#6b6660));font-size:.84rem;line-height:1.5}
-.vs-showcase .vs-caption{font-size:.79rem;text-align:center;margin:16px 0 0}
-.vs-showcase .vs-art{margin-bottom:22px;background:var(--bg,var(--surface,#f6f3ed));border:1px solid var(--border,var(--line,#e8e2d9));border-radius:18px;padding:22px;overflow:hidden;min-height:185px}
-.vs-showcase .vs-task-art{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
-.vs-showcase .vs-mini-board{background:var(--bg-card,var(--surface,#fff));border-radius:14px;border:1px solid var(--border,var(--line,#e8e2d9));padding:15px;box-shadow:0 6px 24px rgba(10,10,10,.04)}
-.vs-showcase .vs-mini-title{font-size:.76rem;color:var(--text-2,var(--muted,#6b6660));font-weight:700;margin-bottom:12px}
-.vs-showcase .vs-mini-task{display:flex;align-items:center;gap:10px;padding:9px 3px;border-top:1px solid var(--border,var(--line,#e8e2d9));font-size:.9rem}
-.vs-showcase .vs-ring{flex:none;height:17px;width:17px;border:2px solid var(--accent,#b85d3f);border-radius:50%}
-.vs-showcase .vs-ring.done{background:var(--accent,#b85d3f);position:relative}.vs-showcase .vs-ring.done:after{content:"✓";color:#fff;font-size:12px;position:absolute;left:2px;top:-3px}
-.vs-showcase .vs-mini-tag{margin-left:auto;color:var(--accent,#b85d3f);background:var(--accent-soft,#f7e5dd);font-size:.7rem;padding:3px 6px;border-radius:6px}
-.vs-showcase .vs-reader-art{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}
-.vs-showcase .vs-paper,.vs-showcase .vs-annotation{border-radius:14px;background:var(--bg-card,var(--surface,#fff));border:1px solid var(--border,var(--line,#e8e2d9));padding:18px}
-.vs-showcase .vs-paper-title{font-size:.75rem;letter-spacing:.1em;color:var(--text-2,var(--muted,#6b6660));margin-bottom:22px}
-.vs-showcase .vs-line{height:9px;background:var(--border,var(--line,#e8e2d9));border-radius:8px;margin:12px 0;max-width:100%}
-.vs-showcase .vs-line.short{width:57%}.vs-showcase .vs-line.mid{width:82%}
-.vs-showcase .vs-highlight{height:15px;border-radius:3px;width:72%;background:color-mix(in srgb,var(--accent,#d97757) 32%,transparent)}
-.vs-showcase .vs-note-label{font-size:.72rem;letter-spacing:.09em;color:var(--accent,#b85d3f);font-weight:800}
-.vs-showcase .vs-note-body{font-size:.93rem;line-height:1.7;margin:18px 0}
-.vs-showcase .vs-note-foot{font-size:.75rem;color:var(--text-2,var(--muted,#6b6660))}
-html:lang(en) .vs-zh,html:lang(zh) .vs-en{display:none!important}
-@media(max-width:700px){.vs-showcase .vs-stage{grid-template-columns:1fr}.vs-showcase .vs-step{min-height:120px}.vs-showcase .vs-step:not(:last-child):after{right:calc(50% - 14px);top:auto;bottom:-15px;transform:rotate(90deg)}.vs-showcase .vs-glyph{margin-bottom:12px}.vs-showcase .vs-reader-art{grid-template-columns:1fr 1fr}.vs-showcase .vs-art{padding:14px}}
-@media(prefers-reduced-motion:reduce){.vs-showcase *, .vs-showcase *:before,.vs-showcase *:after{animation:none!important;transition:none!important}}
-</style>
+
+    <link rel="icon" type="image/svg+xml" href="taskly.svg">
+    <link rel="stylesheet" href="family.css">
+    <link rel="stylesheet" href="site.css">
+    <link rel="preload" href="fonts/newsreader-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+    <script src="family.js" defer></script>
 </head>
 
 <body>
-
-    <!-- Nav -->
-    <nav class="nav-container">
-        <div class="nav-wrapper">
-            <div class="nav-brand">
-                <svg class="nav-logo" width="28" height="28" viewBox="0 0 512 512" fill="none">
-                    <rect width="512" height="512" rx="115" fill="#c15f3c"/>
-                    <polyline points="156,276 232,352 372,192" fill="none" stroke="#FFFFFF" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+    <header class="kit-nav">
+        <div class="kit-container kit-nav-inner">
+            <a class="kit-brand" href="/">
+                <svg class="kit-brand-mark" viewBox="0 0 512 512" fill="none" aria-hidden="true">
+                    <rect width="512" height="512" rx="115" fill="#D97757"/>
+                    <path d="M150 262 L222 334 L366 178" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
                 </svg>
-                Taskly
-            </div>
-            <ul class="nav-menu">
-                <li><a href="#features" data-i18n="nav.features">功能</a></li>
-                <li><a href="manual.html" data-i18n="nav.manual">手册</a></li>
-                <li><a href="#cli" data-i18n="nav.cli">命令行</a></li>
-                <li><a href="#release" data-i18n="nav.release">发布</a></li>
-
-                <!-- Language Dropdown -->
-                <li class="lang-dropdown-wrapper">
-                    <button class="lang-btn">
-                        <svg class="globe-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="2" y1="12" x2="22" y2="12"></line>
-                            <path
-                                d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
-                            </path>
-                        </svg>
-                        <span id="current-lang-label">简体中文</span>
+                <span>Taskly</span>
+            </a>
+            <nav class="kit-nav-links">
+                <a href="#features" data-i18n="nav.features">功能</a>
+                <a href="#cli" data-i18n="nav.cli">CLI</a>
+                <a href="#release" data-i18n="nav.release">发布</a>
+                <a href="manual.html" data-i18n="nav.manual">手册</a>
+                <a href="https://github.com/turlamai/taskly" data-i18n="nav.github">GitHub</a>
+            </nav>
+            <div class="kit-nav-actions">
+                <div class="kit-lang">
+                    <button class="kit-lang-btn" type="button" aria-haspopup="true" aria-expanded="false">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c-4.6 4-4.6 8.4 0 12.4 4.6-4 4.6-8.4 0-12.4z"/></svg>
+                        <span class="kit-lang-current">简体中文</span>
                     </button>
-                    <ul class="lang-menu">
-                        <li class="lang-choice"><button type="button" onclick="setLanguage('en')">English</button></li>
-                        <li class="lang-choice"><button type="button" onclick="setLanguage('zh')">简体中文</button></li>
+                    <ul class="kit-lang-menu">
+                        <li><button type="button" data-kit-lang="zh">简体中文</button></li>
+                        <li><button type="button" data-kit-lang="en">English</button></li>
                     </ul>
-                </li>
-                <li><button class="theme-btn" id="theme-btn" type="button" aria-label="切换主题">◐</button></li>
-            </ul>
-        </div>
-    </nav>
-
-    <!-- Hero -->
-    <section class="hero" id="overview">
-        <div class="container">
-            <span class="eyebrow animate-on-scroll" data-i18n="hero.eyebrow">开源 · 本地优先 · 每个桌面都原生</span>
-            <h1 class="animate-on-scroll">
-                <span data-i18n="hero.h1a">规划你的生活，</span>
-                <span class="accent" data-i18n="hero.h1b">一次一件。</span>
-            </h1>
-<p class="reader-en product-availability" lang="en">Development preview; no paid checkout is open. A future official desktop purchase will be announced with its delivered terms.</p><p class="reader-zh product-availability" lang="zh">开发预览，尚未开放付费购买。未来官方桌面版开售时再公布实际交付条款。</p>
-            <p class="lead animate-on-scroll" data-i18n="hero.lead">
-                Taskly 是一款清爽、专注的任务管理器：支持便捷的排程速记、另提供可从源码运行的命令行工具用于自动化，并为每个桌面平台提供原生应用。数据始终归你所有。
-            </p>
-
-            <div class="hero-buttons animate-on-scroll">
-                <a href="https://github.com/turlamai/taskly/releases/latest" data-release-suffix="macos-arm64.dmg" class="btn btn-primary" data-i18n="hero.download">下载 Taskly</a>
-                <a href="https://github.com/turlamai/taskly" class="btn btn-secondary" data-i18n="hero.github">在 GitHub 查看</a>
-            </div>
-
-            <div class="app-window animate-on-scroll" style="padding:28px 24px;">
-                <p class="reader-en hero-shot-caption" lang="en">Try a list and a non-sensitive task, confirm the parsed due date, then complete and reopen it. A successful session is one where the task state survives restart; details and shortcuts are in the text-first manual.</p>
-                <p class="reader-zh hero-shot-caption" lang="zh">先创建清单和一条非敏感任务，确认解析日期后完成任务并重新打开。若任务状态在重启后仍保留，即可验证基本流程；详情与快捷键见文字手册。</p>
+                </div>
+                <button class="kit-icon-btn kit-theme-toggle" type="button" aria-pressed="false" aria-label="Theme">
+                    <svg class="kit-icon-sun" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10" cy="10" r="4"/><path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4 4l1.4 1.4M14.6 14.6L16 16M16 4l-1.4 1.4M5.4 14.6L4 16"/></svg>
+                    <svg class="kit-icon-moon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M16.5 12.2A7 7 0 0 1 7.8 3.5a7 7 0 1 0 8.7 8.7z"/></svg>
+                </button>
             </div>
         </div>
-    </section>
-<!-- Visual Showcase: process illustration, not an application screenshot. -->
-<section class="vs-showcase" id="visual-showcase" aria-label="Product workflow illustration">
-  <div class="vs-wrap"><div class="vs-intro"><span class="vs-label">PRODUCT IN CONTEXT · 产品如何工作</span>
-    <h2><span class="vs-zh" lang="zh-CN">在收集与完成之间，保持清楚。</span><span class="vs-en" lang="en">From capture to completion, clearly.</span></h2><p class="vs-lead"><span class="vs-zh" lang="zh-CN">一个简短的日常任务流：记录、安排、复查。这里展示工作方式，而不是提前冻结仍在打磨的桌面界面。</span><span class="vs-en" lang="en">A simple daily flow: capture, schedule, review. The illustration explains the experience without freezing an evolving desktop UI.</span></p>
-  </div><div class="vs-frame"><div class="vs-art vs-task-art" aria-label="任务管理流程示意 / Task management workflow illustration"><div class="vs-mini-board"><div class="vs-mini-title">INBOX / 收件箱</div><div class="vs-mini-task"><span class="vs-ring"></span><span>整理项目笔记</span></div><div class="vs-mini-task"><span class="vs-ring"></span><span>发送周报</span></div></div><div class="vs-mini-board"><div class="vs-mini-title">TODAY / 今天</div><div class="vs-mini-task"><span class="vs-ring"></span><span>发送周报</span><span class="vs-mini-tag">Today</span></div><div class="vs-mini-task"><span class="vs-ring done"></span><span>整理项目笔记</span></div></div></div><div class="vs-stage"><div class="vs-step"><span class="vs-glyph" aria-hidden="true">＋</span><b><span class="vs-zh" lang="zh-CN">随手记录</span><span class="vs-en" lang="en">Capture</span></b><small><span class="vs-zh" lang="zh-CN">快速记下需要完成的事。</span><span class="vs-en" lang="en">Record a task without breaking focus.</span></small></div><div class="vs-step"><span class="vs-glyph" aria-hidden="true">▦</span><b><span class="vs-zh" lang="zh-CN">安排日期</span><span class="vs-en" lang="en">Schedule</span></b><small><span class="vs-zh" lang="zh-CN">把任务放到合适的时间。</span><span class="vs-en" lang="en">Give the task a useful due date.</span></small></div><div class="vs-step"><span class="vs-glyph" aria-hidden="true">✓</span><b><span class="vs-zh" lang="zh-CN">完成与复查</span><span class="vs-en" lang="en">Review</span></b><small><span class="vs-zh" lang="zh-CN">完成任务，重新打开确认保存。</span><span class="vs-en" lang="en">Complete it and check persistence after restart.</span></small></div></div>
-  <p class="vs-caption"><span class="vs-zh" lang="zh-CN">功能流程示意，非软件界面截图。实际界面、可用性与交互以当前安装版本和用户手册为准。</span><span class="vs-en" lang="en">Conceptual workflow, not an app screenshot. Refer to the installed version and user guide for actual UI and availability.</span></p>
-  </div></div>
-</section>
-<!-- End Visual Showcase -->
+    </header>
 
-
-    <!-- Features (Bento Grid) -->
-    <section id="features">
-        <div class="container">
-            <h2 class="section-title text-center animate-on-scroll" data-i18n="features.title">设计，是为了退到幕后。</h2>
-            <p class="section-subtitle text-center animate-on-scroll" data-i18n="features.subtitle">
-                宁静的色彩、考究的排版，没有多余的东西。让你专注于执行，而非管理。
-            </p>
-
-            <div class="bento-grid">
-                <!-- Card 1: Smart Parsing (Large) -->
-                <div class="bento-card span-2 animate-on-scroll">
-                    <div class="card-icon">⚡️</div>
-                    <h3 data-i18n="f1.title">排程速记</h3>
-                    <p data-i18n="f1.body">
-                        给任务加个修饰符：「Standup @9am」「买牛奶 +1d」「发布 @5pm fri」。Taskly 提取时间，剩下就是任务。无需拨盘，无需翻日历。
-                    </p>
-                    <a href="manual.html#shortcuts" class="card-tag" data-i18n="f1.tag">查看完整语法 →</a>
+    <main>
+        <section class="kit-hero" id="overview">
+            <div class="kit-container">
+                <span class="kit-eyebrow" data-i18n="hero.eyebrow">开源 · 本地优先 · 每个桌面都原生</span>
+                <h1><span data-i18n="hero.h1a">规划你的生活，</span> <span class="kit-accent-word" data-i18n="hero.h1b">一次一件。</span></h1>
+                <p class="kit-lead" data-i18n="hero.lead">Taskly 是一款清爽、专注的任务管理器：支持便捷的排程速记、另提供可从源码运行的命令行工具用于自动化，并为每个桌面平台提供原生应用。数据始终归你所有。</p>
+                <div class="kit-btn-row">
+                    <div class="kit-dl">
+                        <a class="kit-btn kit-btn--primary" data-kit-dl-primary href="https://github.com/turlamai/taskly/releases/latest">
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 2.5v10M6 9l4 4 4-4M3.5 16.5h13"/></svg>
+                            <span class="kit-dl-label" data-i18n="dl.generic">获取 Taskly</span>
+                        </a>
+                        <button class="kit-dl-caret" type="button" aria-haspopup="true" aria-expanded="false" aria-label="All platforms">
+                            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 5.5L7 9.5l4-4"/></svg>
+                        </button>
+                        <ul class="kit-dl-menu">
+                            <li><a href="https://github.com/turlamai/taskly/releases/latest" data-kit-dl="mac"><span class="kit-dl-os" data-i18n="dl.mac">macOS 版</span><span class="kit-dl-kind">.dmg</span></a></li>
+                            <li><a href="https://github.com/turlamai/taskly/releases/latest" data-kit-dl="win"><span class="kit-dl-os" data-i18n="dl.win">Windows 版</span><span class="kit-dl-kind">.msi</span></a></li>
+                            <li><a href="https://github.com/turlamai/taskly/releases/latest" data-kit-dl="linux"><span class="kit-dl-os" data-i18n="dl.linux">Linux 版</span><span class="kit-dl-kind">.AppImage</span></a></li>
+                            <li class="kit-dl-note kit-hidden" data-i18n="dl.note">当前平台请前往 Releases 页面选取对应安装包。</li>
+                        </ul>
+                    </div>
+                    <a class="kit-btn kit-btn--secondary" href="https://github.com/turlamai/taskly" data-i18n="hero.github">在 GitHub 查看</a>
                 </div>
+                <p class="kit-hero-meta"><span class="kit-badge" data-i18n="hero.availability">开发预览，尚未开放付费购买。未来官方桌面版开售时再公布实际交付条款。</span></p>
+            </div>
+        </section>
 
-                <!-- Card 2: Privacy -->
-                <div class="bento-card animate-on-scroll">
-                    <div class="card-icon">🔒</div>
-                    <h3 data-i18n="f2.title">隐私优先</h3>
-                    <p data-i18n="f2.body">
-                        任务存储在本地 SQLite 数据库。无需账号，无云端，无追踪。
-                    </p>
+        <!-- Workflow illustration -->
+        <section class="kit-section kit-section--alt" id="visual-showcase" aria-label="Product workflow illustration">
+            <div class="vs-wrap">
+                <div class="vs-intro">
+                    <span class="vs-label">PRODUCT IN CONTEXT · 产品如何工作</span>
+                    <h2 data-i18n="wf.title">在收集与完成之间，保持清楚。</h2>
+                    <p class="vs-lead" data-i18n="wf.lead">一个简短的日常任务流：记录、安排、复查。这里展示工作方式，而不是提前冻结仍在打磨的桌面界面。</p>
                 </div>
-
-                <!-- Card 3: Cross Platform -->
-                <div class="bento-card animate-on-scroll">
-                    <div class="card-icon">💻</div>
-                    <h3 data-i18n="f3.title">真正的跨平台</h3>
-                    <p data-i18n="f3.body">
-                        macOS、Windows、Linux 原生应用，到处都是同样清爽的界面。
-                    </p>
-                </div>
-
-                <!-- Card 4: Sync -->
-                <div class="bento-card span-2 animate-on-scroll">
-                    <div class="card-icon">🔄</div>
-                    <h3 data-i18n="f4.title">备份与安全迁移</h3>
-                    <p data-i18n="f4.body">
-                        退出所有 Taskly 进程后备份整个数据目录。不要让多台设备同时编辑备份与迁移中的 SQLite 文件；WAL 不提供跨设备文件同步。
-                    </p>
-                    <span class="card-tag" data-i18n="f4.tag">保留你的副本。</span>
+                <div class="vs-frame">
+                    <div class="vs-boards" aria-hidden="true">
+                        <div class="vs-board">
+                            <div class="vs-board-title" data-i18n="wf.inbox">收件箱</div>
+                            <div class="vs-task"><span class="vs-ring"></span><span data-i18n="wf.task1">整理项目笔记</span></div>
+                            <div class="vs-task"><span class="vs-ring"></span><span data-i18n="wf.task2">发送周报</span></div>
+                        </div>
+                        <div class="vs-board">
+                            <div class="vs-board-title" data-i18n="wf.today">今天</div>
+                            <div class="vs-task"><span class="vs-ring"></span><span data-i18n="wf.task2">发送周报</span><span class="vs-mini-tag" data-i18n="wf.today">今天</span></div>
+                            <div class="vs-task is-done"><span class="vs-ring done"></span><span data-i18n="wf.task1">整理项目笔记</span></div>
+                        </div>
+                    </div>
+                    <div class="vs-stage">
+                        <div class="vs-step"><span class="vs-glyph" aria-hidden="true">＋</span><b data-i18n="wf.s1t">随手记录</b><small data-i18n="wf.s1b">快速记下需要完成的事。</small></div>
+                        <div class="vs-step"><span class="vs-glyph" aria-hidden="true">▦</span><b data-i18n="wf.s2t">安排日期</b><small data-i18n="wf.s2b">把任务放到合适的时间。</small></div>
+                        <div class="vs-step"><span class="vs-glyph" aria-hidden="true">✓</span><b data-i18n="wf.s3t">完成与复查</b><small data-i18n="wf.s3b">完成任务，重新打开确认保存。</small></div>
+                    </div>
+                    <p class="vs-caption" data-i18n="wf.caption">功能流程示意，非软件界面截图。实际界面、可用性与交互以当前安装版本和用户手册为准。</p>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- CLI Section -->
-    <section id="cli">
-        <div class="container">
-            <div class="bento-grid">
-                <!-- CLI feature card (dark, emphasized) -->
-                <div class="bento-card span-2 cli-card animate-on-scroll">
-                    <div class="card-icon">⌘</div>
-                    <h3 data-i18n="cli.title">会输出 JSON 的命令行</h3>
-                    <p data-i18n="cli.body">
-                        Taskly 的每一项操作都有稳定的 JSON 命令行——脚本化、管道传递、交给 AI 代理。稳定的退出码、结构化输出，毫无意外。
-                    </p>
-                    <div class="code-block"><span class="comment"># add a task, get JSON back</span>
-<span class="prompt">$</span> taskly add <span class="str">"Ship landing-page @friday 5pm"</span> <span class="flag">--list</span> <span class="str">"Work"</span> <span class="flag">--json</span>
-<span class="prompt">$</span> taskly list <span class="flag">--status</span> <span class="str">incomplete</span> <span class="flag">--json</span> <span class="flag">|</span> jq <span class="str">'.[] | .text'</span></div>
-                    <p class="reader-en cli-availability" lang="en">The desktop downloads do not yet include a standalone <code>taskly</code> CLI. These examples require <a href="https://github.com/turlamai/taskly/blob/main/README.md#cli-from-source">running the CLI from source</a>.</p>
-                    <p class="reader-zh cli-availability" lang="zh">桌面安装包目前不包含独立的 <code>taskly</code> CLI。以上示例需要<a href="https://github.com/turlamai/taskly/blob/main/README.zh-CN.md">从源码运行 CLI</a>。</p>
-                    <span class="card-tag" data-i18n="cli.tag">为自动化而生。</span>
-                </div>
-
-                <!-- Card: Organized lists -->
-                <div class="bento-card animate-on-scroll">
-                    <div class="card-icon">📂</div>
-                    <h3 data-i18n="lists.title">井井有条的列表</h3>
-                    <p data-i18n="lists.body">
-                        将工作、生活与创意分入各自着色的列表，互不干扰。
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Release Section -->
-    <section id="release">
-        <div class="container text-center">
-            <span class="eyebrow animate-on-scroll" data-i18n="release.eyebrow">发布</span>
-            <h2 class="section-title animate-on-scroll" data-i18n="release.title">三大桌面，一个核心。</h2>
-            <p class="section-subtitle animate-on-scroll" data-i18n="release.subtitle">
-                Taskly 覆盖 macOS（SwiftUI）、Windows（WinUI 3）与 Linux（GTK4）——共享 Racket 核心驱动轻薄的第一方宿主，JSON CLI 由 63 例 golden 套件钉死，数据就是单个本地 SQLite 文件。桌面 GUI 可下载安装；CLI 目前需从源码运行。
-            </p>
-
-            <div class="bento-grid">
-                <div class="bento-card animate-on-scroll">
-                    <div class="card-icon">✅</div>
-                    <h3 data-i18n="r1.title">三端原生 · 一个核心</h3>
-                    <p data-i18n="r1.body">
-                        macOS 用 SwiftUI，Windows 用 WinUI 3，Linux 用 GTK4——每个平台都是第一方手感，全部逻辑在一个 Racket CS 核心里经类型化 RPC 驱动它们。
-                    </p>
-                </div>
-                <div class="bento-card animate-on-scroll">
-                    <div class="card-icon">🔄</div>
-                    <h3 data-i18n="r2.title">应用内更新 · 三平台</h3>
-                    <p data-i18n="r2.body">
-                        启动时静默检查 + 设置里手动检查。后端验证 Ed25519 签名的更新清单并下载产物，宿主负责安装——绝不碰你的数据。
-                    </p>
-                </div>
-                <div class="bento-card animate-on-scroll">
-                    <div class="card-icon">🤖</div>
-                    <h3 data-i18n="r3.title">Agent CLI · Golden 钉死</h3>
-                    <p data-i18n="r3.body">
-                        无头 CLI，稳定的 JSON 输出与退出码：`taskly add "买牛奶" --due tomorrow --json`。跨平台字节级一致由 CI 中的 63 例 golden 套件钉死。
-                    </p>
-                </div>
-                <div class="bento-card animate-on-scroll">
-                    <div class="card-icon">📄</div>
-                    <h3 data-i18n="r4.title">开放核心 · AGPL-3.0</h3>
-                    <p data-i18n="r4.body">
-                        桌面核心开源——自由使用、分叉与研究。数据格式与 CLI 都是成文的契约，而非偶然。
-                    </p>
+        <!-- Features -->
+        <section class="kit-section" id="features">
+            <div class="kit-container">
+                <span class="kit-kicker" style="text-align:center; display:block;" data-i18n="features.kicker">设计原则</span>
+                <h2 class="kit-h2" style="text-align:center; margin-inline:auto;" data-i18n="features.title">设计，是为了退到幕后。</h2>
+                <p class="kit-lead" style="text-align:center; margin-inline:auto;" data-i18n="features.subtitle">宁静的色彩、考究的排版，没有多余的东西。让你专注于执行，而非管理。</p>
+                <div class="kit-grid kit-grid--3" style="margin-top: 44px;">
+                    <div class="kit-card" style="grid-column: span 2;">
+                        <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+                        <h3 data-i18n="f1.title">排程速记</h3>
+                        <p data-i18n="f1.body">给任务加个修饰符：「Standup @9am」「买牛奶 +1d」「发布 @5pm fri」。Taskly 提取时间，剩下就是任务。无需拨盘，无需翻日历。</p>
+                        <p style="margin-top: 14px;"><a href="manual.html#shortcuts" data-i18n="f1.tag">查看完整语法 →</a></p>
+                    </div>
+                    <div class="kit-card">
+                        <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+                        <h3 data-i18n="f2.title">隐私优先</h3>
+                        <p data-i18n="f2.body">任务存储在本地 SQLite 数据库。无需账号，无云端，无追踪。</p>
+                    </div>
+                    <div class="kit-card">
+                        <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+                        <h3 data-i18n="f3.title">真正的跨平台</h3>
+                        <p data-i18n="f3.body">macOS、Windows、Linux 原生应用，到处都是同样清爽的界面。</p>
+                    </div>
+                    <div class="kit-card" style="grid-column: span 2;">
+                        <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><path d="M12 15V3"/></svg></span>
+                        <h3 data-i18n="f4.title">备份与安全迁移</h3>
+                        <p data-i18n="f4.body">退出所有 Taskly 进程后备份整个数据目录。不要让多台设备同时编辑备份与迁移中的 SQLite 文件；WAL 不提供跨设备文件同步。</p>
+                        <p style="margin-top: 14px;"><span class="kit-badge" data-i18n="f4.tag">保留你的副本。</span></p>
+                    </div>
                 </div>
             </div>
+        </section>
 
-            <div class="download-cta">
-                <a href="https://github.com/turlamai/taskly/releases/latest" data-release-suffix="macos-arm64.dmg" class="btn btn-primary">
-                    <span data-i18n="cta.download">从 Releases 下载</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-                </a>
-                <a href="manual.html" class="btn btn-secondary" data-i18n="cta.manual">阅读手册</a>
-                <a href="https://github.com/turlamai/taskly/releases" class="btn btn-secondary" data-i18n="cta.all-releases">全部版本</a>
-            </div>
-
-            <p class="section-subtitle animate-on-scroll" style="margin-top:24px; font-size:14px;" data-i18n="release.note">
-                每个版本都带 SHA256SUMS 与签名更新清单；macOS 包为 ad-hoc 签名，预览版被 Gatekeeper 拦截属预期——不要关闭系统防护，请核对校验和并使用可信构建（`/Applications/taskly.app`）。
-            </p>
-        </div>
-    </section>
-
-    <!-- Footer -->
-    <section id="start-here" class="product-start" aria-label="Get started / 开始使用">
-<h2 class="reader-en " lang="en">Start with one useful session.</h2><h2 class="reader-zh " lang="zh">从一次有效使用开始。</h2><p class="reader-en start-status" lang="en">Development preview; no paid checkout is open. A future official desktop purchase will be announced with its delivered terms.</p><p class="reader-zh start-status" lang="zh">开发预览，尚未开放付费购买。未来官方桌面版开售时再公布实际交付条款。</p><p class="reader-en " lang="en">Desktop previews for macOS, Windows and Linux. Select the OS and CPU shown on the release asset; mobile and watch applications are not delivered products.</p><p class="reader-zh " lang="zh">提供 macOS、Windows、Linux 桌面预览版。按发布附件标注选择系统与 CPU；移动端和手表端尚未交付。</p><div class="product-start-grid"><article><h3 class="reader-en " lang="en">01</h3><h3 class="reader-zh " lang="zh">01</h3><p class="reader-en " lang="en">Create a list and add one non-sensitive task. Check the parsed date before saving.</p><p class="reader-zh " lang="zh">创建清单，添加一条不含敏感信息的任务；保存前核对解析出的日期。</p></article><article><h3 class="reader-en " lang="en">02</h3><h3 class="reader-zh " lang="zh">02</h3><p class="reader-en " lang="en">Complete the task, reopen the application and confirm the saved state.</p><p class="reader-zh " lang="zh">完成任务，重新打开应用，确认状态已保存。</p></article><article><h3 class="reader-en " lang="en">03</h3><h3 class="reader-zh " lang="zh">03</h3><p class="reader-en " lang="en">For reminders, allow OS notifications and test one while the app is running. Do not assume delivery while it is closed or the computer sleeps.</p><p class="reader-zh " lang="zh">使用提醒前允许系统通知，在应用运行时测试一次；不要假定退出应用或电脑休眠后仍能送达。</p></article></div><p class="reader-en start-limits" lang="en">Notification selection still needs cross-host consolidation (<a href="https://github.com/turlamai/taskly/issues/62">#62</a>). The standalone packaged CLI is not yet part of desktop releases; source CLI instructions remain in the README.</p><p class="reader-zh start-limits" lang="zh">提醒选择逻辑仍需跨宿主收敛（<a href="https://github.com/turlamai/taskly/issues/62">#62</a>）。桌面发行包尚未附带独立 CLI；源码 CLI 用法见 README。</p><div class="start-links"><a class="reader-en" lang="en" href="https://github.com/turlamai/taskly/blob/main/docs/USER-GUIDE.md">Installation, privacy &amp; recovery</a><a class="reader-zh" lang="zh" href="https://github.com/turlamai/taskly/blob/main/docs/USER-GUIDE.zh-CN.md">安装、隐私与恢复</a><a href="https://github.com/turlamai/taskly/issues"><span class="reader-en " lang="en">Get help</span><span class="reader-zh " lang="zh">反馈与帮助</span></a></div>
-</section>
-<footer>
-        <div class="container">
-            <div class="footer-content">
-                <div class="footer-brand">Taskly</div>
-                <div class="footer-links">
-                    <a href="https://github.com/turlamai/taskly">GitHub</a>
-                    <a href="https://rivet.jrtx.site">Rivet</a>
-                    <a href="https://github.com/turlamai/taskly/blob/main/CHANGELOG.md" data-i18n="footer.changelog">更新日志</a>
-                    <a href="https://github.com/turlamai/taskly/issues" data-i18n="footer.feedback">问题反馈</a>
+        <!-- CLI -->
+        <section class="kit-section kit-section--alt" id="cli">
+            <div class="kit-container">
+                <span class="kit-kicker" data-i18n="cli.kicker">自动化</span>
+                <h2 class="kit-h2" data-i18n="cli.title">会输出 JSON 的命令行</h2>
+                <p class="kit-lead" data-i18n="cli.body">Taskly 的每一项操作都有稳定的 JSON 命令行——脚本化、管道传递、交给 AI 代理。稳定的退出码、结构化输出，毫无意外。</p>
+                <pre style="margin-top: 30px;"><span class="kit-text-3"># add a task, get JSON back
+</span><span class="kit-accent-word">$</span> taskly add <span style="color: var(--kit-accent-strong);">"Ship landing-page @friday 5pm"</span> <span class="kit-text-2">--list</span> "Work" <span class="kit-text-2">--json</span>
+<span class="kit-accent-word">$</span> taskly list <span class="kit-text-2">--status</span> incomplete <span class="kit-text-2">--json</span> <span class="kit-text-2">|</span> jq '.[] | .text'</pre>
+                <p class="kit-text-2" style="margin-top: 18px; max-width: 62ch;"><span data-i18n="cli.avail-a">桌面安装包目前不包含独立的</span> <code>taskly</code> <span data-i18n="cli.avail-b">CLI。以上示例需要</span><a href="https://github.com/turlamai/taskly/blob/main/README.zh-CN.md" data-i18n="cli.avail-link">从源码运行 CLI</a><span data-i18n="cli.avail-c">。</span></p>
+                <div class="kit-grid kit-grid--3" style="margin-top: 34px;">
+                    <div class="kit-card">
+                        <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+                        <h3 data-i18n="lists.title">井井有条的列表</h3>
+                        <p data-i18n="lists.body">将工作、生活与创意分入各自着色的列表，互不干扰。</p>
+                    </div>
                 </div>
-                <div>&copy; 2026 Taskly. <span data-i18n="footer.license">AGPL-3.0 协议。</span></div>
+            </div>
+        </section>
+
+        <!-- Release -->
+        <section class="kit-section" id="release">
+            <div class="kit-container">
+                <span class="kit-kicker" data-i18n="release.eyebrow">发布</span>
+                <h2 class="kit-h2" data-i18n="release.title">三大桌面，一个核心。</h2>
+                <p class="kit-lead" data-i18n="release.subtitle">Taskly 覆盖 macOS（SwiftUI）、Windows（WinUI 3）与 Linux（GTK4）——共享 Racket 核心驱动轻薄的第一方宿主，JSON CLI 由 63 例 golden 套件钉死，数据就是单个本地 SQLite 文件。桌面 GUI 可下载安装；CLI 目前需从源码运行。</p>
+                <div class="kit-grid kit-grid--2" style="margin-top: 44px;">
+                    <div class="kit-card">
+                        <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+                        <h3 data-i18n="r1.title">三端原生 · 一个核心</h3>
+                        <p data-i18n="r1.body">macOS 用 SwiftUI，Windows 用 WinUI 3，Linux 用 GTK4——每个平台都是第一方手感，全部逻辑在一个 Racket CS 核心里经类型化 RPC 驱动它们。</p>
+                    </div>
+                    <div class="kit-card">
+                        <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><path d="M12 15V3"/></svg></span>
+                        <h3 data-i18n="r2.title">应用内更新 · 三平台</h3>
+                        <p data-i18n="r2.body">启动时静默检查 + 设置里手动检查。后端验证 Ed25519 签名的更新清单并下载产物，宿主负责安装——绝不碰你的数据。</p>
+                    </div>
+                    <div class="kit-card">
+                        <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+                        <h3 data-i18n="r3.title">Agent CLI · Golden 钉死</h3>
+                        <p data-i18n="r3.body">无头 CLI，稳定的 JSON 输出与退出码：`taskly add "买牛奶" --due tomorrow --json`。跨平台字节级一致由 CI 中的 63 例 golden 套件钉死。</p>
+                    </div>
+                    <div class="kit-card">
+                        <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                        <h3 data-i18n="r4.title">开放核心 · AGPL-3.0</h3>
+                        <p data-i18n="r4.body">桌面核心开源——自由使用、分叉与研究。数据格式与 CLI 都是成文的契约，而非偶然。</p>
+                    </div>
+                </div>
+                <div class="kit-btn-row" style="margin-top: 40px;">
+                    <div class="kit-dl">
+                        <a class="kit-btn kit-btn--primary" data-kit-dl-primary href="https://github.com/turlamai/taskly/releases/latest">
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 2.5v10M6 9l4 4 4-4M3.5 16.5h13"/></svg>
+                            <span class="kit-dl-label" data-i18n="dl.generic">获取 Taskly</span>
+                        </a>
+                        <button class="kit-dl-caret" type="button" aria-haspopup="true" aria-expanded="false" aria-label="All platforms">
+                            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 5.5L7 9.5l4-4"/></svg>
+                        </button>
+                    </div>
+                    <a class="kit-btn kit-btn--secondary" href="manual.html" data-i18n="cta.manual">阅读手册</a>
+                    <a class="kit-btn kit-btn--ghost" href="https://github.com/turlamai/taskly/releases"><span data-i18n="cta.all-releases">全部版本</span><span class="kit-btn-arrow">›</span></a>
+                </div>
+                <p class="kit-text-2" style="margin-top: 22px; max-width: 68ch; font-size: 14px;" data-i18n="release.note">每个版本都带 SHA256SUMS 与签名更新清单；macOS 包为 ad-hoc 签名，预览版被 Gatekeeper 拦截属预期——不要关闭系统防护，请核对校验和并使用可信构建（`/Applications/taskly.app`）。</p>
+            </div>
+        </section>
+
+        <!-- Get started -->
+        <section class="kit-section kit-section--alt" id="start-here">
+            <div class="kit-container">
+                <span class="kit-kicker" data-i18n="start.kicker">开始使用</span>
+                <h2 class="kit-h2" data-i18n="start.title">从一次有效使用开始。</h2>
+                <p class="kit-lead"><span data-i18n="start.note">提供 macOS、Windows、Linux 桌面预览版。按发布附件标注选择系统与 CPU；移动端和手表端尚未交付。</span></p>
+                <div class="kit-steps" style="margin-top: 44px;">
+                    <div class="kit-step">
+                        <h3>01</h3>
+                        <p data-i18n="start.s1">创建清单，添加一条不含敏感信息的任务；保存前核对解析出的日期。</p>
+                    </div>
+                    <div class="kit-step">
+                        <h3>02</h3>
+                        <p data-i18n="start.s2">完成任务，重新打开应用，确认状态已保存。</p>
+                    </div>
+                    <div class="kit-step">
+                        <h3>03</h3>
+                        <p data-i18n="start.s3">使用提醒前允许系统通知，在应用运行时测试一次；不要假定退出应用或电脑休眠后仍能送达。</p>
+                    </div>
+                </div>
+                <p class="kit-text-2" style="margin-top: 30px; max-width: 62ch;"><span data-i18n="start.limits-a">提醒选择逻辑仍需跨宿主收敛（</span><a href="https://github.com/turlamai/taskly/issues/62">#62</a><span data-i18n="start.limits-b">）。桌面发行包尚未附带独立 CLI；源码 CLI 用法见 README。</span></p>
+                <div class="start-links">
+                    <a href="https://github.com/turlamai/taskly/blob/main/docs/USER-GUIDE.zh-CN.md" data-i18n="start.guide">安装、隐私与恢复</a>
+                    <a href="https://github.com/turlamai/taskly/issues" data-i18n="start.help">反馈与帮助</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="kit-footer">
+        <div class="kit-container">
+            <div class="kit-footer-grid">
+                <div>
+                    <a class="kit-brand" href="/">
+                        <svg class="kit-brand-mark" viewBox="0 0 512 512" fill="none" aria-hidden="true">
+                            <rect width="512" height="512" rx="115" fill="#D97757"/>
+                            <path d="M150 262 L222 334 L366 178" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        </svg>
+                        <span>Taskly</span>
+                    </a>
+                    <p class="kit-footer-tagline" data-i18n="footer.tagline">规划你的生活，一次一件。</p>
+                </div>
+                <div>
+                    <h4 data-i18n="footer.product">产品</h4>
+                    <ul>
+                        <li><a href="#features" data-i18n="nav.features">功能</a></li>
+                        <li><a href="manual.html" data-i18n="nav.manual">手册</a></li>
+                        <li><a href="https://github.com/turlamai/taskly/blob/main/CHANGELOG.md" data-i18n="footer.changelog">更新日志</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 data-i18n="footer.family">家族</h4>
+                    <ul>
+                        <li><a href="https://jrtx.site/" data-i18n="footer.portal">全部产品</a></li>
+                        <li><a href="https://rivet.jrtx.site">Rivet</a></li>
+                        <li><a href="https://glaze.jrtx.site">Glaze</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 data-i18n="footer.legal">条款</h4>
+                    <ul>
+                        <li><a href="https://github.com/turlamai/taskly" data-i18n="nav.github">GitHub</a></li>
+                        <li><a href="https://github.com/turlamai/taskly/issues" data-i18n="footer.feedback">问题反馈</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="kit-footer-bottom">
+                <span>© 2026 Taskly · <span data-i18n="footer.license">AGPL-3.0 协议。</span></span>
+                <span class="kit-mono">site-kit v1.0.1</span>
             </div>
         </div>
     </footer>
 
-    <script src="script.js?v=12"></script>
-    <script>
-        // Canonical versioned downloads: stable Release page is the offline
-        // fallback. Pre-release builds are not promoted to the stable channel.
-        (function () {
-            var page = 'https://github.com/turlamai/taskly/releases/latest';
-            var ua = navigator.userAgent;
-            var os = /Windows/i.test(ua) ? 'win' : (/Mac|iPhone|iPad/i.test(ua) ? 'mac' : (/Linux|X11/i.test(ua) ? 'linux' : 'mac'));
-            var arch = os === 'linux' && /aarch64|arm/i.test(ua) ? 'arm64' : (os === 'linux' ? 'x64' : 'arm64');
-            var release = null;
-            var targets = document.querySelectorAll('a[data-i18n="hero.download"], .download-cta a.btn-primary');
-            var suffix = {mac: 'mac', win: 'win', linux: 'linux'}[os];
-            targets.forEach(function (a) {
-                var label = a.matches('[data-i18n]') ? a : a.querySelector('[data-i18n]');
-                if (label) label.setAttribute('data-i18n', (label.getAttribute('data-i18n') === 'hero.download' ? 'hero.' : 'cta.') + 'download-' + suffix);
-            });
-            function resolve() {
-                var wanted = {mac: 'macos-' + arch + '.dmg',
-                              win: 'windows-x64.msi',
-                              linux: 'linux-' + (arch === 'x64' ? 'x86_64' : 'aarch64') + '.AppImage'}[os];
-                var url = page;
-                if (release && !release.draft && !release.prerelease &&
-                    /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(release.tag_name)) {
-                    var name = 'taskly-' + release.tag_name.slice(1) + '-' + wanted;
-                    var exact = 'https://github.com/turlamai/taskly/releases/download/' + release.tag_name + '/' + name;
-                    if ((release.assets || []).some(function (a) {
-                        return a.name === name && a.size > 0 && a.browser_download_url === exact;
-                    })) url = exact;
-                }
-                targets.forEach(function (a) { a.href = url; });
-            }
-            resolve();
-            if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
-                navigator.userAgentData.getHighEntropyValues(['architecture', 'platform']).then(function (h) {
-                    if (!h || /Windows/i.test(h.platform || '')) return;
-                    var a = h.architecture === 'arm' ? 'arm64' : (h.architecture === 'x86' ? 'x64' : null);
-                    if (a && a !== arch) { arch = a; resolve(); }
-                }).catch(function () {});
-            }
-            fetch('https://api.github.com/repos/turlamai/taskly/releases/latest',
-                  {headers: {'Accept': 'application/vnd.github+json'}})
-                .then(function (r) { if (!r.ok) throw new Error('release lookup'); return r.json(); })
-                .then(function (data) { release = data; resolve(); })
-                .catch(function () { /* Keep visible Releases page. */ });
-        })();
+    <script type="application/json" id="kit-i18n">{
+  "zh": {
+    "nav.cli": "命令行",
+    "nav.features": "功能",
+    "nav.github": "GitHub",
+    "nav.manual": "手册",
+    "nav.release": "发布",
+    "hero.availability": "开发预览，尚未开放付费购买。未来官方桌面版开售时再公布实际交付条款。",
+    "hero.eyebrow": "开源 · 本地优先 · 每个桌面都原生",
+    "hero.github": "在 GitHub 查看",
+    "hero.h1a": "规划你的生活，",
+    "hero.h1b": "一次一件。",
+    "hero.lead": "Taskly 是一款清爽、专注的任务管理器：支持便捷的排程速记、可从源码运行的命令行工具用于自动化，并为每个桌面平台提供原生应用。数据始终归你所有。",
+    "dl.generic": "获取 Taskly",
+    "dl.linux": "Linux 版",
+    "dl.mac": "macOS 版",
+    "dl.note": "当前平台请前往 Releases 页面选取对应安装包。",
+    "dl.win": "Windows 版",
+    "wf.caption": "功能流程示意，非软件界面截图。实际界面、可用性与交互以当前安装版本和用户手册为准。",
+    "wf.inbox": "收件箱",
+    "wf.lead": "一个简短的日常任务流：记录、安排、复查。这里展示工作方式，而不是提前冻结仍在打磨的桌面界面。",
+    "wf.s1b": "快速记下需要完成的事。",
+    "wf.s1t": "随手记录",
+    "wf.s2b": "把任务放到合适的时间。",
+    "wf.s2t": "安排日期",
+    "wf.s3b": "完成任务，重新打开确认保存。",
+    "wf.s3t": "完成与复查",
+    "wf.task1": "整理项目笔记",
+    "wf.task2": "发送周报",
+    "wf.title": "在收集与完成之间，保持清楚。",
+    "wf.today": "今天",
+    "features.kicker": "设计原则",
+    "features.subtitle": "宁静的色彩、考究的排版，没有多余的东西。让你专注于执行，而非管理。",
+    "features.title": "设计，是为了退到幕后。",
+    "f1.body": "给任务加个修饰符：「Standup @9am」「买牛奶 +1d」「发布 @5pm fri」。Taskly 提取时间，剩下就是任务。无需拨盘，无需翻日历。",
+    "f1.tag": "查看完整语法 →",
+    "f1.title": "排程速记",
+    "f2.body": "任务存储在本地 SQLite 数据库。无需账号，无云端，无追踪。",
+    "f2.title": "隐私优先",
+    "f3.body": "macOS、Windows、Linux 原生应用，到处都是同样清爽的界面。",
+    "f3.title": "真正的跨平台",
+    "f4.body": "退出所有 Taskly 进程后备份整个数据目录。不要让多台设备同时编辑云端副本中的 SQLite 文件；WAL 不提供跨设备文件同步。",
+    "f4.tag": "保留你的副本。",
+    "f4.title": "备份与安全迁移",
+    "cli.avail-a": "桌面安装包目前不包含独立的",
+    "cli.avail-b": "CLI。以上示例需要",
+    "cli.avail-c": "。",
+    "cli.avail-link": "从源码运行 CLI",
+    "cli.body": "Taskly 的每一项操作都有稳定的 JSON 命令行——脚本化、管道传递、交给 AI 代理。稳定的退出码、结构化输出，毫无意外。",
+    "cli.kicker": "自动化",
+    "cli.title": "会输出 JSON 的命令行",
+    "lists.body": "将工作、生活与创意分入各自着色的列表，互不干扰。",
+    "lists.title": "井井有条的列表",
+    "release.eyebrow": "发布",
+    "release.note": "每个版本都带 SHA256SUMS 与签名更新清单；macOS 包为 ad-hoc 签名，预览版被 Gatekeeper 拦截属预期——不要关闭系统防护，请核对校验和并使用可信构建（`/Applications/taskly.app`）。",
+    "release.subtitle": "Taskly 覆盖 macOS（SwiftUI）、Windows（WinUI 3）与 Linux（GTK4）——共享 Racket 核心驱动轻薄的第一方宿主，JSON CLI 由 63 例 golden 套件钉死，数据就是单个本地 SQLite 文件。桌面 GUI 可下载安装；CLI 目前需从源码运行。",
+    "release.title": "三大桌面，一个核心。",
+    "r1.body": "macOS 用 SwiftUI，Windows 用 WinUI 3，Linux 用 GTK4——每个平台都是第一方手感，全部逻辑在一个 Racket CS 核心里经类型化 RPC 驱动它们。",
+    "r1.title": "三端原生 · 一个核心",
+    "r2.body": "启动时静默检查 + 设置里手动检查。后端验证 Ed25519 签名的更新清单并下载产物，宿主负责安装——绝不碰你的数据。",
+    "r2.title": "应用内更新 · 三平台",
+    "r3.body": "无头 CLI，稳定的 JSON 输出与退出码：`taskly add \"买牛奶\" --due tomorrow --json`。跨平台字节级一致由 CI 中的 63 例 golden 套件钉死。",
+    "r3.title": "Agent CLI · Golden 钉死",
+    "r4.body": "桌面核心开源——自由使用、分叉与研究。数据格式与 CLI 都是成文的契约，而非偶然。",
+    "r4.title": "开放核心 · AGPL-3.0",
+    "cta.all-releases": "全部版本",
+    "cta.manual": "阅读手册",
+    "start.guide": "安装、隐私与恢复",
+    "start.help": "反馈与帮助",
+    "start.kicker": "开始使用",
+    "start.limits-a": "提醒选择逻辑仍需跨宿主收敛（",
+    "start.limits-b": "）。桌面发行包尚未附带独立 CLI；源码 CLI 用法见 README。",
+    "start.note": "提供 macOS、Windows、Linux 桌面预览版。按发布附件标注选择系统与 CPU；移动端和手表端尚未交付。",
+    "start.s1": "创建清单，添加一条不含敏感信息的任务；保存前核对解析出的日期。",
+    "start.s2": "完成任务，重新打开应用，确认状态已保存。",
+    "start.s3": "使用提醒前允许系统通知，在应用运行时测试一次；不要假定退出应用或电脑休眠后仍能送达。",
+    "start.title": "从一次有效使用开始。",
+    "footer.changelog": "更新日志",
+    "footer.family": "家族",
+    "footer.feedback": "问题反馈",
+    "footer.legal": "条款",
+    "footer.license": "AGPL-3.0 协议。",
+    "footer.portal": "全部产品",
+    "footer.product": "产品",
+    "footer.tagline": "规划你的生活，一次一件。"
+  },
+  "en": {
+    "nav.cli": "CLI",
+    "nav.features": "Features",
+    "nav.github": "GitHub",
+    "nav.manual": "Manual",
+    "nav.release": "Release",
+    "hero.availability": "Development preview; no paid checkout is open. A future official desktop purchase will be announced with its delivered terms.",
+    "hero.eyebrow": "Open source · Local-first · Native on every desktop",
+    "hero.github": "View on GitHub",
+    "hero.h1a": "Organize your life,",
+    "hero.h1b": "one task at a time.",
+    "hero.lead": "Taskly is a clean, focused task manager with keyboard-friendly scheduling shortcuts, a CLI runnable from source for automation, and native apps for every desktop. Your data stays yours.",
+    "dl.generic": "Get Taskly",
+    "dl.linux": "For Linux",
+    "dl.mac": "For macOS",
+    "dl.note": "Pick the right package from the Releases page for your platform.",
+    "dl.win": "For Windows",
+    "wf.caption": "Conceptual workflow, not an app screenshot. Refer to the installed version and user guide for actual UI and availability.",
+    "wf.inbox": "Inbox",
+    "wf.lead": "A simple daily flow: capture, schedule, review. The illustration explains the experience without freezing an evolving desktop UI.",
+    "wf.s1b": "Record a task without breaking focus.",
+    "wf.s1t": "Capture",
+    "wf.s2b": "Give the task a useful due date.",
+    "wf.s2t": "Schedule",
+    "wf.s3b": "Complete it and check persistence after restart.",
+    "wf.s3t": "Review",
+    "wf.task1": "Organize project notes",
+    "wf.task2": "Send the weekly report",
+    "wf.title": "From capture to completion, clearly.",
+    "wf.today": "Today",
+    "features.kicker": "Design principles",
+    "features.subtitle": "Calm colors, thoughtful typography, and nothing you don’t need. So you can focus on doing, not managing.",
+    "features.title": "Designed to fade into the background.",
+    "f1.body": "Add a modifier to any task: “Standup @9am”, “Buy milk +1d”, “Ship @5pm fri”. Taskly extracts the time and leaves the rest as the task. No dials, no calendars.",
+    "f1.tag": "See the syntax →",
+    "f1.title": "Scheduling shortcuts",
+    "f2.body": "Your tasks live in a local SQLite database. No account, no cloud, no tracking.",
+    "f2.title": "Private by design",
+    "f3.body": "Native apps for macOS, Windows, and Linux — same clean interface everywhere.",
+    "f3.title": "Truly cross-platform",
+    "f4.body": "Quit all Taskly processes, then back up the whole data directory. Do not concurrently edit a cloud-synced SQLite file across devices; WAL is not cross-device synchronization.",
+    "f4.tag": "Keep your own copy.",
+    "f4.title": "Back up and move safely",
+    "cli.avail-a": "The desktop downloads do not yet include a standalone ",
+    "cli.avail-b": " CLI. These examples require ",
+    "cli.avail-c": ".",
+    "cli.avail-link": "running the CLI from source",
+    "cli.body": "Every Taskly operation has a stable JSON CLI — script it, pipe it, hand it to an AI agent. Stable exit codes, structured output, no surprises.",
+    "cli.kicker": "Automation",
+    "cli.title": "A CLI that speaks JSON",
+    "lists.body": "Separate Work, Life, and Ideas into color-coded lists that stay out of each other’s way.",
+    "lists.title": "Organized lists",
+    "release.eyebrow": "Release",
+    "release.note": "Every release carries SHA256SUMS plus a signed update manifest; macOS builds are ad-hoc signed. A Gatekeeper rejection is expected for these previews — do not disable system-wide protections; verify the checksum and use a trusted build (`/Applications/taskly.app`).",
+    "release.subtitle": "Taskly ships on macOS (SwiftUI), Windows (WinUI 3), and Linux (GTK4) — one shared Racket core behind thin first-party hosts, a JSON CLI pinned by a 63-case golden suite, and a single local SQLite file. Download and install the desktop GUI; the CLI currently runs from source.",
+    "release.title": "Three desktops. One core.",
+    "r1.body": "SwiftUI on macOS, WinUI 3 on Windows, GTK4 on Linux — first-party feel on every desktop, with all logic in one Racket CS core driving them over typed RPC.",
+    "r1.title": "Three native hosts · One core",
+    "r2.body": "Silent checks at launch plus a manual check in Settings. The backend verifies an Ed25519-signed update manifest and downloads the artifact; the host installs it — your data is never touched.",
+    "r2.title": "In-app updates · all platforms",
+    "r3.body": "A headless CLI with stable JSON output and exit codes: `taskly add \"Buy milk\" --due tomorrow --json`. Byte-level cross-platform parity is pinned by a 63-case golden suite in CI.",
+    "r3.title": "Agent CLI · Golden-pinned",
+    "r4.body": "The desktop core is open source — free to use, fork, and study. The data format and CLI are documented contracts, not accidents.",
+    "r4.title": "Open core · AGPL-3.0",
+    "cta.all-releases": "All releases",
+    "cta.manual": "Read the manual",
+    "start.guide": "Installation, privacy & recovery",
+    "start.help": "Get help",
+    "start.kicker": "Get started",
+    "start.limits-a": "Notification selection still needs cross-host consolidation (",
+    "start.limits-b": "). The standalone packaged CLI is not yet part of desktop releases; source CLI instructions remain in the README.",
+    "start.note": "Desktop previews for macOS, Windows and Linux. Select the OS and CPU shown on the release asset; mobile and watch applications are not delivered products.",
+    "start.s1": "Create a list and add one non-sensitive task. Check the parsed date before saving.",
+    "start.s2": "Complete the task, reopen the application and confirm the saved state.",
+    "start.s3": "For reminders, allow OS notifications and test one while the app is running. Do not assume delivery while it is closed or the computer sleeps.",
+    "start.title": "Start with one useful session.",
+    "footer.changelog": "Changelog",
+    "footer.family": "Family",
+    "footer.feedback": "Feedback",
+    "footer.legal": "Legal",
+    "footer.license": "AGPL-3.0 license.",
+    "footer.portal": "All products",
+    "footer.product": "Product",
+    "footer.tagline": "Organize your life, one task at a time."
+  }
+}</script>
+
+    <script type="application/json" id="kit-download">
+    {
+        "repo": "turlamai/taskly",
+        "assets": {
+            "mac": "taskly-{v}-macos-{arch}.dmg",
+            "win": "taskly-{v}-windows-x64.msi",
+            "linux": "taskly-{v}-linux-{arch}.AppImage"
+        },
+        "archMap": { "linux": { "x64": "x86_64", "arm64": "aarch64" } }
+    }
     </script>
 </body>
 

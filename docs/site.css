@@ -1,0 +1,88 @@
+/* ============================================================
+   Taskly site.css — per-site sections only.
+   Shared frame lives in family.css (site-kit); do not duplicate.
+   ============================================================ */
+
+/* ---------- Workflow boards (inbox / today mini-board) ---------- */
+.vs-boards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 26px;
+}
+.vs-board {
+    border: 1px solid var(--kit-border);
+    border-radius: var(--kit-radius-m);
+    background: var(--kit-surface);
+    padding: 16px 18px;
+}
+.vs-board-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--kit-text-3);
+    margin-bottom: 12px;
+}
+.vs-task {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 9px;
+    background: var(--kit-bg-elevated);
+    border: 1px solid var(--kit-border);
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+.vs-task.is-done { opacity: 0.62; }
+.vs-task.is-done span:last-of-type { text-decoration: line-through; }
+.vs-ring {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--kit-accent);
+    border-radius: 50%;
+}
+.vs-ring.done {
+    background: var(--kit-accent);
+    position: relative;
+}
+.vs-ring.done::after {
+    content: "✓";
+    color: var(--kit-on-accent);
+    font-size: 10px;
+    position: absolute;
+    left: 1.5px;
+    top: -1px;
+}
+.vs-mini-tag {
+    margin-left: auto;
+    color: var(--kit-accent-strong);
+    background: var(--kit-accent-soft);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+@media (max-width: 700px) {
+    .vs-boards { grid-template-columns: 1fr; }
+}
+
+/* ---------- Start-section links ---------- */
+.start-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 34px;
+}
+.start-links a {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--kit-accent-strong);
+}
+html[data-theme="dark"] .start-links a { color: var(--kit-accent); }
+.start-links a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- Icon visibility per theme ---------- */
+html[data-theme="light"] .kit-icon-moon { display: none; }
+html[data-theme="dark"] .kit-icon-sun { display: none; }
