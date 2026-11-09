@@ -42,13 +42,15 @@
   the running version keeps working (same rule as notifications).
 - **CLI parity**: `--json` output and exit codes are version-stable; an
   update must never change golden outputs within a major version.
-- i18n keys are shared (`shared/i18n`): `updateCheckNow`, `updateChecking`,
+- i18n keys are shared (`shared/i18n`): `menuCheckUpdates`,
+  `settingsAutoCheckUpdates`, `updateCheckNow`, `updateChecking`,
   `updateUpToDate`, `updateAvailableTitle`, `updateAvailableBody`,
-  `updateRestart`, `updateCheckFailed`, `updateDownloading`,
-  `updateDownloadPercent`, `updateDownloaded`, `updateQuitAndInstall`,
-  `updateInstallHint`, `updateOpenFolder`, `updateInstallFailed`,
-  `updatePortable`, `updateNotInstalled`, `updateOpenReleases`,
-  `updateReadyBody`.
+  `updateRestart`, `updateRestartNow`, `updateCheckFailed`,
+  `updateDownloading`, `updateDownloadPercent`, `updateDownloaded`,
+  `updateQuitAndInstall`, `updateInstallHint`, `updateOpenFolder`,
+  `updateInstallFailed`, `updatePortable`, `updateNotInstalled`,
+  `updateOpenReleases`, `updateReadyBody`, `updateUsePackageManager`,
+  `updateAppImageHint`, `updateMsiInstalled`, `updateCopyError`.
 
 ## Platform mechanisms
 
@@ -62,7 +64,7 @@ exists on all platforms from day one.
 | macOS Intel | feed `macos`/`x64` zip entry | same swap flow on the x64 build (hosts match their compile-time architecture) | same | wired since 1.3.0 |
 | Windows x64 | signed `windows`/`x64` zip + MSI entries | before every check the host waits for `install-flavor` persistence, then the backend selects the matching signed artifact. Portable zip → handoff `update-install.cmd`: wait for app exit → `tar -xf` extract → swap install dir in place → relaunch; failure marker (`update-failed.txt`) reported on next launch. MSI → handoff `msi-install.cmd`: wait for app exit → `msiexec /passive /norestart /i` (per-machine installs surface one UAC consent; msiexec log at `%TEMP%\taskly-update\msiexec.log`) → relaunch; failure marker on next launch. The final handoff dispatches from the verified download's `.zip`/`.msi` extension, never a second install-location guess. | Ed25519 wrapper signature + signed size/SHA-256 for both zip and MSI | portable wired since 1.2.0; MSI online upgrade since 0.1.2 (signed-artifact hardening in 0.2.x) |
 | Windows ARM64 | — | no native package exists (Racket ships no Windows-on-ARM runtime); run the x64 build under Windows on ARM's built-in x64 emulation | — | documented since 1.3.0 |
-| Linux x64 | signed tar.gz + AppImage entries | three install shapes (host declares `install-flavor` at startup): **AppImage** (`APPIMAGE` env set) — backend selects the signed AppImage artifact directly, stages beside the running image, verifies signed size/SHA-256, and atomically renames it over `$APPIMAGE` with exec bits set; host asks for consent, then `execl`s the replaced image. **deb/rpm** (exe under /opt/taskly or /usr) — download kept, dialog points at the system package manager (`updateUsePackageManager`); no self-swap of a system-managed prefix. **tarball** — download + "open folder" manual extract, unchanged | Ed25519 wrapper signature + signed size/SHA-256 for tar.gz and AppImage | tarball wired since 1.2.0; AppImage in-place since 0.1.2 (signed-artifact hardening in 0.2.x); deb/rpm guidance since 0.1.2 |
+| Linux x64 | signed tar.gz + AppImage entries | three install shapes (host declares `install-flavor` at startup): **AppImage** (`APPIMAGE` env set) — backend selects the signed AppImage artifact directly, stages beside the running image, verifies signed size/SHA-256, and atomically renames it over `$APPIMAGE` with exec bits set; host asks for consent, then `execl`s the replaced image. **deb/rpm** (exe under /opt/taskly or /usr) — no download: the dialog points at the system package manager (`updateUsePackageManager`), which owns the upgrade; no self-swap of a system-managed prefix. **tarball** — download + "open folder" manual extract, unchanged | Ed25519 wrapper signature + signed size/SHA-256 for tar.gz and AppImage | tarball wired since 1.2.0; AppImage in-place since 0.1.2 (signed-artifact hardening in 0.2.x); deb/rpm guidance since 0.1.2 |
 
 (The frozen v1 line used Velopack on Windows and a tarball replacer on
 Linux; those mechanisms died with that line — the Rivet hosts start from
@@ -78,7 +80,7 @@ then test restoration from a copy rather than the only original.
 
 | Install shape | Normal N→N+1 path | Failure / rollback | Manual recovery |
 |---|---|---|---|
-| macOS DMG | download new DMG, drag `Taskly.app` over the installed app; data remains external | the old app is not modified until Finder confirms replacement | restore the previous trusted app from its DMG/backup; keep `~/.taskly/` unchanged |
+| macOS DMG | download new DMG, drag `taskly.app` over the installed app; data remains external | the old app is not modified until Finder confirms replacement | restore the previous trusted app from its DMG/backup; keep `~/.taskly/` unchanged |
 | macOS feed ZIP | verified ZIP expands to a sibling, current app moves to `.old`, sibling swaps into place, then relaunches | a failed swap restores the old app; `.old` remains until a successful relaunch | quit Taskly, restore `.old` or reinstall the previous trusted ZIP/DMG, then launch against the preserved data copy |
 | Windows MSI | verified MSI runs `msiexec /passive /norestart`; installed-product upgrade rules replace program files | nonzero exit writes `update-failed.txt`; old running process remains usable and the log is `%TEMP%\taskly-update\msiexec.log` | preserve the error/log, rerun the previous trusted MSI Repair/Install, never delete the data directory |
 | Windows portable ZIP | verified ZIP hands off after process exit; old directory is renamed, new archive is extracted, then the app relaunches | handoff restores the renamed old directory and records a failure marker | quit all copies, restore the renamed directory or extract the previous trusted ZIP to a new program directory |

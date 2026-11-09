@@ -141,7 +141,7 @@ const i18n = {
         'cta.download-linux': 'Download for Linux',
         'cta.all-releases': 'All releases',
         'cta.manual': 'Read the manual',
-        'release.note': 'Every release carries SHA256SUMS plus a signed update manifest; macOS builds are ad-hoc signed \u2014 clear the Gatekeeper quarantine with `xattr -cr /Applications/Taskly.app` on first launch.',
+        'release.note': 'Every release carries SHA256SUMS plus a signed update manifest; macOS builds are ad-hoc signed. A Gatekeeper rejection is expected for these previews \u2014 do not disable system-wide protections; verify the checksum and use a trusted build (`/Applications/taskly.app`).',
         'footer.changelog': 'Changelog',
         'footer.feedback': 'Feedback',
         'footer.license': 'AGPL-3.0 license.'
@@ -197,7 +197,7 @@ const i18n = {
         'cta.download-linux': '下载 Linux 版',
         'cta.all-releases': '全部版本',
         'cta.manual': '阅读手册',
-        'release.note': '每个版本都带 SHA256SUMS 与签名更新清单；macOS 包为 ad-hoc 签名——首次启动如被 Gatekeeper 拦截，执行 `xattr -cr /Applications/Taskly.app` 即可。',
+        'release.note': '每个版本都带 SHA256SUMS 与签名更新清单；macOS 包为 ad-hoc 签名，预览版被 Gatekeeper 拦截属预期——不要关闭系统防护，请核对校验和并使用可信构建（`/Applications/taskly.app`）。',
         'footer.changelog': '更新日志',
         'footer.feedback': '问题反馈',
         'footer.license': 'AGPL-3.0 协议。'

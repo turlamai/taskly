@@ -317,6 +317,21 @@
          (state-set! 'percent percent))
        (loop next percent)])))
 
+;; Release assets are served by a CDN that answers 502/504 with an HTML
+;; page. Never stream that page into the artifact: fail before writing so
+;; the host reports a transport error instead of a bogus checksum failure.
+(define (open-artifact-port url)
+  (define-values (in headers)
+    (get-pure-port/headers (string->url url)
+                           '("User-Agent: Taskly-Updater/1")
+                           #:redirections 10))
+  (when (and (string? headers)
+             (regexp-match? #rx"(?i:content-type:[ \t]*text/html)" headers))
+    (close-input-port in)
+    (error 'download-update
+           "update artifact request returned an HTML error page: ~a" url))
+  in)
+
 (define (download-with-progress! config candidate destination)
   (define artifact (update-candidate-artifact candidate))
   (define total (update-artifact-size artifact))
@@ -329,10 +344,7 @@
                    (lambda (e)
                      (when (file-exists? temporary) (delete-file temporary))
                      (raise e))])
-    (define in
-      (get-pure-port (string->url (update-artifact-url artifact))
-                     '("User-Agent: Taskly-Updater/1")
-                     #:redirections 10))
+    (define in (open-artifact-port (update-artifact-url artifact)))
     (dynamic-wind
       void
       (lambda ()
@@ -403,9 +415,14 @@
 (define (appimage-download-target)
   ;; $APPIMAGE (set by the AppImage runtime) points at the running image;
   ;; stage the download next to it so the final rename stays on one device.
-  (define self (getenv "APPIMAGE"))
-  (unless (and self (non-empty-string? self))
+  (define self-string (getenv "APPIMAGE"))
+  (unless (and self-string (non-empty-string? self-string))
     (error 'start-download "APPIMAGE is not set; not running as an AppImage"))
+  ;; The public update state carries the downloaded path as a string, and
+  ;; `start-download!` normalizes it with `path->string`; keep this arm a
+  ;; path end to end or the swap succeeds and the progress update throws
+  ;; `path->string` after the image has already been replaced.
+  (define self (string->path self-string))
   (values self
           (make-temporary-file "taskly-update-~a.AppImage"
                                #f
@@ -422,10 +439,7 @@
     (define total (update-artifact-size artifact))
     (when (> total (updater-config-maximum-download-bytes config))
       (error 'download-update "signed artifact size exceeds the download limit"))
-    (define in
-      (get-pure-port (string->url (update-artifact-url artifact))
-                     '("User-Agent: Taskly-Updater/1")
-                     #:redirections 10))
+    (define in (open-artifact-port (update-artifact-url artifact)))
     (dynamic-wind
       void
       (lambda ()
@@ -508,9 +522,11 @@
               (download-appimage-with-progress! config candidate)]
              [else
               (download-with-progress! config candidate destination)]))
-         (state-set! 'phase "downloaded")
+         ;; Publish the path before the terminal phase: a host that polls
+         ;; "downloaded" must never observe an empty downloadedPath.
+         (state-set! 'downloadedPath (path->string path))
          (state-set! 'percent 100)
-         (state-set! 'downloadedPath (path->string path))))))
+         (state-set! 'phase "downloaded")))))
   (set-box! worker-thread-box worker-thread)
   ;; Watchdog: exits once the worker finishes on its own; otherwise a stall
   ;; (no byte progress) or the total wall-clock limit breaks the worker so

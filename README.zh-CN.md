@@ -30,7 +30,7 @@ Taskly 构建在 [Rivet](https://github.com/turlamai/rivet) 之上：全部领�
 - **到期提醒通知**——60 秒轮询 + 启动检查，去重，超过三条合并为一条汇总。
 - **单文件数据**——所有任务存在一个 SQLite 文件（`~/.taskly/tasks.db`，WAL）。退出应用后再备份；云文件夹复制不提供安全的数据库并发同步。格式文档化且稳定：[DATA-FORMAT](shared/spec/DATA-FORMAT.md)。
 - **面向 agent 的 CLI**——`taskly list|add|update|done|rm|search|mklist…`，`--json` 输出稳定、退出码固定、跨平台字节级一致（63 例 golden 套件钉死）。规格：[CLI-SPEC](shared/spec/CLI-SPEC.md)。
-- **在线更新（三平台）**——启动时静默检查 + 设置里手动检查；后端验证 [更新清单](shared/spec/UPDATE.md)（Ed25519）并下载产物，宿主负责安装：macOS 原地换装 bundle，Windows 退出并换装安装目录，Linux 应用内下载、解压覆盖完成安装。
+- **在线更新（三平台）**——启动时静默检查 + 手动检查（macOS 在应用菜单，Windows/Linux 在帮助菜单）；后端验证 [更新清单](shared/spec/UPDATE.md)（Ed25519）并下载产物，宿主负责安装：macOS 原地换装 bundle，Windows 退出并换装安装目录，Linux 原地替换 AppImage、deb/rpm 交给包管理器、便携 tar.gz 打开所在文件夹。
 
 ## 诚实差距
 
@@ -46,12 +46,12 @@ Taskly 构建在 [Rivet](https://github.com/turlamai/rivet) 之上：全部领�
 | macOS Intel | `taskly-<version>-macos-x64.zip` | `taskly-<version>-macos-x64.dmg` |
 | Windows x64 | `taskly-<version>-windows-x64.zip` | `taskly-<version>-windows-x64.msi` |
 | Windows ARM64 | 通过 Windows on ARM 的 x64 模拟运行 x64 包 | — |
-| Linux x64 | `taskly-<version>-linux-x64.tar.gz` | `taskly-<version>-linux-x64.deb` / `.rpm` / `.AppImage` |
-| Linux ARM64 | `ubuntu-24.04-arm` 构建全套 Linux 产物（`-linux-arm64`） | — |
+| Linux x64 | `taskly-<version>-linux-x64.tar.gz` | `taskly-<version>-linux-amd64.deb` / `taskly-<version>-1-linux-x86_64.rpm` / `taskly-<version>-linux-x86_64.AppImage` |
+| Linux ARM64 | `taskly-<version>-linux-arm64.tar.gz` | `taskly-<version>-linux-arm64.deb` / `taskly-<version>-1-linux-aarch64.rpm` / `taskly-<version>-linux-aarch64.AppImage` |
 
 每个版本都带 `SHA256SUMS` 清单和签名的 `update-manifest.json`（应用内更新的 feed）。便携 zip、Windows MSI 和 Linux AppImage 都可原地更新；实际安装的产物都会直接从签名清单中选择并校验。
 
-macOS 包为 ad-hoc 签名；首次启动如被 Gatekeeper 拦截，执行 `xattr -cr /Applications/Taskly.app` 即可。
+macOS 包为 ad-hoc 签名，未做 Developer ID 签名与公证。预览版被 Gatekeeper 拦截属预期：不要关闭系统防护；请核对发布校验和并使用可信构建。安装后的 bundle 是 `/Applications/taskly.app`。
 
 Linux 需要 GTK 4 桌面（解压后运行 `RivetHost`；GTK 4 及其系统库是仅有的运行时依赖，其余全部内置）。
 

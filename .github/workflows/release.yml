@@ -15,7 +15,7 @@ concurrency:
 # Single source of truth for the rivet pin; every install step below
 # references this so a bump is one edit, not a grep-replace across jobs.
 env:
-  RIVET_PIN: 4fd6d37bef7f13170b35747bc902e436f5083e54
+  RIVET_PIN: 03ce82159b2589d5fd2d25babf34a74ea344d40f
 jobs:
   signing-preflight:
     name: Verify update signing key before native packaging
@@ -98,6 +98,19 @@ jobs:
               *) [ -f "$f" ] || continue; [ -f "$f.sha256" ] || shasum -a 256 "$f" > "$f.sha256";;
             esac
           done
+      # The update feed consumes the portable zip, not the DMG. A zip that
+      # flattens framework symlinks ships an app whose signature fails
+      # `codesign --deep --strict`; check the exact payload clients install.
+      - name: Verify the update zip preserves the code signature
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARCH="${{ matrix.arch }}"
+          CHECK_DIR="$RUNNER_TEMP/zip-signature-check"
+          rm -rf "$CHECK_DIR"
+          mkdir -p "$CHECK_DIR"
+          ditto -x -k "dist/taskly-${VERSION}-macos-${ARCH}.zip" "$CHECK_DIR"
+          codesign --verify --deep --strict "$CHECK_DIR/taskly.app"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}
@@ -174,7 +187,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@4fd6d37bef7f13170b35747bc902e436f5083e54
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@03ce82159b2589d5fd2d25babf34a74ea344d40f
       # Installed after the embeddable runtime so the catalog dependency
       # closure (cext-lib, crypto-lib, keel) resolves against the minimal
       # build — it ships no packages of its own. db backs taskly's storage;
@@ -354,12 +367,20 @@ jobs:
           # Idempotent publish: a failed run leaves the release (and some
           # assets) behind; re-runs edit + re-upload over it instead of
           # colliding with "release already exists".
+          #
+          # These builds must be normal releases, not prereleases: the
+          # updater reads the moving `releases/latest/download` manifest
+          # (UPDATE.md), and GitHub's `latest` resolves only non-prerelease
+          # releases. Publishing with --prerelease made every new version
+          # invisible to 0.2.x clients (the feed kept pointing at the
+          # previous stable). The title keeps the trust status explicit;
+          # signing/notarization is a separate gate (#80).
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release edit "$GITHUB_REF_NAME" --notes-file /tmp/notes.md --prerelease
+            gh release edit "$GITHUB_REF_NAME" --notes-file /tmp/notes.md --latest
           else
             gh release create "$GITHUB_REF_NAME" \
               --title "Taskly ${VERSION} (unsigned evaluation)" \
-              --prerelease \
+              --latest \
               --notes-file /tmp/notes.md
           fi
           gh release upload "$GITHUB_REF_NAME" --clobber "${uploads[@]}"

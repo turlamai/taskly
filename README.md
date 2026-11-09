@@ -57,12 +57,13 @@ Development preview; no paid checkout is open. A future official desktop purchas
   cross-platform parity pinned by a 63-case golden suite. Spec:
   [CLI-SPEC](shared/spec/CLI-SPEC.md).
 - **Online updates (all platforms)** — silent check at launch plus a
-  manual check in Settings; the backend verifies the signed
+  manual check from the app menu on macOS and the Help menu on
+  Windows/Linux; the backend verifies the signed
   [update manifest](shared/spec/UPDATE.md) (Ed25519) and downloads the
   artifact, the host installs it. macOS swaps the bundle in place,
   Windows swaps the install directory via a quit-and-install handoff,
-  Linux downloads in-app and installs by extracting over the current
-  folder.
+  Linux replaces an AppImage in place, directs deb/rpm copies at the
+  package manager, and opens the folder for portable tarballs.
 
 ## Honest gaps
 
@@ -83,16 +84,18 @@ CLI/package filename slug and does not change download URLs or data paths.
 | macOS Intel | `taskly-<version>-macos-x64.zip` | `taskly-<version>-macos-x64.dmg` |
 | Windows x64 | `taskly-<version>-windows-x64.zip` | `taskly-<version>-windows-x64.msi` |
 | Windows ARM64 | runs the x64 build via Windows on ARM's x64 emulation | — |
-| Linux x64 | `taskly-<version>-linux-x64.tar.gz` | `taskly-<version>-linux-x64.deb` / `.rpm` / `.AppImage` |
-| Linux ARM64 | full Linux artifact set on `ubuntu-24.04-arm` builds (`-linux-arm64`) | — |
+| Linux x64 | `taskly-<version>-linux-x64.tar.gz` | `taskly-<version>-linux-amd64.deb` / `taskly-<version>-1-linux-x86_64.rpm` / `taskly-<version>-linux-x86_64.AppImage` |
+| Linux ARM64 | `taskly-<version>-linux-arm64.tar.gz` | `taskly-<version>-linux-arm64.deb` / `taskly-<version>-1-linux-aarch64.rpm` / `taskly-<version>-linux-aarch64.AppImage` |
 
 Every release carries a `SHA256SUMS` manifest and a signed
 `update-manifest.json` — the in-app updater's feed. Portable zip,
 Windows MSI, and Linux AppImage installs update in place; every installed
 artifact is selected from and verified against the signed manifest.
 
-macOS builds are ad-hoc signed; if Gatekeeper complains on first launch,
-run `xattr -cr /Applications/Taskly.app`.
+macOS builds are ad-hoc signed, not Developer ID signed or notarized. A
+Gatekeeper rejection is expected for these previews: do not disable
+system-wide protections. Verify the release checksum and use a trusted
+build; the installed bundle is `/Applications/taskly.app`.
 
 Linux needs a GTK 4 desktop (unpack the tarball and run `RivetHost`;
 GTK 4 and its system libraries are the only runtime dependencies —
