@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -431,6 +433,33 @@ jobs:
               gh release delete-asset "$GITHUB_REF_NAME" "$name" --yes
             fi
           done
+      # Family standard (movebit-origin): every public release asset carries
+      # verifiable build provenance. The globs match exactly the published
+      # matrix — sidecars, sbom/notices and rivet's staging dir stay out.
+      - name: Attest public build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/taskly-*-macos-arm64.dmg
+            dist/taskly-*-macos-arm64.zip
+            dist/taskly-*-macos-x64.dmg
+            dist/taskly-*-macos-x64.zip
+            dist/taskly-*-windows-x64.msi
+            dist/taskly-*-windows-x64.zip
+            dist/taskly-*-linux-x64.tar.gz
+            dist/taskly-*-linux-arm64.tar.gz
+            dist/taskly-*-linux-x64.zip
+            dist/taskly-*-linux-arm64.zip
+            dist/taskly-*-linux-amd64.deb
+            dist/taskly-*-linux-arm64.deb
+            dist/taskly-*-linux-x86_64.AppImage
+            dist/taskly-*-linux-aarch64.AppImage
+            dist/taskly-*-linux-x64.flatpak
+            dist/taskly-*-linux-arm64.flatpak
+            dist/taskly-*-linux-x86_64.rpm
+            dist/taskly-*-linux-aarch64.rpm
+            dist/SHA256SUMS
+            dist/update-manifest.json
       # Evaluation builds deliberately do not populate versionless stable aliases.
       # Restore a stable publication path only after #80 production installer trust
       # and the full release gate have independent evidence.
