@@ -64,6 +64,7 @@
          default-update-base-url
          current-update-base-url
          installer-extension
+         appimage-download-target
          manifest-url
          destination-path
          appimage-asset-name
