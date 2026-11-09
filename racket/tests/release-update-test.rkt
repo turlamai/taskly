@@ -356,6 +356,30 @@
   (kill-thread server-thread)
   (tcp-close listener))
 
+;; The AppImage target is read from $APPIMAGE, which is always a string.
+;; Handing that string to `path->string` after the swap made a successful
+;; in-place update report `path->string: contract violation` (taskly 0.2.6
+;; audit). Guard the type on every platform, not only where the swap runs.
+(test-case "the AppImage target stays a path end to end"
+  (define image (make-temporary-file "taskly-appimage-target-~a.AppImage"))
+  (call-with-output-file image #:exists 'truncate
+    (lambda (out) (write-bytes #"" out)))
+  (define had-appimage (getenv "APPIMAGE"))
+  (putenv "APPIMAGE" (path->string image))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define-values (self staged) (appimage-download-target))
+      (check-true (path? self)
+                  "APPIMAGE must not leak a string into path->string")
+      (check-true (path? staged))
+      (when (file-exists? staged) (delete-file staged)))
+    (lambda ()
+      (when (file-exists? image) (delete-file image))
+      (if (and had-appimage (not (equal? had-appimage "")))
+          (putenv "APPIMAGE" had-appimage)
+          (putenv "APPIMAGE" "")))))
+
 ;; Backend-owned install arm: Linux only — the AppImage in-place swap.
 (define run-appimage-swap-test?
   (eq? (system-type 'os) 'linux))

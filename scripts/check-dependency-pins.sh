@@ -6,6 +6,9 @@ WORKFLOWS=(
   "$ROOT/.github/workflows/ci.yml"
   "$ROOT/.github/workflows/acceptance.yml"
   "$ROOT/.github/workflows/release.yml"
+  # Client regeneration must use the same rivet as CI and release; it was
+  # previously pinned to an older commit and drifted silently.
+  "$ROOT/.github/workflows/release-version-client-sync.yml"
 )
 
 fail() {

@@ -1683,15 +1683,7 @@ void show_update_consent(rivet_app::UpdateCheck const& check) {
 // update invisible (startup auto-check — never nag); a manual check reports
 // everything. Any settled check records `last-update-check`, so the next
 // launch's silent attempt stays inside the 4-hour throttle (UPDATE.md).
-void check_for_updates(bool silent) {
-  if (g_state.api == nullptr || g_update.check_in_flight ||
-      g_update.download_in_flight) {
-    return;
-  }
-  g_update.check_in_flight = true;
-  if (!silent) {
-    flash_status(tr("updateChecking"));
-  }
+void run_update_check(bool silent) {
   g_state.api->check_updates_async(
       [silent](rivet_app::Result<rivet_app::UpdateCheck> result) {
         dispatch_ui([result = std::move(result), silent]() mutable {
@@ -1726,6 +1718,47 @@ void check_for_updates(bool silent) {
           }
           // "up-to-date": nothing to do.
           show_update_message("Taskly", tr("updateUpToDate"));
+        });
+      });
+}
+
+// Selection happens in the backend, so persist the host-detected install
+// shape before asking it to choose an artifact. A fire-and-forget startup
+// stamp can otherwise race the first silent/manual check and make an
+// AppImage install download the tar.gz (or the reverse). Windows enforces
+// the same ordering in MainWindow.Update.cpp.
+void check_for_updates(bool silent) {
+  if (g_state.api == nullptr || g_update.check_in_flight ||
+      g_update.download_in_flight) {
+    return;
+  }
+  g_update.check_in_flight = true;
+  if (!silent) {
+    flash_status(tr("updateChecking"));
+  }
+  g_state.api->set_setting_async(
+      "install-flavor", install_shape(),
+      [silent](rivet_app::Result<rivet_app::Settings> stamp) {
+        dispatch_ui([silent, stamp = std::move(stamp)]() mutable {
+          if (g_state.api == nullptr ||
+              g_state.shutting_down.load(std::memory_order_acquire)) {
+            g_update.check_in_flight = false;
+            return;
+          }
+          if (!stamp.succeeded()) {
+            g_update.check_in_flight = false;
+            if (silent) return;
+            std::string message = "unknown failure";
+            try {
+              std::rethrow_exception(stamp.error);
+            } catch (std::exception const& e) {
+              message = e.what();
+            } catch (...) {
+            }
+            show_update_error(message);
+            return;
+          }
+          run_update_check(silent);
         });
       });
 }
@@ -3820,9 +3853,9 @@ int on_backend_finished(gpointer) {
                           action, g_variant_new_boolean(g_auto_check_updates));
                     }
                   });
-              // Stamp the install shape so the backend picks the matching
-              // update flavor (UPDATE.md): appimage in-place, package
-              // manager guidance, portable tarball download.
+              // Early stamp only; check_for_updates re-persists the shape
+              // immediately before every check (UPDATE.md), so a slow
+              // startup RPC cannot race the silent check.
               save_setting("install-flavor", install_shape());
               open_default_database();
             });

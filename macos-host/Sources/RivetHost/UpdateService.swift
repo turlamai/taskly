@@ -69,7 +69,7 @@ public final class UpdateService {
             feedURL: feedURL ?? Self.manifestURL,
             publicKeyBase64: keyOverride ?? Self.publicKeyBase64,
             keyID: Self.expectedKeyID,
-            bundleName: "Taskly.app")
+            bundleName: "taskly.app")
         self.service = try? RivetUpdateService(
             configuration: configuration,
             bundlePath: bundleURL?.path,

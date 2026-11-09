@@ -388,9 +388,12 @@ final class AppModel {
                     }
                 }
             } catch is CancellationError {
-                updatePhase = .idle
-                updateSheetVisible = false
-                pendingUpdateManifest = nil
+                // UPDATE.md: cancelling stops the transfer and returns to the
+                // offer without restarting the app, so the candidate stays
+                // available for an immediate retry.
+                updateProgressPercent = 0
+                updateErrorMessage = ""
+                updatePhase = .available
             } catch {
                 updateErrorMessage = t("updateInstallFailed", Self.cleanError(error))
                 updatePhase = .failed

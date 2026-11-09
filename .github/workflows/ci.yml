@@ -19,7 +19,7 @@ concurrency:
 # Single source of truth for the rivet pin; every install step below
 # references this so a bump is one edit, not a grep-replace across jobs.
 env:
-  RIVET_PIN: 4fd6d37bef7f13170b35747bc902e436f5083e54
+  RIVET_PIN: bf0ba7d9cf483f7f8120baa2e8e21d506a7b51cc
   KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
 jobs:
   contract:
@@ -96,7 +96,7 @@ jobs:
       # Builds and caches the embeddable Racket CS runtime and exports
       # RIVET_RACKET_* (rivet's own composite action).
       - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@4fd6d37bef7f13170b35747bc902e436f5083e54
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@bf0ba7d9cf483f7f8120baa2e8e21d506a7b51cc
       # Installed after the embeddable runtime so the catalog dependency
       # closure (cext-lib, crypto-lib, keel) resolves against the minimal
       # build — it ships no packages of its own. db-lib backs taskly's storage;

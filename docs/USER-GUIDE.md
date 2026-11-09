@@ -42,7 +42,7 @@ Reminders are evaluated consistently by the shared core on all three desktop hos
 
 ## Updates and removal
 
-Back up data and read the destination release notes first. An in-app update check does not necessarily install an update for your channel; follow the manual for portable, installer and source paths. Never bypass a failed signature check or replace the program with an untrusted artifact. On failure, preserve data and the error, then recover with a trusted release. Removing the program does not necessarily erase its separate data directory; verify your backup before deleting personal data.
+Back up data and read the destination release notes first. Taskly checks silently shortly after launch (at most once every four hours) and lets you check manually from the Taskly menu on macOS or the Help menu on Windows and Linux. macOS, Windows MSI/portable, Linux AppImage and portable tarballs install the verified update in place; deb/rpm copies are directed to the system package manager, which owns the upgrade. Never bypass a failed signature check or replace the program with an untrusted artifact. On failure, preserve data and the error, then recover with a trusted release. Removing the program does not necessarily erase its separate data directory; verify your backup before deleting personal data.
 
 DMG, MSI, deb/rpm and portable archives replace application files, not `~/.taskly/`. If an update fails, quit all Taskly processes and reinstall the previous trusted build using the same installation shape; portable users can return to the previous program directory. The exact per-shape rollback table is in the update contract below.
 

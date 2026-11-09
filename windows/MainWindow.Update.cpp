@@ -78,10 +78,11 @@ std::filesystem::path update_success_marker() {
 // The detached handoff batch. ASCII on purpose: cmd parses batches in the
 // ANSI code page, so paths travel as arguments instead of being embedded in
 // the script. Args: %1 zip, %2 install dir, %3 exe, %4 failure marker,
-// %5 success marker. The zip is flat (release.yml packs `dist\*\*`, so
-// RivetHost.exe / res / runtime sit at the archive root). Order matters:
-// extract and verify BEFORE touching the old install, so a corrupt zip can
-// never break the running copy.
+// %5 success marker. The release zip currently has a single top-level
+// `taskly-windows-x64/` directory, so the payload root is located after
+// extraction instead of assuming a flat archive (a flat zip also works).
+// Order matters: extract and verify BEFORE touching the old install, so a
+// corrupt zip can never break the running copy.
 std::string update_handoff_batch(unsigned long pid) {
   // Pure ASCII: every path travels as a quoted %~1…%~5 argument, never in
   // the script body, so no codepage conversion is needed (cmd.exe reads
@@ -107,16 +108,30 @@ std::string update_handoff_batch(unsigned long pid) {
   batch += "mkdir \"%extract%\" 2>nul\r\n";
   batch += "tar -xf \"%~1\" -C \"%extract%\"\r\n";
   batch += "if errorlevel 1 goto fail_extract\r\n";
+  // Payload root: flat archives put RivetHost.exe at the extract root;
+  // packaged archives wrap it in one directory. Resolve it before the swap
+  // so the relaunch path is never left without an executable.
+  batch += "set \"payload=%extract%\"\r\n";
+  batch += "if exist \"%payload%\\RivetHost.exe\" goto have_payload\r\n";
+  batch += "for /d %%D in (\"%extract%\\*\") do set \"payload=%%~fD\"\r\n";
+  batch += "if exist \"%payload%\\RivetHost.exe\" goto have_payload\r\n";
+  batch += "goto fail_extract\r\n";
+  batch += ":have_payload\r\n";
   batch += "if exist \"%~2.old\" rmdir /s /q \"%~2.old\"\r\n";
   batch += "move \"%~2\" \"%~2.old\" >nul 2>&1\r\n";
   batch += "if errorlevel 1 goto fail_rename\r\n";
-  batch += "robocopy \"%extract%\" \"%~2\" /E /MOVE /NFL /NDL /NJH /NJS /NP >nul\r\n";
+  batch += "robocopy \"%payload%\" \"%~2\" /E /MOVE /NFL /NDL /NJH /NJS /NP >nul\r\n";
   batch += "if errorlevel 8 goto fail_swap\r\n";
+  // A success marker must mean the relaunch target really exists.
+  batch += "if not exist \"%~3\" goto fail_swap\r\n";
   batch += "start \"\" \"%~3\"\r\n";
   batch += "> \"%~5\" echo ok\r\n";
   batch += "exit /b 0\r\n";
   batch += ":fail_swap\r\n";
   batch += "> \"%~4\" echo swap-failed (%errorlevel%)\r\n";
+  // A partially moved payload occupies the install path; clear it before
+  // restoring the renamed old directory, otherwise rollback cannot work.
+  batch += "if exist \"%~2\" rmdir /s /q \"%~2\" >nul 2>&1\r\n";
   batch += "move \"%~2.old\" \"%~2\" >nul 2>&1\r\n";
   batch += "goto restart_old\r\n";
   batch += ":fail_rename\r\n";
