@@ -16,7 +16,7 @@
 
 - Windows：x64 MSI 会接入开始菜单和“应用和功能”，ZIP 是便携版。当前预览 MSI 尚无 Authenticode 签名，发行者信任与 SmartScreen 信誉还未达到生产发布标准。
 - macOS：打开 DMG，把 Taskly 拖入“应用程序”。当前预览版是临时签名，尚非 Developer ID 签名与公证；若 Gatekeeper 拒绝，不要因此关闭 Gatekeeper。
-- Linux：Debian/Ubuntu 使用 deb，Fedora 兼容系统使用 rpm，也可便携运行 AppImage。系统包会安装桌面入口和图标；升级与卸载应使用同一个包管理器。
+- Linux：Debian/Ubuntu 使用 deb，Fedora 兼容系统使用 rpm，也可便携运行 AppImage，或使用 Flatpak 包（`flatpak --user install ./taskly-<版本>-linux-<架构>.flatpak`；包内只含应用本体，首次安装时会从 Flatpak 远端拉取 GNOME Platform 运行时）。系统包会安装桌面入口和图标；升级与卸载应使用同一个包管理器（或 `flatpak --user update`）。
 
 ## 第一次使用
 
@@ -42,7 +42,7 @@ macOS 使用 Command，Windows/Linux 使用 Ctrl：1–4 切换智能视图，N 
 
 ## 更新与卸载
 
-先备份数据，再阅读目标版本说明。启动后会静默检查更新（最多每四小时一次）；macOS 在 Taskly 菜单、Windows/Linux 在“帮助”菜单可手动检查。macOS、Windows MSI/便携包、Linux AppImage 与便携 tar.gz 会原地安装已验签的更新；deb/rpm 副本则引导到系统包管理器，由包管理器负责升级。不要绕过失败的验签或用来源不明的文件覆盖程序。更新失败时保留现有数据与错误信息，使用可信发行包恢复；卸载程序通常不等于删除独立的数据目录，删除个人数据前先确认备份。
+先备份数据，再阅读目标版本说明。启动后会静默检查更新（最多每四小时一次）；macOS 在 Taskly 菜单、Windows/Linux 在“帮助”菜单可手动检查。macOS、Windows MSI/便携包、Linux AppImage 与便携 tar.gz 会原地安装已验签的更新；deb/rpm 与 Flatpak 副本则引导到系统包管理器（或 `flatpak --user update`），由其负责升级。不要绕过失败的验签或用来源不明的文件覆盖程序。更新失败时保留现有数据与错误信息，使用可信发行包恢复；卸载程序通常不等于删除独立的数据目录，删除个人数据前先确认备份。
 
 DMG、MSI、deb/rpm 与便携压缩包只替换应用文件，不应修改 `~/.taskly/`。更新失败时退出全部 Taskly 进程，用相同安装形态重新安装上一版可信构建；便携版可直接回到上一版程序目录。各安装形态的完整回滚表见下方更新说明。
 

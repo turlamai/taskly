@@ -16,7 +16,7 @@ Use [official Releases](https://github.com/turlamai/taskly/releases), select an 
 
 - Windows: use the x64 MSI for Start-menu and Apps & Features integration, or the ZIP for a portable copy. Current preview MSI files are not Authenticode-signed, so publisher trust and SmartScreen reputation are not production-ready.
 - macOS: open the DMG and drag Taskly to Applications. Current previews are ad-hoc signed rather than Developer ID signed/notarized; a Gatekeeper rejection is not a prompt to disable Gatekeeper.
-- Linux: use deb on Debian/Ubuntu, rpm on Fedora-compatible systems, or AppImage for a portable launch. The packages install a desktop entry and icon; use the same package manager for upgrades and removal.
+- Linux: use deb on Debian/Ubuntu, rpm on Fedora-compatible systems, AppImage for a portable launch, or the Flatpak bundle (`flatpak --user install ./taskly-<version>-linux-<arch>.flatpak`; the bundle carries the app payload only and pulls the GNOME Platform runtime from your Flatpak remote on first install). The packages install a desktop entry and icon; use the same package manager (or `flatpak --user update`) for upgrades and removal.
 
 ## Your first successful session
 
@@ -42,7 +42,7 @@ Reminders are evaluated consistently by the shared core on all three desktop hos
 
 ## Updates and removal
 
-Back up data and read the destination release notes first. Taskly checks silently shortly after launch (at most once every four hours) and lets you check manually from the Taskly menu on macOS or the Help menu on Windows and Linux. macOS, Windows MSI/portable, Linux AppImage and portable tarballs install the verified update in place; deb/rpm copies are directed to the system package manager, which owns the upgrade. Never bypass a failed signature check or replace the program with an untrusted artifact. On failure, preserve data and the error, then recover with a trusted release. Removing the program does not necessarily erase its separate data directory; verify your backup before deleting personal data.
+Back up data and read the destination release notes first. Taskly checks silently shortly after launch (at most once every four hours) and lets you check manually from the Taskly menu on macOS or the Help menu on Windows and Linux. macOS, Windows MSI/portable, Linux AppImage and portable tarballs install the verified update in place; deb/rpm and Flatpak copies are directed to the system package manager (or `flatpak --user update`), which owns the upgrade. Never bypass a failed signature check or replace the program with an untrusted artifact. On failure, preserve data and the error, then recover with a trusted release. Removing the program does not necessarily erase its separate data directory; verify your backup before deleting personal data.
 
 DMG, MSI, deb/rpm and portable archives replace application files, not `~/.taskly/`. If an update fails, quit all Taskly processes and reinstall the previous trusted build using the same installation shape; portable users can return to the previous program directory. The exact per-shape rollback table is in the update contract below.
 

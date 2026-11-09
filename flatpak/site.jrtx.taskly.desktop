@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Taskly
+Comment=Local task manager with lists, quick capture and reminders
+Exec=RivetHost
+Icon=site.jrtx.taskly
+Terminal=false
+Categories=Utility;
+StartupWMClass=Taskly
