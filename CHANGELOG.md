@@ -5,8 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.10] - 2026-11-10
 
+### Added
+- Windows: tray presence with the brand icon — left click (or the menu's
+  显示 Taskly) shows/restores the window, the menu offers 显示 Taskly and
+  退出, and the icon survives an Explorer restart.
+
+### Changed
+- App preferences (language / theme / auto-check updates) moved to the
+  platform-conventional settings surface on every host: the macOS Settings
+  window (⌘,), and a settings window/dialog entered from the Help menu on
+  Windows and Linux (Ctrl+,). The 设置 menu-bar menus and their preference
+  toggles are gone; menu-bar toggles remain view state only.
+
+### Fixed
+- macOS: task checkboxes now have a 44×44 hit target (the visual circle is
+  unchanged); near-miss clicks used to fall through to row selection, which
+  read as "checking does nothing". Completion updates optimistically and a
+  click-away draft save can no longer revert a concurrent completion toggle.
+- macOS: sidebar smart-chip counts no longer wrap into vertically stacked
+  digits; the label truncates instead.
+
+## [0.2.9] - 2026-11-09
 ## [0.2.9] - 2026-11-09
 
 ### Changed
