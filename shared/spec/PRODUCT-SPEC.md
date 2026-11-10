@@ -27,6 +27,12 @@ README's honest gaps).
   Show Completed toggle — Reminders convention). The quick-add field is
   the task pane's only input, directly under the large view title.
 - Sidebar collapse toggle (`‹`/`›`); the task pane takes the full width.
+- Windows tray presence: while the app runs, the notification area shows the
+  brand tray icon (the EXE icon — never the system default placeholder).
+  Left click (or the tray menu's 显示 Taskly) shows/restores the window;
+  the menu offers 显示 Taskly and 退出; the icon is re-added after an
+  Explorer restart (TaskbarCreated). Tray loss or denial disables
+  reminders but never startup.
 
 ## 3. Sidebar
 

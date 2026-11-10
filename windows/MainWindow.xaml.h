@@ -98,6 +98,8 @@ struct MainWindow : MainWindowT<MainWindow> {
   // here; the preference state stays in MainWindow and the window reports
   // user edits through its Committed events.
   void OnOpenSettings();
+  // Tray icon activation / menu: surface the window from the background.
+  void ShowFromTray();
   void OnSettingsLanguageChanged(
       winrt::RivetHost::SettingsWindow const&,
       winrt::Windows::Foundation::IInspectable const&);
@@ -238,7 +240,9 @@ private:
       std::wstring const& copy_button = L"");
 
   std::shared_ptr<rivet::windows::Backend> backend_;
-  std::unique_ptr<rivet::system::TrayIcon> notification_icon_;
+  // TrayController (not bare TrayIcon): it owns the window subclass that
+  // re-adds the icon after an Explorer restart and routes clicks.
+  std::unique_ptr<rivet::system::TrayController> notification_icon_;
   rivet_app::Settings settings_{};
   // Host-owned (like last-update-check): UPDATE.md auto-check toggle.
   bool auto_check_updates_{true};

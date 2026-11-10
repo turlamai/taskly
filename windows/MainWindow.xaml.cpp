@@ -701,9 +701,31 @@ MainWindow::MainWindow() {
       });
   try {
     // Shell_NotifyIcon is Rivet's first-party notification surface for this
-    // unpackaged WinUI host. Failure/denial disables reminders, never startup.
-    notification_icon_ = std::make_unique<rivet::system::TrayIcon>(
-        hwnd, 2, WM_APP + 43, L"Taskly", ::LoadIconW(nullptr, IDI_APPLICATION));
+    // unpackaged WinUI host. TrayController owns the window subclass, so the
+    // icon survives an Explorer restart (TaskbarCreated -> Readd) and clicks
+    // route to the window. The icon is the EXE brand icon (RT_GROUP_ICON
+    // ID 1) — the system default read as "no icon at all" in the tray.
+    // Failure/denial disables reminders, never startup.
+    HICON const brand_icon =
+        ::LoadIconW(::GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1));
+    notification_icon_ = std::make_unique<rivet::system::TrayController>(
+        hwnd, 2, WM_APP + 43, L"Taskly",
+        brand_icon ? brand_icon : ::LoadIconW(nullptr, IDI_APPLICATION),
+        {rivet::system::TrayMenuItem{
+             1, t("trayShow"),
+             [this] {
+               ShowFromTray();
+             }},
+         rivet::system::TrayMenuItem{rivet::system::TrayMenuItem::Type::separator},
+         rivet::system::TrayMenuItem{
+             2, t("menuExit"),
+             [this] {
+               Microsoft::UI::Xaml::RoutedEventArgs args;
+               OnExit(nullptr, args);
+             }}},
+        [this] {
+          ShowFromTray();
+        });
   } catch (...) {
     notifications_disabled_ = true;
   }
@@ -937,6 +959,22 @@ void MainWindow::ApplyLanguage() {
   MenuCheckUpdates().Text(t("updateCheckNow"));
   MenuOpenSettings().Text(winrt::hstring(t("menuSettings") + L"…"));
   MenuAbout().Text(t("menuAbout"));
+  // The tray menu is rebuilt for the new language while the icon stays.
+  if (notification_icon_) {
+    notification_icon_->SetMenu(
+        {rivet::system::TrayMenuItem{
+             1, t("trayShow"),
+             [this] {
+               ShowFromTray();
+             }},
+         rivet::system::TrayMenuItem{rivet::system::TrayMenuItem::Type::separator},
+         rivet::system::TrayMenuItem{
+             2, t("menuExit"),
+             [this] {
+               Microsoft::UI::Xaml::RoutedEventArgs args;
+               OnExit(nullptr, args);
+             }}});
+  }
   SearchBox().PlaceholderText(t("searchHint"));
   MyListsHeader().Text(t("sectionMyLists"));
   winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetName(
@@ -2838,6 +2876,24 @@ void MainWindow::OnOpenSettings(
     winrt::Windows::Foundation::IInspectable const&,
     Microsoft::UI::Xaml::RoutedEventArgs const&) {
   OnOpenSettings();
+}
+
+// Tray activation: the window may be hidden behind other windows or
+// minimized; restore it first so the user lands on the task list, then make
+// it foreground (SetForegroundWindow, or the window only flashes on the
+// taskbar).
+void MainWindow::ShowFromTray() {
+  auto window_native = try_as<::IWindowNative>();
+  HWND hwnd = nullptr;
+  if (SUCCEEDED(window_native->get_WindowHandle(&hwnd)) && hwnd != nullptr) {
+    if (::IsIconic(hwnd)) {
+      ::ShowWindow(hwnd, SW_RESTORE);
+    } else {
+      ::ShowWindow(hwnd, SW_SHOW);
+    }
+    ::SetForegroundWindow(hwnd);
+  }
+  Activate();
 }
 
 void MainWindow::OnSettingsLanguageChanged(
