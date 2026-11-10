@@ -1,0 +1,52 @@
+<Window
+    x:Class="RivetHost.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!-- PRODUCT-SPEC §8: the three app preferences (language, theme,
+         auto-check-updates) in the platform-conventional surface. Rows
+         follow the Windows 11 settings-card shape: caption left, control
+         right. Brushes resolve after InitializeComponent via code (same
+         cold-launch ThemeResource caveat MainWindow documents). -->
+    <Grid x:Name="RootGrid">
+        <StackPanel MaxWidth="420" Margin="20,16,20,20"
+                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                    Spacing="4">
+            <Grid Height="52">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="LanguageCaption" VerticalAlignment="Center" />
+                <ComboBox x:Name="LanguageBox" Grid.Column="1" Width="180"
+                          VerticalAlignment="Center"
+                          SelectionChanged="OnLanguageSelected" />
+            </Grid>
+            <Grid Height="52">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="ThemeCaption" VerticalAlignment="Center" />
+                <ComboBox x:Name="ThemeBox" Grid.Column="1" Width="180"
+                          VerticalAlignment="Center"
+                          SelectionChanged="OnThemeSelected" />
+            </Grid>
+            <Grid Height="52">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="AutoCheckCaption" VerticalAlignment="Center" />
+                <!-- OnContent/OffContent cleared in code: the caption lives
+                     in the row's TextBlock, Windows-11 settings-row style. -->
+                <ToggleSwitch x:Name="AutoCheckSwitch" Grid.Column="1"
+                              VerticalAlignment="Center" MinWidth="0"
+                              Toggled="OnAutoCheckToggled" />
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Window>

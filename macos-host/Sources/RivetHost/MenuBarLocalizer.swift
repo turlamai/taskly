@@ -3,11 +3,14 @@ import AppKit
 /// The menu-bar titles SwiftUI seeds for the system menus ("File", "Edit",
 /// "View", "Window", "Help") come from AppKit's English template: taskly
 /// declares no bundle localizations, so those five never follow the app's
-/// language setting while our CommandMenus (视图/设置) do — the stable mixed
+/// language setting while our CommandMenus (视图) do — the stable mixed
 /// bar. SwiftUI can neither retitle nor remove a system menu, so we re-apply
 /// titles from the i18n table and prune the two menus PRODUCT-SPEC §8 does
 /// not define (Edit, and the system View — our localized 视图 CommandMenu
-/// *is* the spec's View menu).
+/// *is* the spec's View menu). The app-preferences item is owned through
+/// CommandGroup(replacing: .appSettings) — TasklyApp uses a plain Window for
+/// the pane precisely so no scene-seeded English "Settings…" item exists to
+/// fight over.
 ///
 /// Matching is by both the English seed titles and their zh renders so the
 /// walk is language-independent: i18n starts at zh before settings land, so

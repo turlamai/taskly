@@ -808,8 +808,22 @@ final class AppModel {
         return out.string(from: date)
     }
 
+    /// Completion toggles optimistically: the circle fills the moment it is
+    /// clicked (Reminders feedback), and a draft save that commits while the
+    /// RPC is in flight reads the new state instead of clobbering it with a
+    /// stale flag (the expanded row's click-away save). The backend `changed`
+    /// event reconciles; a failed RPC restores through `reload`.
     func toggleCompleted(_ task: RivetTypes.Task) {
         guard let api else { return }
+        withAnimation(.easeOut(duration: 0.15)) {
+            if !task.completed, !showCompleted, currentView != .completed {
+                // This view drops the row on reload anyway — leave at once
+                // instead of flashing a transient completed section.
+                tasks.removeAll { $0.id == task.id }
+            } else if let i = tasks.firstIndex(where: { $0.id == task.id }) {
+                tasks[i] = Self.withCompletion(tasks[i], !task.completed)
+            }
+        }
         _Concurrency.Task {
             do {
                 _ = try await api.set_completed(id: task.id, completed: !task.completed)
@@ -817,8 +831,18 @@ final class AppModel {
                 reload()
             } catch {
                 flashStatus("\(error)")
+                reload()
             }
         }
+    }
+
+    /// Copy of the task with one flipped completion flag.
+    private static func withCompletion(
+        _ base: RivetTypes.Task, _ completed: Bool) -> RivetTypes.Task {
+        RivetTypes.Task(
+            id: base.id, list_id: base.list_id, list_name: base.list_name,
+            text: base.text, completed: completed, due_date: base.due_date,
+            due_time: base.due_time, notes: base.notes, created_at: base.created_at)
     }
 
     func saveTask(_ task: RivetTypes.Task, completion: ((Bool) -> Void)? = nil) {
@@ -826,9 +850,18 @@ final class AppModel {
             completion?(false)
             return
         }
+        // Completion is not a draft field. A draft built before a concurrent
+        // toggle (checkbox clicked inside an expanded row) carries a stale
+        // flag; persisting it would silently revert the toggle. The current
+        // model state wins; write order then stops mattering.
+        var outgoing = task
+        if let current = tasks.first(where: { $0.id == task.id }),
+           current.completed != task.completed {
+            outgoing = Self.withCompletion(outgoing, current.completed)
+        }
         _Concurrency.Task {
             do {
-                _ = try await api.update_task(task: task)
+                _ = try await api.update_task(task: outgoing)
                 flashStatus(i18n.t("statusTaskUpdated"))
                 reload()
                 completion?(true)

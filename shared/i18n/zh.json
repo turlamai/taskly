@@ -139,5 +139,6 @@
   "aboutCopyDiagnostics": "复制诊断信息",
   "statusDiagnosticsCopied": "已复制诊断信息，可直接粘贴到 issue",
   "settingsAutoCheckUpdates": "自动检查更新",
-  "updateCopyError": "复制错误信息"
+  "updateCopyError": "复制错误信息",
+  "trayShow": "显示 Taskly"
 }

@@ -5,6 +5,8 @@
 #include "pch.h"
 #include "GeneratedBackend.hpp"
 #include "MainWindow.g.h"
+// The settings window is held as a projected member (see settings_window_).
+#include "winrt/RivetHost.h"
 #include "system_services.hpp"
 #include "winui_window.hpp"
 
@@ -36,16 +38,8 @@ struct MainWindow : MainWindowT<MainWindow> {
                        Microsoft::UI::Xaml::RoutedEventArgs const&);
   void OnExit(winrt::Windows::Foundation::IInspectable const&,
               Microsoft::UI::Xaml::RoutedEventArgs const&);
-  void OnLangZh(winrt::Windows::Foundation::IInspectable const&,
-                Microsoft::UI::Xaml::RoutedEventArgs const&);
-  void OnLangEn(winrt::Windows::Foundation::IInspectable const&,
-                Microsoft::UI::Xaml::RoutedEventArgs const&);
-  void OnThemeSystem(winrt::Windows::Foundation::IInspectable const&,
-                     Microsoft::UI::Xaml::RoutedEventArgs const&);
-  void OnThemeLight(winrt::Windows::Foundation::IInspectable const&,
-                    Microsoft::UI::Xaml::RoutedEventArgs const&);
-  void OnThemeDark(winrt::Windows::Foundation::IInspectable const&,
-                   Microsoft::UI::Xaml::RoutedEventArgs const&);
+  void OnOpenSettings(winrt::Windows::Foundation::IInspectable const&,
+                      Microsoft::UI::Xaml::RoutedEventArgs const&);
   void OnCheckUpdates(winrt::Windows::Foundation::IInspectable const&,
                       Microsoft::UI::Xaml::RoutedEventArgs const&);
   winrt::fire_and_forget OnAbout(
@@ -98,10 +92,25 @@ struct MainWindow : MainWindowT<MainWindow> {
   void OnCancelUpdateDownload(
       winrt::Windows::Foundation::IInspectable const&,
       Microsoft::UI::Xaml::RoutedEventArgs const&);
-  void OnAutoCheckUpdatesToggled(
-      winrt::Windows::Foundation::IInspectable const&,
-      Microsoft::UI::Xaml::RoutedEventArgs const&);
   void LoadAutoCheckUpdatesSetting();
+
+  // PRODUCT-SPEC §8: the settings window (Ctrl+,). Single instance held
+  // here; the preference state stays in MainWindow and the window reports
+  // user edits through its Committed events.
+  void OnOpenSettings();
+  // Tray icon activation / menu: surface the window from the background.
+  void ShowFromTray();
+  void OnSettingsLanguageChanged(
+      winrt::RivetHost::SettingsWindow const&,
+      winrt::Windows::Foundation::IInspectable const&);
+  void OnSettingsThemeChanged(
+      winrt::RivetHost::SettingsWindow const&,
+      winrt::Windows::Foundation::IInspectable const&);
+  void OnSettingsAutoCheckChanged(
+      winrt::RivetHost::SettingsWindow const&,
+      winrt::Windows::Foundation::IInspectable const&);
+  void SyncAutoCheckSetting(bool on);
+  winrt::RivetHost::SettingsWindow settings_window_{nullptr};
 
 private:
   enum class ViewKind { Today, Planned, All, Completed, List };
@@ -231,7 +240,9 @@ private:
       std::wstring const& copy_button = L"");
 
   std::shared_ptr<rivet::windows::Backend> backend_;
-  std::unique_ptr<rivet::system::TrayIcon> notification_icon_;
+  // TrayController (not bare TrayIcon): it owns the window subclass that
+  // re-adds the icon after an Explorer restart and routes clicks.
+  std::unique_ptr<rivet::system::TrayController> notification_icon_;
   rivet_app::Settings settings_{};
   // Host-owned (like last-update-check): UPDATE.md auto-check toggle.
   bool auto_check_updates_{true};

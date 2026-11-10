@@ -48,6 +48,7 @@ namespace {
 
 std::unordered_map<std::string, std::string> g_i18n[2];  // 0 = zh, 1 = en
 int g_active_lang = 0;  // 0 = zh, 1 = en
+int g_active_theme = 0;  // 0 = system, 1 = light, 2 = dark
 
 char const* kFallbackZhKeys[] = {
     "menuFile",               "文件",
@@ -852,6 +853,7 @@ Palette const& system_palette() {
 }
 
 void apply_theme(std::string const& theme) {
+  g_active_theme = theme == "dark" ? 2 : theme == "light" ? 1 : 0;
   bool const dark_pref = theme == "dark";
   Palette const& palette = dark_pref          ? kDark
                            : theme == "light" ? kLight
@@ -3358,6 +3360,155 @@ void on_menu_theme_dark(GSimpleAction*, GVariant*, gpointer) {
   save_setting("theme", "dark");
 }
 
+// ---------------------------------------------------------------------------
+// Settings dialog (PRODUCT-SPEC §8): the three preferences in the
+// platform-conventional surface. Presentation only — the language, theme
+// and auto-check mutations reuse the same handlers/actions as before, so
+// state and persistence stay single-sourced.
+// ---------------------------------------------------------------------------
+
+GtkWidget* g_settings_dialog{nullptr};
+GtkWidget* g_settings_lang_caption{nullptr};
+GtkWidget* g_settings_theme_caption{nullptr};
+GtkWidget* g_settings_lang{nullptr};
+GtkWidget* g_settings_theme{nullptr};
+GtkWidget* g_settings_auto{nullptr};
+bool g_settings_filling{false};
+
+void refresh_settings_dialog() {
+  if (g_settings_dialog == nullptr) {
+    return;
+  }
+  gtk_window_set_title(GTK_WINDOW(g_settings_dialog),
+                       tr("menuSettings").c_str());
+  gtk_label_set_text(GTK_LABEL(g_settings_lang_caption),
+                     tr("menuLanguage").c_str());
+  gtk_label_set_text(GTK_LABEL(g_settings_theme_caption),
+                     tr("menuTheme").c_str());
+  gtk_check_button_set_label(GTK_CHECK_BUTTON(g_settings_auto),
+                             tr("settingsAutoCheckUpdates").c_str());
+  g_settings_filling = true;
+  auto* lang = GTK_COMBO_BOX_TEXT(g_settings_lang);
+  gtk_combo_box_text_remove(lang, 0);
+  gtk_combo_box_text_remove(lang, 0);
+  gtk_combo_box_text_append_text(lang, tr("menuLangZh").c_str());
+  gtk_combo_box_text_append_text(lang, tr("menuLangEn").c_str());
+  gtk_combo_box_set_active(GTK_COMBO_BOX(lang), g_active_lang);
+  auto* theme = GTK_COMBO_BOX_TEXT(g_settings_theme);
+  for (int i = 0; i < 3; ++i) {
+    gtk_combo_box_text_remove(theme, 0);
+  }
+  gtk_combo_box_text_append_text(theme, tr("themeFollowSystem").c_str());
+  gtk_combo_box_text_append_text(theme, tr("themeLight").c_str());
+  gtk_combo_box_text_append_text(theme, tr("themeDark").c_str());
+  gtk_combo_box_set_active(GTK_COMBO_BOX(theme), g_active_theme);
+  gtk_check_button_set_active(GTK_CHECK_BUTTON(g_settings_auto),
+                              g_auto_check_updates);
+  g_settings_filling = false;
+}
+
+void show_settings_dialog() {
+  if (g_settings_dialog != nullptr) {
+    refresh_settings_dialog();
+    gtk_window_present(GTK_WINDOW(g_settings_dialog));
+    return;
+  }
+  auto* dialog = gtk_dialog_new_with_buttons(
+      tr("menuSettings").c_str(), g_state.window,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_DESTROY_WITH_PARENT),
+      tr("dialogConfirm").c_str(), GTK_RESPONSE_CLOSE, nullptr);
+  gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+  auto* area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  auto* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  gtk_widget_set_margin_top(content, 12);
+  gtk_widget_set_margin_bottom(content, 6);
+  gtk_widget_set_margin_start(content, 12);
+  gtk_widget_set_margin_end(content, 12);
+  gtk_box_append(GTK_BOX(area), content);
+  auto* grid = gtk_grid_new();
+  gtk_grid_set_row_spacing(GTK_GRID(grid), 12);
+  gtk_grid_set_column_spacing(GTK_GRID(grid), 24);
+  gtk_box_append(GTK_BOX(content), grid);
+  auto* lang_caption = gtk_label_new(tr("menuLanguage").c_str());
+  gtk_widget_set_halign(lang_caption, GTK_ALIGN_START);
+  gtk_grid_attach(GTK_GRID(grid), lang_caption, 0, 0, 1, 1);
+  auto* lang = gtk_combo_box_text_new();
+  gtk_grid_attach(GTK_GRID(grid), lang, 1, 0, 1, 1);
+  auto* theme_caption = gtk_label_new(tr("menuTheme").c_str());
+  gtk_widget_set_halign(theme_caption, GTK_ALIGN_START);
+  gtk_grid_attach(GTK_GRID(grid), theme_caption, 0, 1, 1, 1);
+  auto* theme = gtk_combo_box_text_new();
+  gtk_grid_attach(GTK_GRID(grid), theme, 1, 1, 1, 1);
+  auto* auto_check = gtk_check_button_new();
+  gtk_grid_attach(GTK_GRID(grid), auto_check, 0, 2, 2, 1);
+  g_settings_dialog = dialog;
+  g_settings_lang_caption = lang_caption;
+  g_settings_theme_caption = theme_caption;
+  g_settings_lang = lang;
+  g_settings_theme = theme;
+  g_settings_auto = auto_check;
+  g_signal_connect(
+      lang, "changed",
+      G_CALLBACK(+[](GtkComboBox* box, gpointer) {
+        if (g_settings_filling) return;
+        int const index = gtk_combo_box_get_active(box);
+        if (index == 0 && g_active_lang != 0) on_menu_lang_zh(nullptr, nullptr, nullptr);
+        if (index == 1 && g_active_lang != 1) on_menu_lang_en(nullptr, nullptr, nullptr);
+      }),
+      nullptr);
+  g_signal_connect(
+      theme, "changed",
+      G_CALLBACK(+[](GtkComboBox* box, gpointer) {
+        if (g_settings_filling) return;
+        int const index = gtk_combo_box_get_active(box);
+        if (index == 0 && g_active_theme != 0) on_menu_theme_system(nullptr, nullptr, nullptr);
+        if (index == 1 && g_active_theme != 1) on_menu_theme_light(nullptr, nullptr, nullptr);
+        if (index == 2 && g_active_theme != 2) on_menu_theme_dark(nullptr, nullptr, nullptr);
+      }),
+      nullptr);
+  g_signal_connect(
+      auto_check, "toggled",
+      G_CALLBACK(+[](GtkCheckButton* button, gpointer) {
+        if (g_settings_filling) return;
+        bool const on = gtk_check_button_get_active(button);
+        // One mutation path: the stateful action's change-state handler
+        // owns g_auto_check_updates and the persistence.
+        if (auto* action = g_action_map_lookup_action(
+                G_ACTION_MAP(g_state.window), "auto-check-updates")) {
+          g_action_change_state(G_ACTION(action),
+                                g_variant_new_boolean(on));
+        } else {
+          g_auto_check_updates = on;
+          save_setting("auto-check-updates", on ? "1" : "0");
+        }
+      }),
+      nullptr);
+  g_signal_connect(
+      dialog, "response",
+      G_CALLBACK(+[](GtkDialog* dialog_box, gint, gpointer) {
+        gtk_window_destroy(GTK_WINDOW(dialog_box));
+      }),
+      nullptr);
+  // The widget pointers die with the window; reset before destroy lands.
+  g_signal_connect(
+      dialog, "destroy",
+      G_CALLBACK(+[](GtkWidget*, gpointer) {
+        g_settings_dialog = nullptr;
+        g_settings_lang_caption = nullptr;
+        g_settings_theme_caption = nullptr;
+        g_settings_lang = nullptr;
+        g_settings_theme = nullptr;
+        g_settings_auto = nullptr;
+      }),
+      nullptr);
+  refresh_settings_dialog();
+  gtk_window_present(GTK_WINDOW(dialog));
+}
+
+void on_menu_open_settings(GSimpleAction*, GVariant*, gpointer) {
+  show_settings_dialog();
+}
+
 void on_menu_about(GSimpleAction*, GVariant*, gpointer) {
   show_about_dialog();
 }
@@ -3394,30 +3545,19 @@ void build_menubar() {
                         G_MENU_MODEL(file_menu));
   g_object_unref(file_menu);
 
-  auto* settings_menu = g_menu_new();
-  auto* lang_section = g_menu_new();
-  g_menu_append(lang_section, tr("menuLangZh").c_str(), "win.lang-zh");
-  g_menu_append(lang_section, tr("menuLangEn").c_str(), "win.lang-en");
-  g_menu_append_section(settings_menu, nullptr, G_MENU_MODEL(lang_section));
-  g_object_unref(lang_section);
-  auto* theme_section = g_menu_new();
-  g_menu_append(theme_section, tr("themeFollowSystem").c_str(),
-                "win.theme-system");
-  g_menu_append(theme_section, tr("themeLight").c_str(), "win.theme-light");
-  g_menu_append(theme_section, tr("themeDark").c_str(), "win.theme-dark");
-  g_menu_append_section(settings_menu, nullptr, G_MENU_MODEL(theme_section));
-  g_object_unref(theme_section);
-  g_menu_append(settings_menu, tr("settingsAutoCheckUpdates").c_str(),
-                "win.auto-check-updates");
-  g_menu_append_submenu(menu, tr("menuSettings").c_str(),
-                        G_MENU_MODEL(settings_menu));
-  g_object_unref(settings_menu);
+  // PRODUCT-SPEC §8: no 设置 menu — the three preferences live in the
+  // settings dialog (win.open-settings), entered from the Help menu.
+  // Menu-bar menus carry commands, not preference toggles.
 
   // Family menu convention: Check for Updates… and About are a pair in the
   // Help menu (UPDATE.md trigger contract; the manual entry bypasses the
-  // launch throttle).
+  // launch throttle). The settings entry sits between them (macOS app-menu
+  // order: About / Check / Settings).
   auto* help_menu = g_menu_new();
   g_menu_append(help_menu, tr("updateCheckNow").c_str(), "win.check-updates");
+  g_menu_append(help_menu,
+                (std::string(tr("menuSettings")) + "…").c_str(),
+                "win.open-settings");
   g_menu_append(help_menu, tr("menuAbout").c_str(), "win.about");
   g_menu_append_submenu(menu, tr("menuHelp").c_str(), G_MENU_MODEL(help_menu));
   g_object_unref(help_menu);
@@ -3430,6 +3570,7 @@ void build_menubar() {
 void apply_language() {
   g_active_lang = g_state.language == "en" ? 1 : 0;
   build_menubar();
+  refresh_settings_dialog();
   gtk_label_set_text(g_state.my_lists_caption,
                      tr("sectionMyLists").c_str());
   gtk_search_entry_set_placeholder_text(g_state.search_box,
@@ -4355,6 +4496,8 @@ void on_activate(GtkApplication* app, gpointer) {
                     false);
   add_window_action(GTK_APPLICATION_WINDOW(window), "check-updates",
                     on_menu_check_updates, false);
+  add_window_action(GTK_APPLICATION_WINDOW(window), "open-settings",
+                    on_menu_open_settings, false);
   add_window_action(GTK_APPLICATION_WINDOW(window), "view-today",
                     on_action_view_today, false);
   add_window_action(GTK_APPLICATION_WINDOW(window), "view-planned",
@@ -4403,6 +4546,10 @@ void on_activate(GtkApplication* app, gpointer) {
                                         accels_search);
   gtk_application_set_accels_for_action(app, "win.toggle-completed",
                                         accels_toggle_completed);
+  // Settings (Ctrl+,) — the same convention as the macOS host's ⌘,.
+  static char const* const accels_settings[] = {"<Primary>comma", nullptr};
+  gtk_application_set_accels_for_action(app, "win.open-settings",
+                                        accels_settings);
 
   g_signal_connect(user_list, "row-selected",
                    G_CALLBACK(on_user_row_selected), nullptr);

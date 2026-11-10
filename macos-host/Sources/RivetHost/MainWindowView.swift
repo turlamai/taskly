@@ -167,6 +167,12 @@ private struct SmartChip: View {
                 Text("\(count)")
                     .font(.system(size: 12))
                     .foregroundStyle(model.theme.secondaryText)
+                    // One line, never compressed: a count like 13 otherwise
+                    // wraps into vertically stacked digits ("1"/"3") because
+                    // the label takes its ideal width first. The count wins
+                    // the space; the label truncates instead.
+                    .lineLimit(1)
+                    .layoutPriority(2)
                     .accessibilityIdentifier("smart-count-\(view.backendView)")
             }
             .padding(.horizontal, 8)

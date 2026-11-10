@@ -854,22 +854,13 @@ void MainWindow::LoadAutoCheckUpdatesSetting() {
           }
           dispatcher.TryEnqueue([weak, on] {
             if (auto window = weak.get()) {
-              window->auto_check_updates_ = on;
-              window->MenuAutoCheckUpdates().IsChecked(on);
+              window->SyncAutoCheckSetting(on);
             }
           });
         });
   } catch (...) {
     // Silent: the toggle defaults to on until the backend answers.
   }
-}
-
-void MainWindow::OnAutoCheckUpdatesToggled(
-    winrt::Windows::Foundation::IInspectable const&,
-    Microsoft::UI::Xaml::RoutedEventArgs const&) {
-  auto_check_updates_ = MenuAutoCheckUpdates().IsChecked();
-  SaveSettingAsync("auto-check-updates",
-                   auto_check_updates_ ? "1" : "0");
 }
 
 }  // namespace winrt::RivetHost::implementation

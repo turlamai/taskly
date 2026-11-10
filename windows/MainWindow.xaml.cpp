@@ -701,9 +701,33 @@ MainWindow::MainWindow() {
       });
   try {
     // Shell_NotifyIcon is Rivet's first-party notification surface for this
-    // unpackaged WinUI host. Failure/denial disables reminders, never startup.
-    notification_icon_ = std::make_unique<rivet::system::TrayIcon>(
-        hwnd, 2, WM_APP + 43, L"Taskly", ::LoadIconW(nullptr, IDI_APPLICATION));
+    // unpackaged WinUI host. TrayController owns the window subclass, so the
+    // icon survives an Explorer restart (TaskbarCreated -> Readd) and clicks
+    // route to the window. The icon is the EXE brand icon (RT_GROUP_ICON
+    // ID 1) — the system default read as "no icon at all" in the tray.
+    // Failure/denial disables reminders, never startup.
+    HICON const brand_icon =
+        ::LoadIconW(::GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1));
+    notification_icon_ = std::make_unique<rivet::system::TrayController>(
+        hwnd, 2, WM_APP + 43, L"Taskly",
+        brand_icon ? brand_icon : ::LoadIconW(nullptr, IDI_APPLICATION),
+        std::vector<rivet::system::TrayMenuItem>{
+            rivet::system::TrayMenuItem{
+                1, t("trayShow"),
+                [this] {
+                  ShowFromTray();
+                }},
+            rivet::system::TrayMenuItem{
+                rivet::system::TrayMenuItem::Type::separator},
+            rivet::system::TrayMenuItem{
+                2, t("menuExit"),
+                [this] {
+                  Microsoft::UI::Xaml::RoutedEventArgs args;
+                  OnExit(nullptr, args);
+                }}},
+        [this] {
+          ShowFromTray();
+        });
   } catch (...) {
     notifications_disabled_ = true;
   }
@@ -924,7 +948,6 @@ void MainWindow::DeliverReminder(rivet_app::ReminderDecision decision) {
 void MainWindow::ApplyLanguage() {
   set_i18n_language(settings_.language);
   MenuFile().Title(t("menuFile"));
-  MenuSettings().Title(t("menuSettings"));
   MenuHelp().Title(t("menuHelp"));
   MenuNewDatabase().Text(t("menuNewDatabase"));
   MenuOpenDatabase().Text(t("menuOpenDatabase"));
@@ -935,16 +958,25 @@ void MainWindow::ApplyLanguage() {
   MenuOpenDatabase().KeyboardAcceleratorTextOverride(L"Ctrl+O");
   MenuCloseDatabase().Text(t("menuCloseDatabase"));
   MenuExit().Text(t("menuExit"));
-  MenuLangZh().Text(t("menuLangZh"));
-  MenuLangEn().Text(t("menuLangEn"));
-  MenuTheme().Text(t("menuTheme"));
-  MenuThemeSystem().Text(t("themeFollowSystem"));
-  MenuThemeLight().Text(t("themeLight"));
-  MenuThemeDark().Text(t("themeDark"));
-  MenuAutoCheckUpdates().Text(t("settingsAutoCheckUpdates"));
-  MenuAutoCheckUpdates().IsChecked(auto_check_updates_);
   MenuCheckUpdates().Text(t("updateCheckNow"));
+  MenuOpenSettings().Text(winrt::hstring(t("menuSettings") + L"…"));
   MenuAbout().Text(t("menuAbout"));
+  // The tray menu is rebuilt for the new language while the icon stays.
+  if (notification_icon_) {
+    notification_icon_->SetMenu(
+        {rivet::system::TrayMenuItem{
+             1, t("trayShow"),
+             [this] {
+               ShowFromTray();
+             }},
+         rivet::system::TrayMenuItem{rivet::system::TrayMenuItem::Type::separator},
+         rivet::system::TrayMenuItem{
+             2, t("menuExit"),
+             [this] {
+               Microsoft::UI::Xaml::RoutedEventArgs args;
+               OnExit(nullptr, args);
+             }}});
+  }
   SearchBox().PlaceholderText(t("searchHint"));
   MyListsHeader().Text(t("sectionMyLists"));
   winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetName(
@@ -964,6 +996,11 @@ void MainWindow::ApplyLanguage() {
   BulkScheduleButton().Content(winrt::box_value(t("bulkSchedule")));
   BulkDeleteButton().Content(winrt::box_value(t("listDelete")));
   UndoDeleteButton().Content(winrt::box_value(t("bannerUndo")));
+  // The settings window retranslates while it is open (PRODUCT-SPEC §8:
+  // runtime language switch covers every host surface).
+  if (settings_window_) {
+    settings_window_.ApplyAppLanguage();
+  }
   RenderSidebar();
   RenderTasks();
 }
@@ -975,6 +1012,10 @@ void MainWindow::ApplyTheme(std::string const& theme) {
     RootGrid().RequestedTheme(mx::ElementTheme::Dark);
   } else {
     RootGrid().RequestedTheme(mx::ElementTheme::Default);
+  }
+  // The settings window follows the app theme while it is open.
+  if (settings_window_) {
+    settings_window_.ApplyAppTheme(winrt::to_hstring(theme));
   }
   ApplyTitleBarTheme();
 }
@@ -2813,36 +2854,78 @@ void MainWindow::OnExit(winrt::Windows::Foundation::IInspectable const&,
   Close();
 }
 
-void MainWindow::OnLangZh(winrt::Windows::Foundation::IInspectable const&,
-                          Microsoft::UI::Xaml::RoutedEventArgs const&) {
-  settings_.language = "zh";
+// PRODUCT-SPEC §8: the three preferences live in the settings window
+// (Help menu > 设置… / Ctrl+,). One instance for the app lifetime; the
+// state stays here and the window reports edits through its events, the
+// same split as every other host surface.
+void MainWindow::OnOpenSettings() {
+  if (!settings_window_) {
+    settings_window_ = winrt::RivetHost::SettingsWindow();
+    settings_window_.Initialize(winrt::to_hstring(settings_.language),
+                                winrt::to_hstring(settings_.theme),
+                                auto_check_updates_);
+    settings_window_.LanguageCommitted(
+        {this, &MainWindow::OnSettingsLanguageChanged});
+    settings_window_.ThemeCommitted(
+        {this, &MainWindow::OnSettingsThemeChanged});
+    settings_window_.AutoCheckCommitted(
+        {this, &MainWindow::OnSettingsAutoCheckChanged});
+  }
+  settings_window_.Activate();
+}
+
+void MainWindow::OnOpenSettings(
+    winrt::Windows::Foundation::IInspectable const&,
+    Microsoft::UI::Xaml::RoutedEventArgs const&) {
+  OnOpenSettings();
+}
+
+// Tray activation: the window may be hidden behind other windows or
+// minimized; restore it first so the user lands on the task list, then make
+// it foreground (SetForegroundWindow, or the window only flashes on the
+// taskbar).
+void MainWindow::ShowFromTray() {
+  auto window_native = try_as<::IWindowNative>();
+  HWND hwnd = nullptr;
+  if (SUCCEEDED(window_native->get_WindowHandle(&hwnd)) && hwnd != nullptr) {
+    if (::IsIconic(hwnd)) {
+      ::ShowWindow(hwnd, SW_RESTORE);
+    } else {
+      ::ShowWindow(hwnd, SW_SHOW);
+    }
+    ::SetForegroundWindow(hwnd);
+  }
+  Activate();
+}
+
+void MainWindow::OnSettingsLanguageChanged(
+    winrt::RivetHost::SettingsWindow const& sender,
+    winrt::Windows::Foundation::IInspectable const&) {
+  settings_.language = winrt::to_string(sender.SelectedLanguage());
   ApplyLanguage();
-  SaveSettingAsync("language", "zh");
+  SaveSettingAsync("language", settings_.language);
 }
 
-void MainWindow::OnLangEn(winrt::Windows::Foundation::IInspectable const&,
-                          Microsoft::UI::Xaml::RoutedEventArgs const&) {
-  settings_.language = "en";
-  ApplyLanguage();
-  SaveSettingAsync("language", "en");
+void MainWindow::OnSettingsThemeChanged(
+    winrt::RivetHost::SettingsWindow const& sender,
+    winrt::Windows::Foundation::IInspectable const&) {
+  settings_.theme = winrt::to_string(sender.SelectedTheme());
+  ApplyTheme(settings_.theme);
+  SaveSettingAsync("theme", settings_.theme);
 }
 
-void MainWindow::OnThemeSystem(winrt::Windows::Foundation::IInspectable const&,
-                               Microsoft::UI::Xaml::RoutedEventArgs const&) {
-  ApplyTheme("system");
-  SaveSettingAsync("theme", "system");
+void MainWindow::OnSettingsAutoCheckChanged(
+    winrt::RivetHost::SettingsWindow const& sender,
+    winrt::Windows::Foundation::IInspectable const&) {
+  auto_check_updates_ = sender.AutoCheckUpdatesOn();
+  SaveSettingAsync("auto-check-updates", auto_check_updates_ ? "1" : "0");
 }
 
-void MainWindow::OnThemeLight(winrt::Windows::Foundation::IInspectable const&,
-                              Microsoft::UI::Xaml::RoutedEventArgs const&) {
-  ApplyTheme("light");
-  SaveSettingAsync("theme", "light");
-}
-
-void MainWindow::OnThemeDark(winrt::Windows::Foundation::IInspectable const&,
-                             Microsoft::UI::Xaml::RoutedEventArgs const&) {
-  ApplyTheme("dark");
-  SaveSettingAsync("theme", "dark");
+void MainWindow::SyncAutoCheckSetting(bool on) {
+  auto_check_updates_ = on;
+  if (settings_window_) {
+    settings_window_.SyncAutoCheck(on);
+  }
 }
 
 winrt::fire_and_forget MainWindow::OnAbout(
@@ -3061,6 +3144,10 @@ void MainWindow::InstallAppAccelerators() {
     Microsoft::UI::Xaml::RoutedEventArgs args;
     OnOpenDatabase(nullptr, args);
   });
+  // Settings (Ctrl+,) — the same convention as the macOS host's ⌘,.
+  // 0xBC is VirtualKey::Comma; this Windows App SDK projection does not
+  // name it, unlike the other keys used above.
+  attach(static_cast<VirtualKey>(0xBC), control, [this] { OnOpenSettings(); });
 }
 
 void MainWindow::OnUserListSelectionChanged(

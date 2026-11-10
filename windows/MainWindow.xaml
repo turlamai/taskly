@@ -61,22 +61,15 @@
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem x:Name="MenuExit" Click="OnExit" />
             </MenuBarItem>
-            <MenuBarItem Title="Settings" x:Name="MenuSettings">
-                <MenuFlyoutItem x:Name="MenuLangZh" Click="OnLangZh" />
-                <MenuFlyoutItem x:Name="MenuLangEn" Click="OnLangEn" />
-                <MenuFlyoutSeparator />
-                <MenuFlyoutSubItem x:Name="MenuTheme">
-                    <MenuFlyoutItem x:Name="MenuThemeSystem" Click="OnThemeSystem" />
-                    <MenuFlyoutItem x:Name="MenuThemeLight" Click="OnThemeLight" />
-                    <MenuFlyoutItem x:Name="MenuThemeDark" Click="OnThemeDark" />
-                </MenuFlyoutSubItem>
-                <MenuFlyoutSeparator />
-                <ToggleMenuFlyoutItem x:Name="MenuAutoCheckUpdates" Click="OnAutoCheckUpdatesToggled" />
-            </MenuBarItem>
+            <!-- PRODUCT-SPEC §8: no 设置 menu — the three preferences live
+                 in the settings window (Ctrl+,), opened from the Help menu.
+                 Menu-bar menus carry commands, not preference toggles. -->
             <MenuBarItem Title="Help" x:Name="MenuHelp">
                 <!-- Family menu convention: Check for Updates… and About are
-                     a pair in the Help menu. -->
+                     a pair in the Help menu; the settings entry sits between
+                     them (macOS app-menu order: About / Check / Settings). -->
                 <MenuFlyoutItem x:Name="MenuCheckUpdates" Click="OnCheckUpdates" />
+                <MenuFlyoutItem x:Name="MenuOpenSettings" Click="OnOpenSettings" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem x:Name="MenuAbout" Click="OnAbout" />
             </MenuBarItem>
