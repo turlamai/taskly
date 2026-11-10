@@ -7,7 +7,7 @@ public enum RivetGeneratedConfig {
     public static let moduleName = "backend"
     public static let entryName = "start"
     public static let displayName = "Taskly"
-    public static let version = "0.2.9"
+    public static let version = "0.2.10"
     public static let build: Int64 = 1
     public static let identifier = "app.taskly.Taskly"
     public static let releaseChannel = "stable"
