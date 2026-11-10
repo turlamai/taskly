@@ -90,11 +90,12 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
     <PackageReference Include="Microsoft.Windows.CppWinRT" Version="3.0.260818.1" />
   </ItemGroup>
-  <ItemGroup><ApplicationDefinition Include="App.xaml" /><Page Include="MainWindow.xaml" /></ItemGroup>
+  <ItemGroup><ApplicationDefinition Include="App.xaml" /><Page Include="MainWindow.xaml" /><Page Include="SettingsWindow.xaml" /></ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="App.xaml.h"><DependentUpon>App.xaml</DependentUpon></ClInclude>
     <ClInclude Include="MainWindow.xaml.h"><DependentUpon>MainWindow.xaml</DependentUpon></ClInclude>
+    <ClInclude Include="SettingsWindow.xaml.h"><DependentUpon>SettingsWindow.xaml</DependentUpon></ClInclude>
     <ClInclude Include="GeneratedBackend.hpp" />
     <ClInclude Include="$(RIVET_ROOT)\platform\windows\runtime\backend.hpp" />
     <ClInclude Include="$(RIVET_ROOT)\platform\windows\runtime\win32_pipe_transport.hpp" />
@@ -107,6 +108,7 @@
     <ClCompile Include="App.xaml.cpp"><DependentUpon>App.xaml</DependentUpon></ClCompile>
     <ClCompile Include="MainWindow.xaml.cpp"><DependentUpon>MainWindow.xaml</DependentUpon></ClCompile>
     <ClCompile Include="MainWindow.Update.cpp"><DependentUpon>MainWindow.xaml</DependentUpon></ClCompile>
+    <ClCompile Include="SettingsWindow.xaml.cpp"><DependentUpon>SettingsWindow.xaml</DependentUpon></ClCompile>
     <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
   </ItemGroup>
   <ItemGroup><Midl Include="Project.idl"><SubType>Code</SubType></Midl></ItemGroup>

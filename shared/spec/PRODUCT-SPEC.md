@@ -187,15 +187,16 @@ be written here before it can be accepted; none is declared for these rows.
   (light) / 深色 (dark), persisted in config `theme`; follow-system tracks
   OS personalization live — plus the auto-check-updates preference
   (config `auto-check-updates`, default on). The three preferences share
-  one information architecture on every host; only the presentation is
-  host-native. Windows hosts them in the 设置 MenuBar menu (language/theme
-  items + auto-check toggle). macOS hosts them in the standard Settings
-  window (⌘,) General pane — persistent preferences never live in a
-  menu-bar menu; menu-bar toggles are view state only (Show Completed
-  stays in the View menu). Windows reads the persisted language and theme
-  before first window activation (no temporary English/light frame); the
-  backend settings RPC remains authoritative once connected. macOS follows
-  the system appearance at launch and live. Async persistence
+  one information architecture on every host and live in the
+  platform-conventional settings surface, never as toggles in a menu-bar
+  menu (menu-bar toggles are view state only — Show Completed stays in
+  the View menu): macOS hosts them in the standard Settings window
+  (⌘,, entered from the app-menu 设置… item); Windows and Linux host an
+  equivalent settings window/dialog entered from the Help menu's 设置…
+  item, with Ctrl+, on both. Windows reads the persisted language and
+  theme before first window activation (no temporary English/light
+  frame); the backend settings RPC remains authoritative once connected.
+  macOS follows the system appearance at launch and live. Async persistence
   acknowledgements must **not** overwrite local settings changed since the
   request began (including `last-selected-list-id`, theme and language).
   The locally selected list remains authoritative through overlapping

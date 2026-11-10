@@ -5,4 +5,29 @@ namespace RivetHost
     {
         MainWindow();
     }
+
+    // PRODUCT-SPEC §8: the settings surface. Owns the three preference
+    // controls only; state and persistence stay in MainWindow, which
+    // subscribes to the Committed events and applies/saves each change.
+    runtimeclass SettingsWindow : Microsoft.UI.Xaml.Window
+    {
+        SettingsWindow();
+
+        // Seed the visuals from MainWindow's current state (no events fire).
+        void Initialize(String language, String theme, Boolean autoCheck);
+        // Persistence acknowledgement: align the switch, fire no events.
+        void SyncAutoCheck(Boolean autoCheck);
+        // Retranslate captions/title (language switch while open).
+        void ApplyAppLanguage();
+        // Follow the app theme ("system"/"light"/"dark").
+        void ApplyAppTheme(String theme);
+
+        String SelectedLanguage { get; };
+        String SelectedTheme { get; };
+        Boolean AutoCheckUpdatesOn { get; };
+
+        event Windows.Foundation.TypedEventHandler<SettingsWindow, Object> LanguageCommitted;
+        event Windows.Foundation.TypedEventHandler<SettingsWindow, Object> ThemeCommitted;
+        event Windows.Foundation.TypedEventHandler<SettingsWindow, Object> AutoCheckCommitted;
+    }
 }
