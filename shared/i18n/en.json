@@ -131,7 +131,7 @@
   "updateUsePackageManager": "This copy came from the system package manager — use it to upgrade Taskly.",
   "updateAppImageHint": "The update is in place — restart Taskly to switch to the new version.",
   "updateRestartNow": "Restart and update",
-  "aboutLicense": "Released under the GNU AGPL-3.0",
+  "aboutLicense": "Released under BUSL-1.1 (source-available)",
   "aboutWebsite": "Website",
   "aboutReportIssue": "Report an Issue",
   "aboutManual": "User Manual",

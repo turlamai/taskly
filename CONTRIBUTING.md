@@ -1,9 +1,9 @@
 # Contributing to Taskly
 
-Thank you for looking under the hood. Taskly is free software
-(AGPL-3.0, see [LICENSE](LICENSE)): by submitting a pull request you
-agree your contribution is licensed under AGPL-3.0, like the rest of
-the Work.
+Thank you for looking under the hood. Taskly is source-available
+(BUSL-1.1, see [LICENSE](LICENSE)): by submitting a pull request you
+agree your contribution is licensed under BUSL-1.1, with the same MIT
+change date as the rest of the Work.
 
 ## Ground rules
 

@@ -18,7 +18,7 @@ Daily use, long-lived personal data and native interaction make Taskly a candida
 
 ## Free and paid scope
 
-Free / evaluation: Development previews remain free; this design does not add payment restrictions to existing previews. The future stable commercial edition has a full 14-day trial. After the trial, reading, searching, backups and standard-format export remain available. Reminders, natural-language entry and the CLI are part of the complete product, not separately priced extras. Source remains under AGPL-3.0.
+Free / evaluation: Development previews remain free; this design does not add payment restrictions to existing previews. The future stable commercial edition has a full 14-day trial. After the trial, reading, searching, backups and standard-format export remain available. Reminders, natural-language entry and the CLI are part of the complete product, not separately priced extras. Source remains available under BUSL-1.1, with a fixed MIT change date.
 
 Paid: One named user, covering the complete official macOS, Windows and Linux desktop product on platforms actually delivered, with 12 months of new-version eligibility. Unreleased mobile editions, hosted sync and model usage are not bundled promises.
 
