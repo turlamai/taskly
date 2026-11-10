@@ -1549,8 +1549,6 @@ mxc::Grid MainWindow::MakeTaskRow(rivet_app::Task const& task,
     spacer_column.Width(mx::GridLength{1, mx::GridUnitType::Star});
     schedule.ColumnDefinitions().Append(spacer_column);
 
-    auto const transparent = mx::Media::SolidColorBrush{
-        winrt::Windows::UI::Color{0x00, 0x00, 0x00, 0x00}};
     auto const muted_icon = ThemeBrush(L"TasklyMutedTextBrush");
 
     // --- Date chip: calendar action + borderless ISO date input ---
