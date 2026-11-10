@@ -265,6 +265,11 @@ private:
   winrt::Microsoft::UI::Xaml::Controls::TextBox inline_date_box_{nullptr};
   winrt::Microsoft::UI::Xaml::Controls::TextBox inline_time_box_{nullptr};
   winrt::Microsoft::UI::Xaml::Controls::Button inline_list_button_{nullptr};
+  // Chip containers for the date/time inputs (accent-tinted pill borders).
+  winrt::Microsoft::UI::Xaml::Controls::Border inline_date_chip_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::Border inline_time_chip_{nullptr};
+  void ApplyInlineDateChipState();
+  void ApplyInlineTimeChipState();
   std::wstring current_search_;
   ViewKind view_{ViewKind::All};
   std::int64_t view_list_id_{0};

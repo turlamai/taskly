@@ -1531,28 +1531,38 @@ mxc::Grid MainWindow::MakeTaskRow(rivet_app::Task const& task,
     inline_notes_box_.KeyDown(handle_editor_key);
     editor.Children().Append(inline_notes_box_);
 
-    // Secondary details stay on one compact action line. Native controls keep
-    // their theme/high-contrast visuals; only the title and notes are
-    // intentionally borderless to preserve the row's visual hierarchy.
+    // Secondary details are one compact chip line: calendar action + date,
+    // clock + time, then the owning list. The date/time TextBoxes stay (UIA
+    // ValuePattern is the acceptance contract and fast keyboard entry), but
+    // they read as chips: a bare input inside a rounded container that tints
+    // accent while a value is set, and the line never stretches. Native
+    // flyout visuals keep their theme/high-contrast look.
     auto schedule = mxc::Grid{};
-    schedule.Margin(mx::ThicknessHelper::FromLengths(0, 4, 0, 0));
+    schedule.Margin(mx::ThicknessHelper::FromLengths(0, 6, 0, 0));
     schedule.ColumnSpacing(6);
     for (int index = 0; index < 3; ++index) {
       auto column = mxc::ColumnDefinition{};
       column.Width(mx::GridLength{0, mx::GridUnitType::Auto});
       schedule.ColumnDefinitions().Append(column);
     }
-    auto list_column = mxc::ColumnDefinition{};
-    list_column.Width(mx::GridLength{1, mx::GridUnitType::Star});
-    schedule.ColumnDefinitions().Append(list_column);
+    auto spacer_column = mxc::ColumnDefinition{};
+    spacer_column.Width(mx::GridLength{1, mx::GridUnitType::Star});
+    schedule.ColumnDefinitions().Append(spacer_column);
 
+    auto const muted_icon = ThemeBrush(L"TasklyMutedTextBrush");
+
+    // --- Date chip: calendar action + borderless ISO date input ---
     auto date_menu_button = mxc::Button{};
-    date_menu_button.Width(32);
-    date_menu_button.Height(30);
+    date_menu_button.Width(24);
+    date_menu_button.Height(24);
     date_menu_button.Padding(mx::ThicknessHelper::FromLengths(0, 0, 0, 0));
+    date_menu_button.Background(transparent);
+    date_menu_button.BorderThickness(
+        mx::ThicknessHelper::FromLengths(0, 0, 0, 0));
     auto calendar_icon = mxc::FontIcon{};
     calendar_icon.Glyph(L"\uE787");
     calendar_icon.FontSize(13);
+    calendar_icon.Foreground(muted_icon);
     date_menu_button.Content(calendar_icon);
     winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
         date_menu_button,
@@ -1630,14 +1640,12 @@ mxc::Grid MainWindow::MakeTaskRow(rivet_app::Task const& task,
     date_panel.Children().Append(clear_date);
     date_flyout.Content(date_panel);
     date_menu_button.Flyout(date_flyout);
-    mxc::Grid::SetColumn(date_menu_button, 0);
-    schedule.Children().Append(date_menu_button);
 
     inline_date_box_ = mxc::TextBox{};
-    inline_date_box_.Width(112);
-    inline_date_box_.Height(30);
+    inline_date_box_.Width(86);
+    inline_date_box_.Height(28);
     inline_date_box_.FontSize(12);
-    inline_date_box_.Padding(mx::ThicknessHelper::FromLengths(8, 2, 8, 2));
+    inline_date_box_.Padding(mx::ThicknessHelper::FromLengths(2, 2, 2, 2));
     inline_date_box_.PlaceholderText(L"yyyy-MM-dd");
     inline_date_box_.Text(draft.due_date.has_value()
                               ? wide(*draft.due_date).substr(0, 10)
@@ -1648,14 +1656,33 @@ mxc::Grid MainWindow::MakeTaskRow(rivet_app::Task const& task,
     winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetName(
         inline_date_box_, t("labelDate"));
     inline_date_box_.KeyDown(handle_editor_key);
-    mxc::Grid::SetColumn(inline_date_box_, 1);
-    schedule.Children().Append(inline_date_box_);
+    inline_date_box_.TextChanged(
+        [weak = get_weak()](auto const&, auto const&) {
+          if (auto window = weak.get()) window->ApplyInlineDateChipState();
+        });
 
+    auto date_chip_row = mxc::StackPanel{};
+    date_chip_row.Orientation(mxc::Orientation::Horizontal);
+    date_chip_row.Spacing(2);
+    date_chip_row.Children().Append(date_menu_button);
+    date_chip_row.Children().Append(inline_date_box_);
+    inline_date_chip_ = mxc::Border{};
+    inline_date_chip_.CornerRadius(
+        mx::CornerRadiusHelper::FromUniformRadius(14));
+    inline_date_chip_.BorderThickness(
+        mx::ThicknessHelper::FromLengths(1, 1, 1, 1));
+    inline_date_chip_.Padding(mx::ThicknessHelper::FromLengths(3, 1, 6, 1));
+    inline_date_chip_.Child(date_chip_row);
+    ApplyInlineDateChipState();
+    mxc::Grid::SetColumn(inline_date_chip_, 0);
+    schedule.Children().Append(inline_date_chip_);
+
+    // --- Time chip: clock glyph + borderless HH:mm input ---
     inline_time_box_ = mxc::TextBox{};
-    inline_time_box_.Width(72);
-    inline_time_box_.Height(30);
+    inline_time_box_.Width(64);
+    inline_time_box_.Height(28);
     inline_time_box_.FontSize(12);
-    inline_time_box_.Padding(mx::ThicknessHelper::FromLengths(8, 2, 8, 2));
+    inline_time_box_.Padding(mx::ThicknessHelper::FromLengths(2, 2, 2, 2));
     inline_time_box_.PlaceholderText(L"HH:mm");
     inline_time_box_.Text(draft.due_time.has_value()
                               ? wide(*draft.due_time).substr(0, 5)
@@ -1666,18 +1693,38 @@ mxc::Grid MainWindow::MakeTaskRow(rivet_app::Task const& task,
     winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetName(
         inline_time_box_, t("labelTime"));
     inline_time_box_.KeyDown(handle_editor_key);
-    mxc::Grid::SetColumn(inline_time_box_, 2);
-    schedule.Children().Append(inline_time_box_);
+    inline_time_box_.TextChanged(
+        [weak = get_weak()](auto const&, auto const&) {
+          if (auto window = weak.get()) window->ApplyInlineTimeChipState();
+        });
 
+    auto clock_icon = mxc::FontIcon{};
+    clock_icon.Glyph(L"\uE823");
+    clock_icon.FontSize(13);
+    clock_icon.Foreground(muted_icon);
+    auto time_chip_row = mxc::StackPanel{};
+    time_chip_row.Orientation(mxc::Orientation::Horizontal);
+    time_chip_row.Spacing(2);
+    time_chip_row.Children().Append(clock_icon);
+    time_chip_row.Children().Append(inline_time_box_);
+    inline_time_chip_ = mxc::Border{};
+    inline_time_chip_.CornerRadius(
+        mx::CornerRadiusHelper::FromUniformRadius(14));
+    inline_time_chip_.BorderThickness(
+        mx::ThicknessHelper::FromLengths(1, 1, 1, 1));
+    inline_time_chip_.Padding(mx::ThicknessHelper::FromLengths(3, 1, 6, 1));
+    inline_time_chip_.Child(time_chip_row);
+    ApplyInlineTimeChipState();
+    mxc::Grid::SetColumn(inline_time_chip_, 1);
+    schedule.Children().Append(inline_time_chip_);
+
+    // --- List chip: pill button, auto width (no full-line stretch) ---
     inline_list_button_ = mxc::Button{};
-    inline_list_button_.Height(30);
-    inline_list_button_.MinWidth(96);
-    inline_list_button_.MaxWidth(180);
-    inline_list_button_.HorizontalAlignment(mx::HorizontalAlignment::Stretch);
-    inline_list_button_.HorizontalContentAlignment(
-        mx::HorizontalAlignment::Left);
+    inline_list_button_.Height(28);
+    inline_list_button_.CornerRadius(
+        mx::CornerRadiusHelper::FromUniformRadius(14));
     inline_list_button_.Padding(
-        mx::ThicknessHelper::FromLengths(9, 2, 9, 2));
+        mx::ThicknessHelper::FromLengths(10, 2, 10, 2));
     auto list_caption = [&](rivet_app::TodoList const* list) {
       if (list == nullptr) {
         return draft.list_name.has_value() ? wide(*draft.list_name)
@@ -1718,7 +1765,7 @@ mxc::Grid MainWindow::MakeTaskRow(rivet_app::Task const& task,
       list_menu.Items().Append(option);
     }
     inline_list_button_.Flyout(list_menu);
-    mxc::Grid::SetColumn(inline_list_button_, 3);
+    mxc::Grid::SetColumn(inline_list_button_, 2);
     schedule.Children().Append(inline_list_button_);
 
     editor.Children().Append(schedule);
@@ -1741,6 +1788,12 @@ mxc::Grid MainWindow::MakeTaskRow(rivet_app::Task const& task,
     actions.Children().Append(cancel_edit);
 
     auto save_edit = mxc::Button{};
+    // Primary action: accent fill (WinUI AccentButtonStyle), the cancel
+    // button beside it stays the quiet secondary.
+    save_edit.Style(winrt::Microsoft::UI::Xaml::Application::Current()
+                        .Resources()
+                        .Lookup(winrt::box_value(L"AccentButtonStyle"))
+                        .as<winrt::Microsoft::UI::Xaml::Style>());
     save_edit.Content(winrt::box_value(t("dialogSave")));
     winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
         save_edit, L"inline-task-save-" + std::to_wstring(task.id));
@@ -1825,6 +1878,34 @@ rivet_app::Task const* MainWindow::FindTaskForAction(
   return find_by_id(tasks_, id);
 }
 
+// Chip visual state: divider-border pill when empty, accent-tinted when the
+// user has set a date/time (macOS chip parity, Windows-native colors).
+void MainWindow::ApplyInlineDateChipState() {
+  if (!inline_date_chip_ || !inline_date_box_) return;
+  auto const has_value =
+      !trim_wide(std::wstring(inline_date_box_.Text())).empty();
+  inline_date_chip_.BorderBrush(
+      has_value ? ThemeBrush(L"TasklyAccentBrush")
+                : ThemeBrush(L"TasklyDividerBrush"));
+  inline_date_chip_.Background(
+      has_value ? ThemeBrush(L"TasklyAccentSoftBrush")
+                : mx::Media::SolidColorBrush{
+                      winrt::Windows::UI::Color{0x00, 0x00, 0x00, 0x00}});
+}
+
+void MainWindow::ApplyInlineTimeChipState() {
+  if (!inline_time_chip_ || !inline_time_box_) return;
+  auto const has_value =
+      !trim_wide(std::wstring(inline_time_box_.Text())).empty();
+  inline_time_chip_.BorderBrush(
+      has_value ? ThemeBrush(L"TasklyAccentBrush")
+                : ThemeBrush(L"TasklyDividerBrush"));
+  inline_time_chip_.Background(
+      has_value ? ThemeBrush(L"TasklyAccentSoftBrush")
+                : mx::Media::SolidColorBrush{
+                      winrt::Windows::UI::Color{0x00, 0x00, 0x00, 0x00}});
+}
+
 void MainWindow::CaptureInlineTaskDraft() {
   if (!inline_task_draft_.has_value() || !inline_title_box_) return;
   auto& draft = *inline_task_draft_;
@@ -1852,6 +1933,8 @@ void MainWindow::ResetInlineTaskEditor() {
   inline_date_box_ = nullptr;
   inline_time_box_ = nullptr;
   inline_list_button_ = nullptr;
+  inline_date_chip_ = nullptr;
+  inline_time_chip_ = nullptr;
 }
 
 void MainWindow::OpenInlineTaskEditor(std::int64_t id) {
