@@ -76,17 +76,17 @@ void SettingsWindow::ApplyAppTheme(hstring const& theme) {
   }
 }
 
-hstring SettingsWindow::SelectedLanguage() const {
+hstring SettingsWindow::SelectedLanguage() {
   auto const index = LanguageBox().SelectedIndex();
   return hstring(index >= 0 && index < 2 ? kLanguages[index] : L"zh");
 }
 
-hstring SettingsWindow::SelectedTheme() const {
+hstring SettingsWindow::SelectedTheme() {
   auto const index = ThemeBox().SelectedIndex();
   return hstring(index >= 0 && index < 3 ? kThemes[index] : L"system");
 }
 
-bool SettingsWindow::AutoCheckUpdatesOn() const {
+bool SettingsWindow::AutoCheckUpdatesOn() {
   return AutoCheckSwitch().IsOn();
 }
 
