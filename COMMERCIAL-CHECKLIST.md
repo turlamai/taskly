@@ -9,11 +9,15 @@ going commercial; pricing/licensing decisions are the business half.
 - [ ] Decide distribution model per platform before 1.0 (Mac App Store vs
       direct + Paddle/FastSpring keys; Microsoft Store MSIX vs direct exe;
       Flatpak on Flathub). The DB/CLI contract stays identical either way.
-- [x] License model decided: the desktop core stays open source under
-      AGPL-3.0 — free to use and fork, copyleft blocks closed-source forks.
-      Commercial surfaces (the iOS/iPadOS client and the sync service) live
-      in separate private repos under their own terms. Already-published
-      history stays under the license it was released under.
+- [x] License model decided (2026-11-10, family-wide with fulcrum and
+      movebit): the desktop core is source-available under BUSL-1.1 —
+      internal production use granted; competing distribution and
+      hosted/commercial service offers blocked during the window; every
+      version converts to MIT four years after its release (all by the
+      2030-09-28 change date). Commercial surfaces (the iOS/iPadOS client
+      and the sync service) live in separate private repos under their own
+      terms, and may now ship commercially. Already-published history stays
+      under the license it was released under (AGPL-3.0).
 - [ ] EULA + privacy policy: the app is fully offline/local-first — say so.
       No telemetry in v1 (crash reporting opt-in only, see §4).
 - [ ] Trademark search on "Taskly" in target markets before paid ads.

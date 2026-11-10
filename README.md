@@ -4,7 +4,7 @@ A focused, keyboard-friendly task manager for macOS, Windows and Linux —
 one Racket core driving a first-party native host on every desktop, an
 agent-facing CLI, and a single local SQLite file.
 
-[![release](https://img.shields.io/github/v/release/turlamai/taskly)](https://github.com/turlamai/taskly/releases/latest) ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey) ![built with](https://img.shields.io/badge/built%20with-Rivet-9333ea) [![CI](https://github.com/turlamai/taskly/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/taskly/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+[![release](https://img.shields.io/github/v/release/turlamai/taskly)](https://github.com/turlamai/taskly/releases/latest) ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey) ![built with](https://img.shields.io/badge/built%20with-Rivet-9333ea) [![CI](https://github.com/turlamai/taskly/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/taskly/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE)
 
 **English** · [中文](README.zh-CN.md)
 
@@ -156,4 +156,4 @@ The in-app About dialog links to the same tracker on every platform.
 
 ## License
 
-[AGPL-3.0](LICENSE).
+[BUSL-1.1](LICENSE) — source-available; each version converts to MIT on its change date (four years after release, all by 2030-09-28).
