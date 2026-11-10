@@ -18,9 +18,11 @@ struct SettingsWindow : SettingsWindowT<SettingsWindow> {
   void ApplyAppLanguage();
   void ApplyAppTheme(hstring const& theme);
 
-  hstring SelectedLanguage() const;
-  hstring SelectedTheme() const;
-  bool AutoCheckUpdatesOn() const;
+  // Non-const: the generated XAML accessors are non-const, and these
+  // read the live controls.
+  hstring SelectedLanguage();
+  hstring SelectedTheme();
+  bool AutoCheckUpdatesOn();
 
   winrt::event_token LanguageCommitted(
       winrt::Windows::Foundation::TypedEventHandler<

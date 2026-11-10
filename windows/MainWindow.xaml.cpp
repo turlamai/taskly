@@ -3087,7 +3087,9 @@ void MainWindow::InstallAppAccelerators() {
     OnOpenDatabase(nullptr, args);
   });
   // Settings (Ctrl+,) — the same convention as the macOS host's ⌘,.
-  attach(VirtualKey::Comma, control, [this] { OnOpenSettings(); });
+  // 0xBC is VirtualKey::Comma; this Windows App SDK projection does not
+  // name it, unlike the other keys used above.
+  attach(static_cast<VirtualKey>(0xBC), control, [this] { OnOpenSettings(); });
 }
 
 void MainWindow::OnUserListSelectionChanged(
