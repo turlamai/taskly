@@ -711,18 +711,20 @@ MainWindow::MainWindow() {
     notification_icon_ = std::make_unique<rivet::system::TrayController>(
         hwnd, 2, WM_APP + 43, L"Taskly",
         brand_icon ? brand_icon : ::LoadIconW(nullptr, IDI_APPLICATION),
-        {rivet::system::TrayMenuItem{
-             1, t("trayShow"),
-             [this] {
-               ShowFromTray();
-             }},
-         rivet::system::TrayMenuItem{rivet::system::TrayMenuItem::Type::separator},
-         rivet::system::TrayMenuItem{
-             2, t("menuExit"),
-             [this] {
-               Microsoft::UI::Xaml::RoutedEventArgs args;
-               OnExit(nullptr, args);
-             }}},
+        std::vector<rivet::system::TrayMenuItem>{
+            rivet::system::TrayMenuItem{
+                1, t("trayShow"),
+                [this] {
+                  ShowFromTray();
+                }},
+            rivet::system::TrayMenuItem{
+                rivet::system::TrayMenuItem::Type::separator},
+            rivet::system::TrayMenuItem{
+                2, t("menuExit"),
+                [this] {
+                  Microsoft::UI::Xaml::RoutedEventArgs args;
+                  OnExit(nullptr, args);
+                }}},
         [this] {
           ShowFromTray();
         });
