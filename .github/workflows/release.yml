@@ -109,7 +109,7 @@ jobs:
           # flips packaging over once --development is dropped below.
           {
             echo "RIVET_MACOS_SIGN_IDENTITY=$IDENTITY_NAME"
-            echo "RIVET_MACOS_NOTARY_PROFILE=RIVET_NOTARY"
+            echo "RIVET_MACOS_NOTARY_PROFILE=ASC_NOTARY"
           } >> "$GITHUB_ENV"
       - name: Store notarytool keychain profile
         if: env.MACOS_SIGNING_CONFIGURED == 'true'
@@ -121,7 +121,7 @@ jobs:
           set -euo pipefail
           P8="$RUNNER_TEMP/asc-api-key.p8"
           printf '%s' "$ASC_KEY_P8_B64" | base64 --decode > "$P8"
-          xcrun notarytool store-credentials RIVET_NOTARY \
+          xcrun notarytool store-credentials ASC_NOTARY \
             --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --key "$P8"
           rm -f "$P8"
       # DMG (human installer) + portable zip + SBOM + notices, launch
