@@ -183,19 +183,26 @@ be written here before it can be accepted; none is declared for these rows.
   Completed toggle (Ctrl+Shift+C).
 - Tools: Install / Uninstall Command Line Tool.
 - Settings: Language (简体中文 / English, runtime switch, persisted in
-  config `language`), Theme submenu — 跟随系统 (follow system) / 浅色
+  config `language`), Theme — 跟随系统 (follow system) / 浅色
   (light) / 深色 (dark), persisted in config `theme`; follow-system tracks
-  OS personalization live. Windows reads the persisted language and theme
+  OS personalization live — plus the auto-check-updates preference
+  (config `auto-check-updates`, default on). The three preferences share
+  one information architecture on every host; only the presentation is
+  host-native. Windows hosts them in the 设置 MenuBar menu (language/theme
+  items + auto-check toggle). macOS hosts them in the standard Settings
+  window (⌘,) General pane — persistent preferences never live in a
+  menu-bar menu; menu-bar toggles are view state only (Show Completed
+  stays in the View menu). Windows reads the persisted language and theme
   before first window activation (no temporary English/light frame); the
   backend settings RPC remains authoritative once connected. macOS follows
-  the system appearance at launch and live; its Settings toggle is a
-  per-session override. Async persistence
+  the system appearance at launch and live. Async persistence
   acknowledgements must **not** overwrite local settings changed since the
   request began (including `last-selected-list-id`, theme and language).
   The locally selected list remains authoritative through overlapping
   preferences saves; the backend result confirms persistence or an error.
   Plus 检查更新… /
-  Check for Updates… (manual online-update check; auto-check runs at
+  Check for Updates… (manual online-update check — app menu on macOS,
+  Help menu on Windows; auto-check runs at
   launch and every 4 h — contract: `UPDATE.md`).
 - Help: About — `Taskly v<version>` + `© 2026 Taskly Team` +
   `aboutContent` + license line (`aboutLicense`) + link buttons on every

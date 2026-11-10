@@ -5,6 +5,7 @@ import SwiftUI
 @main
 struct TasklyApp: App {
     @State private var model = AppModel()
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
         WindowGroup("Taskly") {
@@ -33,6 +34,17 @@ struct TasklyApp: App {
             CommandGroup(after: .appInfo) {
                 Button(model.t("menuCheckUpdates")) { model.checkForUpdates() }
             }
+            // Own the Settings… item (like About/Quit above). The Settings
+            // *scene* would auto-seed an AppKit-English item whose title it
+            // re-seeds on every resync — retitle and prune both lose that
+            // race — so the scene is not used: the pane lives in a plain
+            // named window and this is the only Settings item there is.
+            CommandGroup(replacing: .appSettings) {
+                Button(model.t("menuSettings") + "…") {
+                    openWindow(id: "app-settings")
+                }
+                .keyboardShortcut(",")
+            }
             // Localized Quit (the system item is AppKit-English regardless of
             // the app language); terminate stays the normal path.
             CommandGroup(replacing: .appTermination) {
@@ -42,6 +54,19 @@ struct TasklyApp: App {
                 .keyboardShortcut("q")
             }
         }
+
+        // App preferences live in the standard Settings window (⌘,) — the
+        // macOS convention for persistent preferences (HIG/Sparkle); a
+        // menu-bar 设置 menu with a bare toggle is not an idiom macOS users
+        // expect. Same three preferences as the Windows 设置 menu (issue #118):
+        // language, theme, auto-check-updates, same persistence keys. A plain
+        // named Window instead of the Settings scene so SwiftUI does not seed
+        // its unlocalizable English menu item.
+        Window(model.t("menuSettings"), id: "app-settings") {
+            SettingsPaneView()
+                .environment(model)
+        }
+        .windowResizability(.contentSize)
     }
 }
 
@@ -89,40 +114,14 @@ struct TasklyCommands: Commands {
                 }))
                 .keyboardShortcut("c", modifiers: [.command, .shift])
         }
-
-        CommandMenu(model.t("menuSettings")) {
-            Menu(model.t("menuLanguage")) {
-                Button(model.t("menuLangZh")) { model.setLanguage("zh") }
-                    .disabled(model.i18n.language == "zh")
-                Button(model.t("menuLangEn")) { model.setLanguage("en") }
-                    .disabled(model.i18n.language == "en")
-            }
-            Menu(model.t("menuTheme")) {
-                Button(themeLabel("themeFollowSystem", model.themeValue == "system")) {
-                    model.setTheme("system")
-                }
-                Button(themeLabel("themeLight", model.themeValue == "light")) {
-                    model.setTheme("light")
-                }
-                Button(themeLabel("themeDark", model.themeValue == "dark")) {
-                    model.setTheme("dark")
-                }
-            }
-            Divider()
-            Toggle(model.t("settingsAutoCheckUpdates"), isOn: Binding(
-                get: { model.autoCheckUpdates },
-                set: { model.setAutoCheckUpdates($0) }))
-        }
+        // (语言/主题/auto-check preferences live in the app-settings window —
+        // see the Window scene in TasklyApp.)
     }
 
     /// Windows trims the "+ " prompt off the quick-add hint for the
     /// View-menu item; keep the same label ("添加任务" / "Add Task").
     private var newTaskMenuTitle: String {
         String(model.t("taskListInputHint").drop(while: { $0 == "+" || $0 == " " }))
-    }
-
-    private func themeLabel(_ key: String, _ isChecked: Bool) -> String {
-        isChecked ? "✓ \(model.t(key))" : model.t(key)
     }
 
     private func newDatabase() {

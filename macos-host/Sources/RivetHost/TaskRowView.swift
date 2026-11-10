@@ -219,11 +219,21 @@ struct TaskRowView: View {
                         .symbolEffect(.bounce, value: task.completed)
                 }
             }
-            // Hit target: unchecked the ring's fill is transparent, so the
-            // default label hit area is just the 1.5pt stroke line.
+            // The button IS 44×44 — the row's full height, HIG-minimum and
+            // beyond — with the 20px visual centered. Nothing else enlarges
+            // a Button's hit area reliably: contentShape hit testing is
+            // clamped to bounds, overlays inside the label swallow clicks.
+            // The negative padding gives the space back, so the visual sits
+            // exactly where the 20px button used to and the row layout is
+            // unchanged. Without this, a click a few points off the circle —
+            // a near-certain human aim — fell through to row selection,
+            // which reads as "the checkbox does nothing".
+            .frame(width: 44, height: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(.horizontal, -12)
+        .padding(.vertical, -12)
         .accessibilityIdentifier("task-complete-\(task.id)")
     }
 
