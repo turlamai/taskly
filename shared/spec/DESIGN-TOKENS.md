@@ -146,3 +146,50 @@ native checkbox surface in CI, packaged acceptance and Windows release.
   raw SVG/PNG): app icon, Applications target, arrowhead and labels must stay
   aligned at native scale. The 1320x800 renderer check is necessary but cannot
   prove Finder's overlay composition is correct.
+
+## Platform mapping table (where tokens live in each host)
+
+The contract above is consumed at fixed, CI-checked locations. When changing
+a token value: change it here first, then in all three hosts —
+`scripts/check-design-tokens.py` gates the shared hexes in CI (coverage gap:
+see drift D9).
+
+| Host | Colors | Theme switching | Geometry/type |
+|---|---|---|---|
+| macOS — `macos-host/Sources/RivetHost/Theme.swift` | `Palette` code constants (this file is cited in the file header); dual light/dark constants with `ThemeState.isDark` ternaries; list palette `listColorsHex` | KVO on `NSApplication.effectiveAppearance`; settings override via `NSApp.appearance` (`nil` = system) | sidebar 280 / status 28 / chip 34; window `.defaultSize(1280×880)`, min 760×520 |
+| Windows — `windows/MainWindow.xaml` `ResourceDictionary.ThemeDictionaries` | Light/Dark dictionaries: `TasklyAccentBrush`, `TasklySidebarBrush`, `TasklySurfaceBrush`, `TasklyDividerBrush`, `TasklySelectionBrush`, `TasklyHoverBrush`, secondary/muted text brushes; theme-independent tile brushes below the dictionaries | `RootGrid().RequestedTheme` via `MainWindow::ApplyTheme`; `ActualThemeChanged` re-applies brushes to hand-built rows | sidebar 280 (200–420); search 28 (spec 30 — D5); quick-add 40/12 (spec 36/10 — D6) |
+| Linux — `linux/src/main.cpp` `Palette`/`kLight`/`kDark` + `apply_css` | constexpr palette mirroring Theme.swift (incl. alpha selection/hover); CSS assembled as strings at runtime, no .css file | GSettings `color-scheme prefer-dark`, libadwaita fallback theme-name sniff; forcing light on a dark system is an accepted delta without libadwaita | sidebar 200–420 via paned handle; menu bar 30 (spec 32 — D7); default window 1000×680 (see D1) |
+
+Tile glyphs stay monochrome platform icon fonts (SF Symbols / Segoe Fluent
+Icons / symbolic icons) on every host.
+
+## Drift ledger (spec vs hosts, recorded 2026-11-11)
+
+Recorded by the design-gate slice (issue #121). Each item is fixed by an
+implementation slice or resolved by an explicit spec amendment — never
+silently pick a side:
+
+| # | Item | Spec | Reality | Resolution owner |
+|---|---|---|---|---|
+| D1 | Window default size | DESIGN-TOKENS says 1280×880, PRODUCT-SPEC §2 says 1024×768 — the specs contradict each other | macOS 1280×880 · Windows 1024×768 · Linux 1000×680 | spec owners pick one value; all legs align |
+| D2 | Windows due-today color | = action accent | `TasklyDueTodayBrush #C4501B` / dark `#F2913D` | Windows leg slice |
+| D3 | Windows overdue color | `#FF3B30` | `#D13438` / dark `#FF6B6E` | Windows leg slice |
+| D4 | Windows hover/selection fills | alpha fills (hover 5%/7%, selection 8%/12%) | opaque approximations `#EBE9E7`/`#332F2F` and `#E8E4E0`/`#3A3736` | Windows leg slice |
+| D5 | Search box height | 30px | Windows 28 | Windows leg slice |
+| D6 | Quick-add field | 36px, radius 10 | Windows 40/radius 12 · Linux 38/radius 12 | Windows/Linux leg slices |
+| D7 | Menu bar height | 32 | Linux 30 | Linux leg slice |
+| D8 | List editor picker | tabbed 8×12 emoji grid + 12-swatch row, same on every platform | macOS complete · Linux legacy flat 16 emojis, ignores `shared/emoji.json` · **Windows has no picker at all** (plain text prompt) | one leg slice per platform; Windows is the outright contract violation |
+| D9 | Token CI coverage | every shared hex gated on every host | `check-design-tokens.py` asserts only 6 values on Windows | tooling slice |
+| D10 | Completed checkbox | this file: list-color fill + white check; PRODUCT-SPEC §5: "ring + check in accent" — the specs contradict | legs vary | spec owners pick one; prototype renders this file's version |
+
+## Prototype-first process (this repo)
+
+- The visual contract is **this file** (single source — Theme.swift cites it
+  in its header). Prototypes live in `design/prototype/` and render this
+  contract as reviewable HTML before any host code changes: contract change →
+  prototype update → review → then the legs.
+- Design-gate exit: key screens prototyped, interaction logic locked against
+  PRODUCT-SPEC, drift ledger dispositioned.
+- Platform-native idioms stay (PRODUCT-SPEC header): prototypes express
+  intent, not pixel templates — a host-specific exception must be written
+  into PRODUCT-SPEC before implementation, never discovered in review.
