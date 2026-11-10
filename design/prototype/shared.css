@@ -1,0 +1,60 @@
+/* ==== Taskly 原型共享壳 — tokens 与窗壳，值严格来自 shared/spec/DESIGN-TOKENS.md ==== */
+:root {
+  --bg: #FFFFFF; --sidebar: #F3F2F1; --surface: #FFFFFF; --divider: #E1DFDD;
+  --ink: #1D1D1F; --ink2: #5F5D5B; --ink3: #767370;
+  --sel: rgba(0,0,0,0.08); --hover: rgba(0,0,0,0.05);
+  --input-border: #8A8785; --badge-bg: #E9E9EE; --badge-text: #58585D;
+  --accent: #C94F30; --today: #007AFF; --planned: #FF3B30; --gray-tile: #8E8E93;
+  --danger: #FF3B30; --flag: #FF9500;
+}
+.dark {
+  --bg: #1E1E1E; --sidebar: #272424; --surface: #323234; --divider: #3B3939;
+  --ink: #F5F5F7; --ink2: #B2AEAC; --ink3: #A8A5A3;
+  --sel: rgba(255,255,255,0.12); --hover: rgba(255,255,255,0.07);
+  --input-border: #777371; --badge-bg: #3F3F44; --badge-text: #E9E9EE;
+  --accent: #E8704F; --today: #0A84FF;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh; display: grid; place-items: center; padding: 36px 24px;
+  background: radial-gradient(1100px 760px at 18% 0%, #ECEBE8, #DFDDD8 60%, #D3D1CB);
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased; color: var(--ink);
+}
+.window {
+  position: relative;
+  width: 1200px; max-width: 100%; height: 800px; border-radius: 12px; overflow: hidden;
+  display: flex; flex-direction: column;
+  background: var(--bg); color: var(--ink);
+  box-shadow: 0 1px 2px rgba(29,29,31,.10), 0 12px 32px rgba(29,29,31,.16), 0 32px 80px rgba(29,29,31,.20);
+  transition: background .12s ease, color .12s ease;
+}
+.titlebar {
+  height: 44px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 14px;
+  background: var(--sidebar); border-bottom: 1px solid var(--divider);
+}
+.lights { display: flex; gap: 8px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; }
+.lights i:nth-child(1) { background: #FF5F57; } .lights i:nth-child(2) { background: #FEBC2E; } .lights i:nth-child(3) { background: #28C840; }
+.titlebar .t { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.titlebar .sp { flex: 1; }
+.iconbtn {
+  width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--divider); background: var(--surface);
+  color: var(--ink2); display: grid; place-items: center; cursor: pointer; font-size: 13px;
+}
+kbd {
+  font-family: inherit; font-size: 10.5px; color: var(--ink2);
+  background: var(--hover); border: 1px solid var(--divider); border-radius: 4px; padding: 1px 5px;
+}
+.btn {
+  height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border-radius: 8px;
+  font-size: 12px; font-weight: 600; border: 1px solid var(--divider); background: var(--surface); color: var(--ink);
+}
+.btn.primary { background: var(--accent); border-color: transparent; color: #fff; }
+.btn.ghost { border-color: transparent; background: none; color: var(--accent); }
+.statusbar {
+  flex: none; height: 28px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  border-top: 1px solid var(--divider); background: var(--sidebar); font-size: 12px; color: var(--ink3);
+}
+.statusbar .sp { flex: 1; }
+.theme-note { font-size: 11px; }

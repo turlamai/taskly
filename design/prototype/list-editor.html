@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taskly — 列表编辑器原型（picker 契约）</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  /* ==== 列表编辑器：tabbed emoji 网格 + 12 色板（DESIGN-TOKENS picker 契约）==== */
+  .scrim {
+    position: absolute; inset: 44px 0 0 0; z-index: 10;
+    background: rgba(29, 29, 31, .40); display: grid; place-items: center;
+  }
+  .dark .scrim { background: rgba(0, 0, 0, .5); }
+  .sheet {
+    width: 520px; background: var(--bg); border: 1px solid var(--divider); border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(29,29,31,.14), 0 24px 64px rgba(29,29,31,.26);
+    padding: 20px 22px;
+  }
+  .shd { display: flex; align-items: center; margin-bottom: 14px; }
+  .shd h2 { font-size: 15px; font-weight: 700; }
+  .flabel { font-size: 12px; font-weight: 600; color: var(--ink2); margin: 12px 0 6px; }
+  .nameinput {
+    width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--input-border);
+    border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 13px; outline: none;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nameinput .ldot { width: 20px; height: 20px; font-size: 11px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+  .tab {
+    padding: 3px 10px; border-radius: 99px; font-size: 12px; color: var(--ink2);
+    border: 1px solid var(--divider); background: var(--surface);
+  }
+  .tab.on { background: var(--sel); color: var(--ink); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+  .emo {
+    height: 34px; display: grid; place-items: center; font-size: 16px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--divider); cursor: default;
+  }
+  .emo:hover { background: var(--hover); }
+  .emo.on { background: var(--sel); border-color: var(--accent); }
+  .swatches { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; }
+  .swatch {
+    height: 26px; border-radius: 8px; display: grid; place-items: center;
+    color: #fff; font-size: 11px; cursor: default;
+  }
+  .swatch.on { outline: 2px solid var(--accent); outline-offset: 1.5px; }
+  .sacts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .note { margin-top: 14px; font-size: 11px; color: var(--ink3); }
+</style>
+</head>
+<body>
+  <div class="window" id="app">
+    <div class="titlebar">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <div class="t">Taskly — 编辑清单「重要」</div>
+      <div class="sp"></div>
+      <button class="iconbtn" id="themeBtn" title="切换亮暗主题">◐</button>
+    </div>
+    <div class="app"></div>
+    <div class="scrim">
+      <div class="sheet">
+        <div class="shd"><h2>编辑清单</h2></div>
+        <div class="flabel">名称</div>
+        <div class="nameinput"><span class="ldot" style="background:#FF9500">⭐</span>重要</div>
+        <div class="flabel">图标</div>
+        <div class="tabs">
+          <span class="tab on">常用</span><span class="tab">人物</span><span class="tab">自然</span>
+          <span class="tab">食物</span><span class="tab">活动</span><span class="tab">旅行</span>
+          <span class="tab">物品</span><span class="tab">符号</span>
+        </div>
+        <div class="grid">
+          <span class="emo">📋</span><span class="emo">⭐</span><span class="emo">❤️</span>
+          <span class="emo">🔥</span><span class="emo">✅</span><span class="emo">📌</span>
+          <span class="emo">💡</span><span class="emo">🎯</span><span class="emo">🗓</span>
+          <span class="emo">💤</span><span class="emo">🎁</span><span class="emo on">⭐</span>
+        </div>
+        <div class="flabel">颜色</div>
+        <div class="swatches">
+          <span class="swatch" style="background:#007AFF"></span>
+          <span class="swatch" style="background:#FF3B30"></span>
+          <span class="swatch" style="background:#FF9500"></span>
+          <span class="swatch" style="background:#FFCC00"></span>
+          <span class="swatch" style="background:#4CD964"></span>
+          <span class="swatch" style="background:#5AC8FA"></span>
+          <span class="swatch" style="background:#5856D6"></span>
+          <span class="swatch" style="background:#FF2D55"></span>
+          <span class="swatch" style="background:#8E8E93"></span>
+          <span class="swatch" style="background:#C7C7CC"></span>
+          <span class="swatch" style="background:#A2845E"></span>
+          <span class="swatch on" style="background:#00C7BE"></span>
+        </div>
+        <div class="note">目录与色板来自 shared/emoji.json 与本契约的固定 12 色 —— 三平台同一目录、同一分类顺序（picker 契约）。</div>
+        <div class="sacts">
+          <span class="btn">取消</span>
+          <span class="btn primary">保存</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    document.getElementById('themeBtn').addEventListener('click', () => {
+      document.getElementById('app').classList.toggle('dark');
+    });
+  </script>
+</body>
+</html>
