@@ -3379,7 +3379,8 @@ void refresh_settings_dialog() {
   if (g_settings_dialog == nullptr) {
     return;
   }
-  gtk_window_set_title(GTK_WINDOW(g_settings_dialog), tr("menuSettings"));
+  gtk_window_set_title(GTK_WINDOW(g_settings_dialog),
+                       tr("menuSettings").c_str());
   gtk_label_set_text(GTK_LABEL(g_settings_lang_caption),
                      tr("menuLanguage").c_str());
   gtk_label_set_text(GTK_LABEL(g_settings_theme_caption),
