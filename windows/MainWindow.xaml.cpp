@@ -633,9 +633,10 @@ MainWindow::MainWindow() {
     AppWindow().SetIcon(winrt::Microsoft::UI::IconId{
         static_cast<std::uint64_t>(reinterpret_cast<UINT_PTR>(icon))});
   }
-  // PRODUCT-SPEC §2: prefer 1024×768 logical, but keep the whole window
-  // inside the current monitor's work area. A literal 1024×768 resize on a
-  // 1024×768 desktop extends below the taskbar and Windows may also place the
+  // PRODUCT-SPEC §2 (amended per drift D1): prefer 1280×880 logical, but
+  // keep the whole window
+  // inside the current monitor's work area. A literal resize matching the
+  // desktop extends below the taskbar and Windows may also place the
   // right edge off-screen. That makes header actions inaccessible on a valid,
   // supported display before the user can resize the window.
   auto const window_native = try_as<::IWindowNative>();
@@ -643,9 +644,9 @@ MainWindow::MainWindow() {
   winrt::check_hresult(window_native->get_WindowHandle(&hwnd));
   auto const dpi = ::GetDpiForWindow(hwnd);
   auto const preferred_width =
-      1024 * static_cast<std::int32_t>(dpi) / 96;
+      1280 * static_cast<std::int32_t>(dpi) / 96;
   auto const preferred_height =
-      768 * static_cast<std::int32_t>(dpi) / 96;
+      880 * static_cast<std::int32_t>(dpi) / 96;
   MONITORINFO monitor_info{sizeof(MONITORINFO)};
   auto const monitor = ::MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
   if (monitor != nullptr && ::GetMonitorInfoW(monitor, &monitor_info)) {

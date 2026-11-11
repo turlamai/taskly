@@ -774,7 +774,7 @@ void apply_css(Palette const& p) {
   css += ".taskly-divider { background: " + std::string(p.divider) + "; min-width: 1px; min-height: 1px; }\n";
   css += ".taskly-statusbar { background: " + std::string(p.sidebar) + "; min-height: 28px; }\n";
   css += ".taskly-statusbar label { color: " + std::string(p.secondary) + "; font-size: 12px; }\n";
-  css += "menubar { min-height: 30px; padding: 0 6px; background: " + std::string(p.background) + "; font-size: 13px; color: " + std::string(p.text) + "; }\n";
+  css += "menubar { min-height: 32px; padding: 0 6px; background: " + std::string(p.background) + "; font-size: 13px; color: " + std::string(p.text) + "; }\n";
   css += "menubar > item { min-height: 26px; padding: 3px 10px; border-radius: 6px; color: " + std::string(p.text) + "; }\n";
   css += "menubar > item:hover { background: " + std::string(p.hover) + "; }\n";
   css += ".section-caption { color: " + std::string(p.muted) + "; font-size: 12px; font-weight: 600; }\n";
@@ -805,9 +805,9 @@ void apply_css(Palette const& p) {
   css += ".chip-glyph-completed { color: " + std::string(p.secondary) + "; }\n";
   css += "button.flat { color: " + std::string(p.secondary) + "; background: none; border: none; box-shadow: none; }\n";
   css += "button.accent-toggle { color: " + std::string(p.accent) + "; font-size: 13px; background: none; border: none; box-shadow: none; }\n";
-  css += ".quick-add-box { border-radius: 12px; background: " + std::string(p.surface) + "; border: 1px solid " + std::string(p.input_border) + "; }\n";
+  css += ".quick-add-box { border-radius: 10px; background: " + std::string(p.surface) + "; border: 1px solid " + std::string(p.input_border) + "; }\n";
   css += ".quick-add-box:focus-within { border: 1px solid " + std::string(p.accent) + "; box-shadow: 0 0 0 3px " + std::string(p.accent_soft) + "; }\n";
-  css += "entry.quick-add { min-height: 38px; background: none; border: none; box-shadow: none; font-size: 14px; color: " + std::string(p.text) + "; padding: 0 2px; }\n";
+  css += "entry.quick-add { min-height: 36px; background: none; border: none; box-shadow: none; font-size: 14px; color: " + std::string(p.text) + "; padding: 0 2px; }\n";
   css += "button.quick-add-plus { min-width: 24px; min-height: 24px; border-radius: 12px; background: " + std::string(p.accent) + "; color: #FFFFFF; border: none; box-shadow: none; padding: 0; margin-left: 7px; }\n";
   css += "button.quick-add-plus:hover { opacity: 0.9; }\n";
   css += ".preview-capsule { font-size: 12px; color: " + std::string(p.accent) + "; background: " + std::string(p.accent_soft) + "; border-radius: 9px; padding: 3px 8px; margin-right: 8px; }\n";
@@ -4054,7 +4054,7 @@ void on_activate(GtkApplication* app, gpointer) {
 
   auto* window = gtk_application_window_new(app);
   gtk_window_set_title(GTK_WINDOW(window), "Taskly");
-  gtk_window_set_default_size(GTK_WINDOW(window), 1000, 680);
+  gtk_window_set_default_size(GTK_WINDOW(window), 1280, 880);
   gtk_widget_set_size_request(window, 760, 520);
 
   load_i18n(executable_path().parent_path());
