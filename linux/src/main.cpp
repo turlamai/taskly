@@ -296,6 +296,67 @@ bool load_i18n_file(char const* path, int lang) {
   return loaded_any;
 }
 
+// ---------------------------------------------------------------------------
+// Emoji catalog — shared/emoji.json single source (DESIGN-TOKENS picker
+// contract): 8 categories × 12, loaded from the staged resources beside
+// shared/i18n. Category labels come from the i18n tables (emojiCat_<id>).
+// ---------------------------------------------------------------------------
+struct EmojiCategory {
+  std::string id;
+  std::vector<std::string> emojis;
+};
+std::vector<EmojiCategory> g_emoji_catalog;
+
+void load_emoji_catalog(std::filesystem::path const& exe_dir) {
+  g_emoji_catalog.clear();
+  std::filesystem::path const candidates[] = {
+      exe_dir / "app" / "shared" / "emoji.json",
+      exe_dir / ".." / ".." / "shared" / "emoji.json",  // dev tree: .rivet/stage
+  };
+  auto* parser = json_parser_new();
+  GError* error = nullptr;
+  for (auto const& dir : candidates) {
+    auto path = dir / "emoji.json";
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec)) continue;
+    json_parser_load_from_file(parser, path.c_str(), &error);
+    if (error != nullptr) {
+      g_error_free(error);
+      continue;
+    }
+    JsonNode* root = json_parser_get_root(parser);
+    if (root == nullptr || !JSON_NODE_HOLDS_OBJECT(root)) break;
+    JsonObject* object = json_node_get_object(root);
+    JsonNode* categories = json_object_get_member(object, "categories");
+    if (categories == nullptr || !JSON_NODE_HOLDS_ARRAY(categories)) break;
+    JsonArray* array = json_node_get_array(categories);
+    guint count = json_array_get_length(array);
+    for (guint index = 0; index < count; ++index) {
+      JsonNode* entry = json_array_get_element(array, index);
+      if (entry == nullptr || !JSON_NODE_HOLDS_OBJECT(entry)) continue;
+      JsonObject* item = json_node_get_object(entry);
+      if (!json_object_has_member(item, "id") ||
+          !json_object_has_member(item, "emojis"))
+        continue;
+      auto const* id = json_object_get_string_member(item, "id");
+      JsonNode* emojis = json_object_get_member(item, "emojis");
+      if (id == nullptr || emojis == nullptr || !JSON_NODE_HOLDS_ARRAY(emojis))
+        continue;
+      EmojiCategory category;
+      category.id = id;
+      JsonArray* emoji_array = json_node_get_array(emojis);
+      guint emoji_count = json_array_get_length(emoji_array);
+      for (guint e = 0; e < emoji_count; ++e) {
+        auto const* emoji = json_array_get_string_element(emoji_array, e);
+        if (emoji != nullptr) category.emojis.emplace_back(emoji);
+      }
+      if (!category.emojis.empty()) g_emoji_catalog.push_back(std::move(category));
+    }
+    break;
+  }
+  g_object_unref(parser);
+}
+
 void load_i18n(std::filesystem::path const& exe_dir) {
   load_fallback_i18n();
   // Staged product resources: rivet.rktd declares shared/i18n under
@@ -2074,16 +2135,65 @@ void open_list_editor(
   gtk_box_append(GTK_BOX(content),
                  editor_field_row(tr("dialogListName").c_str(), name));
 
-  // Icon picker: one row of emoji buttons.
-  auto* icon_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
-  for (auto const* emoji : kListEmojis) {
-    auto* button = gtk_button_new_with_label(emoji);
-    gtk_widget_add_css_class(button, "flat");
-    g_signal_connect(button, "clicked",
-                     G_CALLBACK(on_editor_icon_chosen), editor);
-    gtk_box_append(GTK_BOX(icon_row), button);
+  // Icon picker: tabbed category grid (DESIGN-TOKENS picker contract —
+  // shared/emoji.json, 8 categories × 12, same catalog on every platform).
+  // Legacy flat row remains as the defensive fallback when the catalog
+  // resource failed to load.
+  if (!g_emoji_catalog.empty()) {
+    auto* icon_tabs = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    auto* icon_stack = gtk_stack_new();
+    gtk_stack_set_transition_type(GTK_STACK(icon_stack),
+                                  GTK_STACK_TRANSITION_TYPE_NONE);
+    gtk_stack_set_hhomogeneous(GTK_STACK(icon_stack), TRUE);
+    for (auto const& category : g_emoji_catalog) {
+      auto* grid = gtk_flow_box_new();
+      gtk_flow_box_set_max_children_per_line(GTK_FLOW_BOX(grid), 6);
+      gtk_flow_box_set_min_children_per_line(GTK_FLOW_BOX(grid), 6);
+      gtk_flow_box_set_selection_mode(GTK_FLOW_BOX(grid), GTK_SELECTION_NONE);
+      for (auto const& emoji : category.emojis) {
+        auto* button = gtk_button_new_with_label(emoji.c_str());
+        gtk_widget_add_css_class(button, "flat");
+        gtk_widget_set_size_request(button, 34, 34);
+        g_signal_connect(button, "clicked",
+                         G_CALLBACK(on_editor_icon_chosen), editor);
+        gtk_flow_box_append(GTK_FLOW_BOX(grid), button);
+      }
+      std::string const page = "emoji-cat-" + category.id;
+      gtk_stack_add_named(GTK_STACK(icon_stack), grid, page.c_str());
+      auto const tab_label = tr(("emojiCat_" + category.id).c_str());
+      auto* tab = gtk_button_new_with_label(tab_label.c_str());
+      gtk_widget_add_css_class(tab, "flat");
+      // The stack outlives the tab (both die with the dialog), so raw
+      // pointer bake-ins are safe here.
+      g_object_set_data(G_OBJECT(tab), "emoji-stack", icon_stack);
+      g_object_set_data_full(G_OBJECT(tab), "emoji-page",
+                             g_strdup(page.c_str()), g_free);
+      g_signal_connect(
+          tab, "clicked",
+          G_CALLBACK(+[](GtkButton* button, gpointer) {
+            auto* stack = static_cast<GtkStack*>(
+                g_object_get_data(G_OBJECT(button), "emoji-stack"));
+            auto const* page = static_cast<char const*>(
+                g_object_get_data(G_OBJECT(button), "emoji-page"));
+            if (stack != nullptr && page != nullptr)
+              gtk_stack_set_visible_child_name(stack, page);
+          }),
+          nullptr);
+      gtk_box_append(GTK_BOX(icon_tabs), tab);
+    }
+    gtk_box_append(GTK_BOX(content), icon_tabs);
+    gtk_box_append(GTK_BOX(content), icon_stack);
+  } else {
+    auto* icon_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    for (auto const* emoji : kListEmojis) {
+      auto* button = gtk_button_new_with_label(emoji);
+      gtk_widget_add_css_class(button, "flat");
+      g_signal_connect(button, "clicked",
+                       G_CALLBACK(on_editor_icon_chosen), editor);
+      gtk_box_append(GTK_BOX(icon_row), button);
+    }
+    gtk_box_append(GTK_BOX(content), icon_row);
   }
-  gtk_box_append(GTK_BOX(content), icon_row);
 
   // Color picker: 12 swatches.
   auto* color_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
@@ -4058,6 +4168,7 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_widget_set_size_request(window, 760, 520);
 
   load_i18n(executable_path().parent_path());
+  load_emoji_catalog(executable_path().parent_path());
 
   auto* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_widget_add_css_class(root, "taskly-root");
