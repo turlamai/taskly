@@ -63,8 +63,16 @@ def main() -> None:
         "windows/MainWindow.xaml",
         [f'Color="#{value}"' for value in (
             TOKENS["accentLight"], TOKENS["accentDark"],
+            TOKENS["lightSidebar"], TOKENS["darkSidebar"],
+            TOKENS["lightSurface"], TOKENS["darkSurface"],
+            TOKENS["lightDivider"], TOKENS["darkDivider"],
             TOKENS["lightSecondaryText"], TOKENS["lightTertiaryText"],
             TOKENS["darkSecondaryText"], TOKENS["darkTertiaryText"],
+            "14000000", "1FFFFFFF",  # selection fills (light / dark)
+            "0D000000", "12FFFFFF",  # hover fills (light / dark)
+            "FF3B30",                # overdue / danger (theme-independent)
+            "007AFF",                # today tile
+            "8E8E93",                # all / completed tiles
         )],
     )
 
