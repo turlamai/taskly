@@ -2227,7 +2227,7 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
   auto content = mxc::StackPanel{};
   content.Orientation(mx::Orientation::Vertical);
   content.Spacing(10);
-  content.Append(input);
+  content.Children().Append(input);
 
   // Icon picker: one tab button per category; the emoji pages toggle
   // visibility instead of stacking a navigation control into a dialog.
@@ -2260,14 +2260,14 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
                   mx::RoutedEventArgs const&) {
                 *picked_icon = emoji;
               });
-          row_panel.Append(emoji_button);
+          row_panel.Children().Append(emoji_button);
         }
         pages.push_back(page);
       }
       auto const label =
           t(("emojiCat_" + winrt::to_string(category.id)).c_str());
       auto tab = mxc::Button{};
-      tab.Content(winrt::box_value(label));
+      tab.Content(winrt::box_value(winrt::to_hstring(label)));
       tab.Padding(mx::Thickness{6, 2, 6, 2});
       tab.FontSize(12);
       auto const tab_index = static_cast<uint32_t>(pages.size() - 1);
@@ -2279,11 +2279,11 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
                                              : mx::Visibility::Collapsed);
         }
       });
-      tabs.Append(tab);
+      tabs.Children().Append(tab);
     }
-    content.Append(tabs);
+    content.Children().Append(tabs);
     for (auto const& page : pages) {
-      content.Append(page);
+      content.Children().Append(page);
     }
   }
 
@@ -2305,10 +2305,10 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
     auto const rgb =
         static_cast<uint32_t>(std::wcstoul(hex + 1, nullptr, 16));
     winrt::Windows::UI::Color ui_color{};
-    ui_color.A(0xFF);
-    ui_color.R(static_cast<uint8_t>((rgb >> 16) & 0xFF));
-    ui_color.G(static_cast<uint8_t>((rgb >> 8) & 0xFF));
-    ui_color.B(static_cast<uint8_t>(rgb & 0xFF));
+    ui_color.A = 0xFF;
+    ui_color.R = static_cast<uint8_t>((rgb >> 16) & 0xFF);
+    ui_color.G = static_cast<uint8_t>((rgb >> 8) & 0xFF);
+    ui_color.B = static_cast<uint8_t>(rgb & 0xFF);
     mx::Media::SolidColorBrush fill{};
     fill.Color(ui_color);
     swatch.Background(fill);
@@ -2332,9 +2332,9 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
       swatch.BorderThickness(mx::Thickness{2, 2, 2, 2});
       *last_swatch = swatch;
     });
-    swatches.Append(swatch);
+    swatches.Children().Append(swatch);
   }
-  content.Append(swatches);
+  content.Children().Append(swatches);
 
   auto dialog = mxc::ContentDialog{};
   dialog.Title(winrt::box_value(title));
