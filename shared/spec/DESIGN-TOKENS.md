@@ -171,15 +171,15 @@ silently pick a side:
 
 | # | Item | Spec | Reality | Resolution owner |
 |---|---|---|---|---|
-| D1 | Window default size | ~~DESIGN-TOKENS says 1280×880, PRODUCT-SPEC §2 says 1024×768~~ | macOS 1280×880 · Windows 1024×768 · Linux 1000×680 | ✅ spec amended 2026-11-11 to 1280×880; Windows/Linux leg alignment outstanding |
-| D2 | Windows due-today color | = action accent | `TasklyDueTodayBrush #C4501B` / dark `#F2913D` | Windows leg slice |
-| D3 | Windows overdue color | `#FF3B30` | `#D13438` / dark `#FF6B6E` | Windows leg slice |
-| D4 | Windows hover/selection fills | alpha fills (hover 5%/7%, selection 8%/12%) | opaque approximations `#EBE9E7`/`#332F2F` and `#E8E4E0`/`#3A3736` | Windows leg slice |
-| D5 | Search box height | 30px | Windows 28 | Windows leg slice |
-| D6 | Quick-add field | 36px, radius 10 | Windows 40/radius 12 · Linux 38/radius 12 | Windows/Linux leg slices |
+| D1 | Window default size | ~~DESIGN-TOKENS says 1280×880, PRODUCT-SPEC §2 says 1024×768~~ | all legs 1280×880 (Windows/Linux aligned on this branch) | ✅ spec amended 2026-11-11 to 1280×880 |
+| D2 | Windows due-today color | = action accent | ~~`TasklyDueTodayBrush #C4501B` / dark `#F2913D`~~ | ✅ fixed on leg/win-drift-2 |
+| D3 | Windows overdue color | `#FF3B30` | ~~`#D13438` / dark `#FF6B6E`~~ | ✅ fixed on leg/win-drift-2 |
+| D4 | Windows hover/selection fills | alpha fills (hover 5%/7%, selection 8%/12%) | ~~opaque approximations `#EBE9E7`/`#332F2F` and `#E8E4E0`/`#3A3736`~~ | ✅ fixed on leg/win-drift-2 |
+| D5 | Search box height | 30px | ~~Windows 28~~ | ✅ fixed on leg/win-drift-2 |
+| D6 | Quick-add field | 36px, radius 10 | Windows 40/r12 ✅ fixed · Linux 38/r12 outstanding | Windows ✅ / Linux leg slice |
 | D7 | Menu bar height | 32 | Linux 30 | Linux leg slice |
 | D8 | List editor picker | tabbed 8×12 emoji grid + 12-swatch row, same on every platform | macOS complete · Linux legacy flat 16 emojis, ignores `shared/emoji.json` · **Windows has no picker at all** (plain text prompt) | one leg slice per platform; Windows is the outright contract violation |
-| D9 | Token CI coverage | every shared hex gated on every host | `check-design-tokens.py` asserts only 6 values on Windows | tooling slice |
+| D9 | Token CI coverage | every shared hex gated on every host | ~~only 6 values on Windows~~ | ✅ extended on leg/win-drift-2 |
 | D10 | Completed checkbox | ~~PRODUCT-SPEC §5: "ring + check in accent"~~ | legs vary | ✅ spec amended 2026-11-11 to list-color fill + white check; leg audit outstanding |
 
 ## Prototype-first process (this repo)
