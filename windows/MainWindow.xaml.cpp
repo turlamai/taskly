@@ -556,6 +556,78 @@ bool load_i18n_file(std::filesystem::path const& path, int lang) {
   return loaded_any;
 }
 
+// ---------------------------------------------------------------------------
+// Emoji catalog — shared/emoji.json single source (DESIGN-TOKENS picker
+// contract): 8 categories × 12, loaded from the staged resources beside
+// shared/i18n. Category labels come from the i18n tables (emojiCat_<id>).
+// ---------------------------------------------------------------------------
+struct EmojiCategory {
+  std::wstring id;
+  std::vector<std::wstring> emojis;
+};
+std::vector<EmojiCategory> g_emoji_catalog;
+
+std::wstring read_resource_text(std::filesystem::path const& path) {
+  std::ifstream file(path, std::ios::binary);
+  if (!file) {
+    return {};
+  }
+  std::ostringstream buffer;
+  buffer << file.rdbuf();
+  auto text = buffer.str();
+  // JsonObject::Parse rejects a UTF-8 BOM; strip one when present.
+  if (text.size() >= 3 && text[0] == '\xEF' && text[1] == '\xBB' &&
+      text[2] == '\xBF') {
+    text = text.substr(3);
+  }
+  int const wide_length = MultiByteToWideChar(
+      CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+  std::wstring wide(static_cast<size_t>(wide_length), L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()),
+                      wide.data(), wide_length);
+  return wide;
+}
+
+void load_emoji_catalog(std::filesystem::path const& exe_dir) {
+  g_emoji_catalog.clear();
+  std::filesystem::path const candidates[] = {
+      exe_dir / L"app" / L"shared" / L"emoji.json",
+      exe_dir / L".." / L".." / L"shared" / L"emoji.json",  // dev: .rivet/stage
+  };
+  for (auto const& dir : candidates) {
+    auto const path = dir / L"emoji.json";
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec)) continue;
+    auto const text = read_resource_text(path);
+    if (text.empty()) continue;
+    try {
+      auto const json = winrt::Windows::Data::Json::JsonValue::Parse(text)
+                            .try_as<winrt::Windows::Data::Json::JsonObject>();
+      if (json == nullptr) break;
+      auto const categories = json.GetNamedArray(L"categories");
+      for (uint32_t index = 0; index < categories.Size(); ++index) {
+        auto const entry =
+            categories.GetAt(index)
+                .try_as<winrt::Windows::Data::Json::JsonObject>();
+        if (entry == nullptr) continue;
+        EmojiCategory category;
+        category.id = entry.GetNamedString(L"id");
+        auto const emojis = entry.GetNamedArray(L"emojis");
+        for (uint32_t e = 0; e < emojis.Size(); ++e) {
+          category.emojis.push_back(std::wstring(emojis.GetStringAt(e)));
+        }
+        if (!category.emojis.empty()) {
+          g_emoji_catalog.push_back(std::move(category));
+        }
+      }
+      break;
+    } catch (winrt::hresult_error const&) {
+      g_emoji_catalog.clear();
+      break;
+    }
+  }
+}
+
 void load_i18n(std::filesystem::path const& exe_dir) {
   char const* names[] = {"zh.json", "en.json"};
   for (int lang = 0; lang < 2; ++lang) {
@@ -669,6 +741,7 @@ MainWindow::MainWindow() {
   presenter.PreferredMinimumHeight(520 * static_cast<std::int32_t>(dpi) / 96);
   try {
     load_i18n(executable_path().parent_path());
+    load_emoji_catalog(executable_path().parent_path());
   } catch (...) {
     // The fallback tables stay usable even if the exe path fails.
   }
@@ -2121,6 +2194,161 @@ winrt::fire_and_forget MainWindow::PromptAsync(
   }
 }
 
+// List editor (DESIGN-TOKENS picker contract): name + tabbed emoji
+// category grid fed from shared/emoji.json + the fixed 12-swatch palette —
+// the same catalog and palette on every platform. The name field keeps the
+// prompt-input AutomationId the packaged e2e drives.
+winrt::fire_and_forget MainWindow::ListEditorAsync(
+    std::wstring const& title, rivet_app::TodoList const* existing,
+    std::function<void(std::wstring const&, std::optional<std::wstring> const&,
+                       std::optional<std::int64_t> const&)>
+        on_ok) {
+  auto picked_icon =
+      std::make_shared<std::optional<std::wstring>>();
+  auto picked_color = std::make_shared<std::optional<std::int64_t>>();
+  if (existing != nullptr) {
+    if (existing->icon.has_value()) {
+      *picked_icon = wide(*existing->icon);
+    }
+    picked_color = std::make_shared<std::optional<std::int64_t>>(
+        existing->color);
+  }
+
+  auto input = mxc::TextBox{};
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      input, L"prompt-input");
+  input.PlaceholderText(t("dialogInputListName"));
+  if (existing != nullptr) {
+    input.Text(wide(existing->name));
+  }
+  input.UseSystemFocusVisuals(false);
+
+  auto content = mxc::StackPanel{};
+  content.Orientation(mxc::Orientation::Vertical);
+  content.Spacing(10);
+  content.Children().Append(input);
+
+  // Icon picker: one tab button per category; the emoji pages toggle
+  // visibility instead of stacking a navigation control into a dialog.
+  if (!g_emoji_catalog.empty()) {
+    auto tabs = mxc::StackPanel{};
+    tabs.Orientation(mxc::Orientation::Horizontal);
+    tabs.Spacing(4);
+    std::vector<mxc::StackPanel> pages;
+    for (auto const& category : g_emoji_catalog) {
+      auto page = mxc::StackPanel{};
+      page.Orientation(mxc::Orientation::Vertical);
+      page.Spacing(4);
+      page.Visibility(pages.empty() ? mx::Visibility::Visible
+                                    : mx::Visibility::Collapsed);
+      for (int half = 0; half < 2; ++half) {
+        auto row_panel = mxc::StackPanel{};
+        row_panel.Orientation(mxc::Orientation::Horizontal);
+        row_panel.Spacing(4);
+        for (int slot = 0; slot < 6; ++slot) {
+          auto const index = static_cast<size_t>(half * 6 + slot);
+          if (index >= category.emojis.size()) break;
+          auto emoji_button = mxc::Button{};
+          emoji_button.Content(
+              winrt::box_value(category.emojis[index]));
+          emoji_button.Width(34);
+          emoji_button.Height(34);
+          emoji_button.Click(
+              [picked_icon, emoji = category.emojis[index]](
+                  winrt::Windows::Foundation::IInspectable const&,
+                  mx::RoutedEventArgs const&) {
+                *picked_icon = emoji;
+              });
+          row_panel.Children().Append(emoji_button);
+        }
+        pages.push_back(page);
+      }
+      auto const label =
+          t(("emojiCat_" + winrt::to_string(category.id)).c_str());
+      auto tab = mxc::Button{};
+      tab.Content(winrt::box_value(label));
+      tab.Padding(mx::Thickness{6, 2, 6, 2});
+      tab.FontSize(12);
+      auto const tab_index = static_cast<uint32_t>(pages.size() - 1);
+      tab.Click([pages, tab_index](
+                    winrt::Windows::Foundation::IInspectable const&,
+                    mx::RoutedEventArgs const&) mutable {
+        for (uint32_t i = 0; i < pages.size(); ++i) {
+          pages[i].Visibility(i == tab_index ? mx::Visibility::Visible
+                                             : mx::Visibility::Collapsed);
+        }
+      });
+      tabs.Children().Append(tab);
+    }
+    content.Children().Append(tabs);
+    for (auto const& page : pages) {
+      content.Children().Append(page);
+    }
+  }
+
+  // Color picker: the fixed 12-swatch palette (DESIGN-TOKENS order).
+  auto swatches = mxc::StackPanel{};
+  swatches.Orientation(mxc::Orientation::Horizontal);
+  swatches.Spacing(8);
+  constexpr wchar_t const* kSwatchHexes[] = {
+      L"#007AFF", L"#FF3B30", L"#FF9500", L"#FFCC00", L"#4CD964", L"#5AC8FA",
+      L"#5856D6", L"#FF2D55", L"#8E8E93", L"#C7C7CC", L"#A2845E", L"#00C7BE",
+  };
+  auto accent_brush = ThemeBrush(L"TasklyAccentBrush");
+  auto divider_brush = ThemeBrush(L"TasklyDividerBrush");
+  auto last_swatch = std::make_shared<mxc::Button>(nullptr);
+  for (auto const* hex : kSwatchHexes) {
+    auto swatch = mxc::Button{};
+    swatch.Width(26);
+    swatch.Height(26);
+    auto const rgb =
+        static_cast<uint32_t>(std::wcstoul(hex + 1, nullptr, 16));
+    winrt::Windows::UI::Color ui_color{};
+    ui_color.A = 0xFF;
+    ui_color.R = static_cast<uint8_t>((rgb >> 16) & 0xFF);
+    ui_color.G = static_cast<uint8_t>((rgb >> 8) & 0xFF);
+    ui_color.B = static_cast<uint8_t>(rgb & 0xFF);
+    mx::Media::SolidColorBrush fill{};
+    fill.Color(ui_color);
+    swatch.Background(fill);
+    auto const argb = static_cast<std::int64_t>(0xFF000000LL | rgb) -
+                      INT64_C(0x100000000);
+    if (*picked_color && *picked_color == argb) {
+      swatch.BorderBrush(accent_brush);
+      swatch.BorderThickness(mx::Thickness{2, 2, 2, 2});
+      *last_swatch = swatch;
+    }
+    swatch.Click([picked_color, argb, accent_brush, divider_brush,
+                  last_swatch,
+                  swatch](winrt::Windows::Foundation::IInspectable const&,
+                          mx::RoutedEventArgs const&) mutable {
+      *picked_color = argb;
+      if (*last_swatch) {
+        last_swatch->BorderBrush(divider_brush);
+        last_swatch->BorderThickness(mx::Thickness{1, 1, 1, 1});
+      }
+      swatch.BorderBrush(accent_brush);
+      swatch.BorderThickness(mx::Thickness{2, 2, 2, 2});
+      *last_swatch = swatch;
+    });
+    swatches.Children().Append(swatch);
+  }
+  content.Children().Append(swatches);
+
+  auto dialog = mxc::ContentDialog{};
+  dialog.Title(winrt::box_value(title));
+  dialog.Content(content);
+  dialog.PrimaryButtonText(t("dialogConfirm"));
+  dialog.CloseButtonText(t("dialogCancel"));
+  dialog.DefaultButton(mxc::ContentDialogButton::Primary);
+  dialog.XamlRoot(Content().XamlRoot());
+
+  auto const result = co_await dialog.ShowAsync();
+  if (result == mxc::ContentDialogResult::Primary) {
+    on_ok(std::wstring(input.Text()), *picked_icon, *picked_color);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Data flow
 // ---------------------------------------------------------------------------
@@ -2693,7 +2921,9 @@ winrt::fire_and_forget MainWindow::DeleteTaskAsync(std::int64_t id) {
   }
 }
 
-winrt::fire_and_forget MainWindow::CreateListAsync(std::wstring const& name) {
+winrt::fire_and_forget MainWindow::CreateListAsync(
+    std::wstring const& name, std::optional<std::wstring> const& icon,
+    std::optional<std::int64_t> const& color) {
   if (backend_ == nullptr || !backend_->running() || name.empty()) {
     co_return;
   }
@@ -2703,7 +2933,10 @@ winrt::fire_and_forget MainWindow::CreateListAsync(std::wstring const& name) {
   try {
     rivet_app::API api(*backend);
     (void)api.create_list_async(
-        winrt::to_string(name), std::nullopt, std::nullopt,
+        winrt::to_string(name),
+        icon ? std::optional<std::string>(winrt::to_string(*icon))
+             : std::nullopt,
+        color,
         [dispatcher, weak](rivet_app::Result<rivet_app::TodoList> result) {
           try {
             result.get();
@@ -2721,8 +2954,10 @@ winrt::fire_and_forget MainWindow::CreateListAsync(std::wstring const& name) {
   }
 }
 
-winrt::fire_and_forget MainWindow::RenameListAsync(std::int64_t id,
-                                                   std::wstring const& name) {
+winrt::fire_and_forget MainWindow::RenameListAsync(
+    std::int64_t id, std::wstring const& name,
+    std::optional<std::wstring> const& icon,
+    std::optional<std::int64_t> const& color) {
   if (backend_ == nullptr || !backend_->running() || name.empty()) {
     co_return;
   }
@@ -2732,6 +2967,10 @@ winrt::fire_and_forget MainWindow::RenameListAsync(std::int64_t id,
   }
   auto updated = *stored;
   updated.name = winrt::to_string(name);
+  updated.icon =
+      icon ? std::optional<std::string>(winrt::to_string(*icon))
+           : std::nullopt;
+  updated.color = color;
   auto const dispatcher = DispatcherQueue();
   auto const weak = get_weak();
   auto backend = backend_;
@@ -3263,12 +3502,14 @@ void MainWindow::OnUserListSelectionChanged(
 void MainWindow::OnNewList(winrt::Windows::Foundation::IInspectable const&,
                            Microsoft::UI::Xaml::RoutedEventArgs const&) {
   auto const weak = get_weak();
-  PromptAsync(t("dialogCreateList"), t("dialogInputListName"), L"",
-              [weak](std::wstring const& name) {
-                if (auto window = weak.get()) {
-                  window->CreateListAsync(name);
-                }
-              });
+  ListEditorAsync(
+      t("dialogCreateList"), nullptr,
+      [weak](std::wstring const& name, std::optional<std::wstring> const& icon,
+             std::optional<std::int64_t> const& color) {
+        if (auto window = weak.get()) {
+          window->CreateListAsync(name, icon, color);
+        }
+      });
 }
 
 void MainWindow::OnRenameList(
@@ -3280,13 +3521,16 @@ void MainWindow::OnRenameList(
   if (list == nullptr) {
     return;
   }
+  auto const value = *list;  // copied: the editor reads it only up front
   auto const weak = get_weak();
-  PromptAsync(t("dialogEditList"), t("dialogInputListName"),
-              wide(list->name), [weak, id](std::wstring const& name) {
-                if (auto window = weak.get()) {
-                  window->RenameListAsync(id, name);
-                }
-              });
+  ListEditorAsync(
+      t("dialogEditList"), &value,
+      [weak, id](std::wstring const& name, std::optional<std::wstring> const& icon,
+                 std::optional<std::int64_t> const& color) {
+        if (auto window = weak.get()) {
+          window->RenameListAsync(id, name, icon, color);
+        }
+      });
 }
 
 void MainWindow::OnDeleteList(

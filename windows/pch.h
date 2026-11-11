@@ -28,6 +28,8 @@
 #include <winrt/Microsoft.UI.Xaml.Shapes.h>
 #include <winrt/Microsoft.UI.Text.h>
 #include <winrt/Windows.UI.Text.h>
+#include <winrt/Windows.UI.h>
+#include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.Storage.h>
 #include <winrt/Windows.Storage.Pickers.h>
 #include <microsoft.ui.xaml.window.h>
