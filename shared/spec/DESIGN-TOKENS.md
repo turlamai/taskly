@@ -180,7 +180,7 @@ silently pick a side:
 | D7 | Menu bar height | 32 | ~~Linux 30~~ | ✅ fixed on leg/linux-win-align |
 | D8 | List editor picker | tabbed 8×12 emoji grid + 12-swatch row, same on every platform | macOS complete · Linux ✅ upgraded to shared/emoji.json tabbed grid · **Windows has no picker at all** (plain text prompt) | Windows leg slice — the remaining contract violation |
 | D9 | Token CI coverage | every shared hex gated on every host | ~~only 6 values on Windows~~ | ✅ extended on leg/win-drift-2 |
-| D10 | Completed checkbox | ~~PRODUCT-SPEC §5: "ring + check in accent"~~ | legs vary | ✅ spec amended 2026-11-11 to list-color fill + white check; leg audit outstanding |
+| D10 | Completed checkbox | ~~PRODUCT-SPEC §5: "ring + check in accent"~~ | leg audit 2026-11-11: macOS compliant · Linux declared exception (§5 8px dot) · **Windows stock CheckBox = undeclared drift** | ✅ spec amended; Windows leg slice: implement the 20px list-color ring or declare the exception in §5 first |
 
 ## Prototype-first process (this repo)
 
