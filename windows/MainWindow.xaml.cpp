@@ -2208,7 +2208,7 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
   auto picked_color = std::make_shared<std::optional<std::int64_t>>();
   if (existing != nullptr) {
     if (existing->icon.has_value()) {
-      *picked_icon = winrt::to_wstring(*existing->icon);
+      *picked_icon = wide(*existing->icon);
     }
     picked_color = std::make_shared<std::optional<std::int64_t>>(
         existing->color);
