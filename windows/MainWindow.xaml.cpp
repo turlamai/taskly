@@ -614,7 +614,7 @@ void load_emoji_catalog(std::filesystem::path const& exe_dir) {
         category.id = entry.GetNamedString(L"id");
         auto const emojis = entry.GetNamedArray(L"emojis");
         for (uint32_t e = 0; e < emojis.Size(); ++e) {
-          category.emojis.push_back(emojis.GetStringAt(e));
+          category.emojis.push_back(std::wstring(emojis.GetStringAt(e)));
         }
         if (!category.emojis.empty()) {
           g_emoji_catalog.push_back(std::move(category));
@@ -2208,8 +2208,7 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
   auto picked_color = std::make_shared<std::optional<std::int64_t>>();
   if (existing != nullptr) {
     if (existing->icon.has_value()) {
-      picked_icon->insert(picked_icon->end(), existing->icon->begin(),
-                          existing->icon->end());
+      *picked_icon = winrt::to_wstring(*existing->icon);
     }
     picked_color = std::make_shared<std::optional<std::int64_t>>(
         existing->color);
@@ -2225,7 +2224,7 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
   input.UseSystemFocusVisuals(false);
 
   auto content = mxc::StackPanel{};
-  content.Orientation(mx::Orientation::Vertical);
+  content.Orientation(mxc::Orientation::Vertical);
   content.Spacing(10);
   content.Children().Append(input);
 
@@ -2233,18 +2232,18 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
   // visibility instead of stacking a navigation control into a dialog.
   if (!g_emoji_catalog.empty()) {
     auto tabs = mxc::StackPanel{};
-    tabs.Orientation(mx::Orientation::Horizontal);
+    tabs.Orientation(mxc::Orientation::Horizontal);
     tabs.Spacing(4);
     std::vector<mxc::StackPanel> pages;
     for (auto const& category : g_emoji_catalog) {
       auto page = mxc::StackPanel{};
-      page.Orientation(mx::Orientation::Vertical);
+      page.Orientation(mxc::Orientation::Vertical);
       page.Spacing(4);
       page.Visibility(pages.empty() ? mx::Visibility::Visible
                                     : mx::Visibility::Collapsed);
       for (int half = 0; half < 2; ++half) {
         auto row_panel = mxc::StackPanel{};
-        row_panel.Orientation(mx::Orientation::Horizontal);
+        row_panel.Orientation(mxc::Orientation::Horizontal);
         row_panel.Spacing(4);
         for (int slot = 0; slot < 6; ++slot) {
           auto const index = static_cast<size_t>(half * 6 + slot);
@@ -2267,7 +2266,7 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
       auto const label =
           t(("emojiCat_" + winrt::to_string(category.id)).c_str());
       auto tab = mxc::Button{};
-      tab.Content(winrt::box_value(winrt::to_hstring(label)));
+      tab.Content(winrt::box_value(label));
       tab.Padding(mx::Thickness{6, 2, 6, 2});
       tab.FontSize(12);
       auto const tab_index = static_cast<uint32_t>(pages.size() - 1);
@@ -2289,7 +2288,7 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
 
   // Color picker: the fixed 12-swatch palette (DESIGN-TOKENS order).
   auto swatches = mxc::StackPanel{};
-  swatches.Orientation(mx::Orientation::Horizontal);
+  swatches.Orientation(mxc::Orientation::Horizontal);
   swatches.Spacing(8);
   constexpr wchar_t const* kSwatchHexes[] = {
       L"#007AFF", L"#FF3B30", L"#FF9500", L"#FFCC00", L"#4CD964", L"#5AC8FA",
@@ -2314,7 +2313,7 @@ winrt::fire_and_forget MainWindow::ListEditorAsync(
     swatch.Background(fill);
     auto const argb = static_cast<std::int64_t>(0xFF000000LL | rgb) -
                       INT64_C(0x100000000);
-    if (picked_color.has_value() && *picked_color == argb) {
+    if (*picked_color && *picked_color == argb) {
       swatch.BorderBrush(accent_brush);
       swatch.BorderThickness(mx::Thickness{2, 2, 2, 2});
       *last_swatch = swatch;
@@ -2934,7 +2933,7 @@ winrt::fire_and_forget MainWindow::CreateListAsync(
   try {
     rivet_app::API api(*backend);
     (void)api.create_list_async(
-        name,
+        winrt::to_string(name),
         icon ? std::optional<std::string>(winrt::to_string(*icon))
              : std::nullopt,
         color,
