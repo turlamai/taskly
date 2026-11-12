@@ -7,19 +7,32 @@
 > implements these values as named constants; smart-tile colors remain
 > theme-independent.
 
-## Semantic colors (theme-independent)
+**v0.2 baseline (2026-11-12, prototype polish, issue #130).** The polished
+prototype (`design/prototype/`) updates values and interactions; the three
+hosts and `check-design-tokens.py` align in a follow-up atomic slice
+(drift ledger D11–D13 — the checker stays at v0.1 values until then, so CI
+stays green): light tertiary darkened `#767370 → #6B6866` (4.9:1, safe at
+12px); dark secondary lifted `#B2AEAC → #C3BFBD`; danger and planned become
+light/dark pairs; new semantic tokens (divider-strong, accent-ink,
+today-ink, warn-ink, success, tag fills, scrim, shadow scale, motion, focus
+ring); the list palette is semanticized with dark variants; a second editing
+surface — the anchored task-detail popover with per-field autosave — joins
+the inline quick editor.
 
-| Token | Hex | Use |
-|---|---|---|
-| `accent/today` | `#007AFF` | Today tile, default list color, light-mode accent |
-| `accent/today-dark` | `#0A84FF` | Dark-mode accent |
-| `tile/planned` | `#FF3B30` | Planned tile |
-| `tile/all` | `#8E8E93` | All tile |
-| `tile/completed` | `#8E8E93` | Completed tile |
-| `flag` (reserved) | `#FF9500` | Flagged (unused) |
-| `danger` | `#FF3B30` | Destructive buttons |
-| `accent/action` | `#C94F30` | Primary actions and focus, light mode |
-| `accent/action-dark` | `#E8704F` | Primary actions and focus, dark mode |
+## Semantic colors (light/dark pairs unless noted)
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `accent/today` | `#007AFF` | `#0A84FF` | Today tile, default list color, focus ring |
+| `today-ink` | `#0060C0` | `#64B5FF` | Today numerals and due-today text on surface |
+| `tile/planned` | `#FF3B30` | `#FF453A` | Planned tile glyph |
+| `tile/all` | `#8E8E93` | `#98989D` | All / Completed tiles (`gray-tile`) |
+| `accent/action` | `#C94F30` | `#E8704F` | Primary actions, switches, accent fills |
+| `accent-ink` | `#FFFFFF` | `#1B120F` | Text/icon on accent fills |
+| `danger` | `#B3261E` | `#FF8A7A` | Destructive actions, overdue text, high priority |
+| `warn-ink` | `#B25E00` | `#E0A33F` | Medium priority |
+| `success` | `#1B7F4B` | `#5BD6A0` | Status confirmation |
+| `flag` | — | — | retired in v0.2 (superseded by `list-orange`) |
 
 ## Light theme
 
@@ -31,12 +44,16 @@
 | `divider` | `#E1DFDD` |
 | `text/primary` | `#1D1D1F` |
 | `text/secondary` | `#5F5D5B` |
-| `text/tertiary` | `#767370` |
+| `text/tertiary` | `#6B6866` |
 | `selection` | `#14000000` (black @ 8%) |
 | `hover` | `#0D000000` (black @ 5%) |
 | `input-border` | `#8A8785` |
 | `badge/background` | `#E9E9EE` |
 | `badge/text` | `#58585D` |
+| `divider-strong` | `#C8C6C4` |
+| `tag/background` | `#EDEBE9` |
+| `tag/text` | `#4F4D4B` |
+| `scrim` | `rgba(29,29,31,0.40)` |
 
 ## Dark theme (layered grays, never pure black)
 
@@ -47,18 +64,49 @@
 | `surface` | `#323234` |
 | `divider` | `#3B3939` |
 | `text/primary` | `#F5F5F7` |
-| `text/secondary` | `#B2AEAC` |
+| `text/secondary` | `#C3BFBD` |
 | `text/tertiary` | `#A8A5A3` |
 | `selection` | `#1FFFFFFF` (white @ 12%) |
 | `hover` | `#12FFFFFF` (white @ 7%) |
 | `input-border` | `#777371` |
 | `badge/background` | `#3F3F44` |
 | `badge/text` | `#E9E9EE` |
+| `divider-strong` | `#4E4B4A` |
+| `tag/background` | `#3A3A3D` |
+| `tag/text` | `#D9D6D3` |
+| `scrim` | `rgba(0,0,0,0.55)` |
 
-## List-palette presets (fixed order, iOS system colors)
+## System tokens (v0.2)
 
-`#007AFF` `#FF3B30` `#FF9500` `#FFCC00` `#4CD964` `#5AC8FA` `#5856D6`
-`#FF2D55` `#8E8E93` `#C7C7CC` `#A2845E` `#00C7BE`
+| Token | Value |
+|---|---|
+| focus ring | `:focus-visible` = 2px `accent/today` outline, offset 2 (offset 1 on inputs) |
+| shadow-1 | light `0 1px 2px rgba(29,29,31,.10)` · dark `0 1px 2px rgba(0,0,0,.30)` |
+| shadow-2 | light `0 12px 32px rgba(29,29,31,.16), 0 32px 80px rgba(29,29,31,.20)` · dark `0 12px 32px rgba(0,0,0,.45), 0 32px 80px rgba(0,0,0,.55)` |
+| motion | fast 140ms · base 200ms · exit 120ms; ease-out `cubic-bezier(.2,.8,.2,1)`, ease-in `cubic-bezier(.4,0,1,1)` |
+| reduced motion | `prefers-reduced-motion: reduce` disables all transitions and animations |
+| theme system | `light` / `dark` / `system` (persisted); applied before first paint (no flash); system appearance changes tracked live |
+| a11y | row/nav state via `aria-current` / `aria-pressed` / `aria-checked` / `aria-expanded`; task changes announced through an `aria-live` region |
+
+## List palette (12 semantic colors, fixed order)
+
+Tasks store the semantic name, never the hex — theme switching re-maps
+automatically. iOS system colors, light/dark paired:
+
+| Name | Light | Dark |
+|---|---|---|
+| `blue` | `#007AFF` | `#0A84FF` |
+| `red` | `#FF3B30` | `#FF453A` |
+| `orange` | `#FF9500` | `#FF9F0A` |
+| `yellow` | `#FFCC00` | `#FFD60A` |
+| `green` | `#4CD964` | `#30D158` |
+| `cyan` | `#5AC8FA` | `#64D2FF` |
+| `indigo` | `#5856D6` | `#5E5CE6` |
+| `pink` | `#FF2D55` | `#FF375F` |
+| `gray` | `#8E8E93` | `#98989D` |
+| `silver` | `#C7C7CC` | `#D1D1D6` |
+| `brown` | `#A2845E` | `#AC8E68` |
+| `teal` | `#00C7BE` | `#66D4CF` |
 
 ## Emoji catalog (single source: `shared/emoji.json`)
 
@@ -85,13 +133,13 @@ every platform. Never a text dropdown of hex values.
 | smart-list chip | 2×2 grid of 34px chips (radius 8, 8px gaps): neutral surface fill + 1px divider, horizontal content = colored glyph (14px, view semantic color) + 13px label + quiet 12px count right; checked = quiet selection fill (VSM), hover = hover fill; saturated color never fills the chip — color lives on the glyph (macOS Reminders language) |
 | list row | card: surface fill + 1px divider border, radius 8, padding 8,5; 20px round color dot with the emoji inside (11px), name 13px, gray count right — compact, aligned with the sidebar icon column |
 | list icon size | 32 (round) |
-| checkbox size | 20px ring in the task's list color (accent fallback); completed = list-color fill with a white check |
-| task row | 44px min height, padding 16,9; text 14px; meta 12px with the owning list name (list-colored dot + name) shown in multi-list views; info button at 45% opacity, full on row hover |
+| checkbox size | 20px ring in the task's list color (accent fallback), resting ring mixed 82% toward ink for definition; completed = list-color fill with a white check |
+| task row | 44px min height, padding 16,9; text 14px; meta 12px with the owning list name (list-colored dot + name) shown in multi-list views, clickable tag chips (filter), priority glyphs (!/!!/!!!), subtask count; info button at 65% opacity, full on row hover/focus or when its popover is open |
 | corner radius (rows/cards) | 8 / 10 / 12 |
 | content padding | 16, 8; sidebar item 12, 10 |
 | task text | 14px; list name 13px |
 | view header | large title 22px semibold (view name) + 13px secondary subtitle line beneath (today view → full weekday date, calendar → month with task count, list/all → N open tasks); the show-completed toggle stays top-right |
-| due-date semantics | due dates render localized (今天/明天/昨天/8月31日); overdue incomplete → `#FF3B30`, due today → accent, otherwise text/secondary; a leading clock glyph only when a time is set |
+| due-date semantics | due dates render localized (今天/明天/昨天/8月31日); overdue incomplete → `danger` (light `#B3261E` / dark `#FF8A7A`), due today → `today-ink`, otherwise text/secondary; a leading clock glyph only when a time is set |
 | input fields | search 30px, quick add 36px, radius 10, 1px input-border |
 | font stack | system UI font of the platform (`-apple-system` / Segoe UI / GNOME default), CJK fallback PingFang SC / Microsoft YaHei / Noto Sans CJK SC |
 
@@ -99,15 +147,32 @@ Tile glyphs are monochrome platform icon fonts (Windows: Segoe Fluent Icons;
 macOS: SF Symbols; Linux: symbolic icons), not emoji — mixed emoji/text runs
 render fallback debris on some stacks.
 
-## Inline task editor (Things/Reminders style)
+## Inline quick editor (Things/Reminders style)
 
-The selected row expands in place; there is no task-detail modal. The task
-text remains the visual title (15px semibold, borderless, up to three lines).
-Notes use a 13px borderless multiline field with a tertiary placeholder.
-Date and time render as compact rounded chips where the native toolkit
-supports them, or equivalently grouped native fields on GTK/WinUI. The editor
+The selected row expands in place for a quick edit. The task text remains
+the visual title (15px semibold, borderless, up to three lines). Notes use
+a 13px borderless multiline field with a tertiary placeholder. Date and
+time render as compact rounded chips where the native toolkit supports
+them, or equivalently grouped native fields on GTK/WinUI. The quick editor
 does not introduce a second card or dialog border. PRODUCT-SPEC §5/§6 owns
 the shared Enter-save, Escape-cancel and click-away-save behavior.
+
+## Anchored task detail layer (v0.2)
+
+The full-field editor is an **anchored popover** (`role="dialog"`,
+`aria-modal="false"`), 348px wide (max `100% - 24px`), anchored to the
+row's right edge with a 16px inset, vertically clamped inside the pane,
+shadow-2 elevation. It opens from the row's `ⓘ` button
+(`aria-haspopup="dialog"`, `aria-expanded` tracked) and carries: completion
+checkbox, title, date, time, reminder, priority segmented control, tags,
+subtasks, notes, URL and list membership.
+
+**Persistence is per-field autosave** — every change persists as it is
+made; there is no draft and closing never discards. Visible actions are
+删除 (destructive, ~6s undo per PRODUCT-SPEC §5b) and 完成 (close).
+Clicking outside closes. If a change fails to persist, an actionable error
+anchors to that field and the popover stays open for retry. The popover
+closes when its task leaves the current view.
 
 ## App icon
 
@@ -181,6 +246,9 @@ silently pick a side:
 | D8 | List editor picker | tabbed 8×12 emoji grid + 12-swatch row, same on every platform | macOS complete · Linux ✅ upgraded to shared/emoji.json tabbed grid · **Windows has no picker at all** (plain text prompt) | Windows leg slice — the remaining contract violation |
 | D9 | Token CI coverage | every shared hex gated on every host | ~~only 6 values on Windows~~ | ✅ extended on leg/win-drift-2 |
 | D10 | Completed checkbox | ~~PRODUCT-SPEC §5: "ring + check in accent"~~ | leg audit 2026-11-11: macOS compliant · Linux declared exception (§5 8px dot) · **Windows stock CheckBox = undeclared drift** | ✅ spec amended; Windows leg slice: implement the 20px list-color ring or declare the exception in §5 first |
+| D11 | Token values v0.2 on hosts (issue #130) | light tertiary `#6B6866`, dark secondary `#C3BFBD`, danger/planned pairs, new semantic tokens (§System tokens), semantic list palette × light/dark | all three hosts + `check-design-tokens.py` TOKENS still at v0.1 (host files keep the old hexes, so CI stays green) | one atomic alignment slice: checker + Theme.swift + main.cpp + MainWindow.xaml together, then close |
+| D12 | Overdue color on Windows/Linux | `danger` pair (see D11) | Windows gate literal `FF3B30` + Windows/Linux overdue brushes | Windows/Linux leg slices (after D11) |
+| D13 | Detail layer on hosts | anchored task-detail popover with per-field autosave (§Anchored task detail layer) + theme system (persisted light/dark/system, boot-before-paint) | hosts implement the inline quick editor only | implementation slices per leg, PRODUCT-SPEC §5b governs |
 
 ## Prototype-first process (this repo)
 

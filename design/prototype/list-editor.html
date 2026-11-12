@@ -3,105 +3,397 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Taskly — 列表编辑器原型（picker 契约）</title>
+<title>Taskly — 列表编辑器原型（图标与色板契约）</title>
+<script src="theme-boot.js"></script>
 <link rel="stylesheet" href="shared.css">
 <style>
-  /* ==== 列表编辑器：tabbed emoji 网格 + 12 色板（DESIGN-TOKENS picker 契约）==== */
-  .scrim {
-    position: absolute; inset: 44px 0 0 0; z-index: 10;
-    background: rgba(29, 29, 31, .40); display: grid; place-items: center;
+  .sheetwrap {
+    position: absolute; inset: 44px 0 0 0; z-index: 30; display: grid; place-items: center;
+    background: var(--scrim); padding: 24px;
   }
-  .dark .scrim { background: rgba(0, 0, 0, .5); }
   .sheet {
-    width: 520px; background: var(--bg); border: 1px solid var(--divider); border-radius: 12px;
-    box-shadow: 0 2px 6px rgba(29,29,31,.14), 0 24px 64px rgba(29,29,31,.26);
-    padding: 20px 22px;
+    width: 520px; max-width: 100%; max-height: 100%; overflow-y: auto;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--divider);
+    border-radius: 12px; box-shadow: var(--sh-2); padding: 20px 22px;
+    animation: sheet-in var(--t-base) var(--e-out) both;
   }
-  .shd { display: flex; align-items: center; margin-bottom: 14px; }
+  @keyframes sheet-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .shd { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .shd h2 { font-size: 15px; font-weight: 700; }
-  .flabel { font-size: 12px; font-weight: 600; color: var(--ink2); margin: 12px 0 6px; }
-  .nameinput {
-    width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--input-border);
-    border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 13px; outline: none;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .nameinput .ldot { width: 20px; height: 20px; font-size: 11px; }
-  .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+  .saved { margin-left: auto; font-size: 11.5px; font-weight: 600; color: var(--success); opacity: 0; transition: opacity var(--t-base) ease; }
+  .saved.on { opacity: 1; }
+  .namewrap { display: flex; align-items: center; gap: 8px; }
+  .namewrap .ldot { width: 20px; height: 20px; font-size: 11px; }
+  .namewrap .input { flex: 1; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
   .tab {
-    padding: 3px 10px; border-radius: 99px; font-size: 12px; color: var(--ink2);
+    height: 24px; padding: 0 10px; border-radius: 99px; font-size: 12px; color: var(--ink2);
     border: 1px solid var(--divider); background: var(--surface);
   }
-  .tab.on { background: var(--sel); color: var(--ink); font-weight: 600; }
+  .tab:hover { background: var(--hover); }
+  .tab[aria-selected="true"] { background: var(--sel); color: var(--ink); font-weight: 600; border-color: var(--divider-strong); }
   .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
   .emo {
-    height: 34px; display: grid; place-items: center; font-size: 16px; border-radius: 8px;
-    background: var(--surface); border: 1px solid var(--divider); cursor: default;
+    height: 32px; display: grid; place-items: center; font-size: 16px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--divider);
   }
   .emo:hover { background: var(--hover); }
-  .emo.on { background: var(--sel); border-color: var(--accent); }
+  .emo[aria-pressed="true"] { background: var(--sel); border-color: var(--accent); }
   .swatches { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; }
   .swatch {
     height: 26px; border-radius: 8px; display: grid; place-items: center;
-    color: #fff; font-size: 11px; cursor: default;
+    font-size: 11px; font-weight: 700; transition: transform var(--t-fast) var(--e-out);
   }
-  .swatch.on { outline: 2px solid var(--accent); outline-offset: 1.5px; }
+  .swatch:hover { transform: translateY(-1px); }
+  .swatch[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1.5px; }
+  .note { margin-top: 14px; font-size: 11.5px; line-height: 1.6; color: var(--ink3); }
   .sacts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-  .note { margin-top: 14px; font-size: 11px; color: var(--ink3); }
+  .panehead-btn { align-self: center; }
+  .paneempty { padding: 40px 24px; text-align: center; }
+  .paneempty .et { font-size: 15px; font-weight: 600; }
+  .paneempty .es { margin-top: 6px; font-size: 12.5px; color: var(--ink2); line-height: 1.6; }
 </style>
 </head>
 <body>
   <div class="window" id="app">
     <div class="titlebar">
       <div class="lights"><i></i><i></i><i></i></div>
-      <div class="t">Taskly — 编辑清单「重要」</div>
+      <div class="t" id="winTitle">Taskly — 编辑清单「重要」</div>
       <div class="sp"></div>
-      <button class="iconbtn" id="themeBtn" title="切换亮暗主题">◐</button>
     </div>
-    <div class="app"></div>
-    <div class="scrim">
-      <div class="sheet">
-        <div class="shd"><h2>编辑清单</h2></div>
-        <div class="flabel">名称</div>
-        <div class="nameinput"><span class="ldot" style="background:#FF9500">⭐</span>重要</div>
-        <div class="flabel">图标</div>
-        <div class="tabs">
-          <span class="tab on">常用</span><span class="tab">人物</span><span class="tab">自然</span>
-          <span class="tab">食物</span><span class="tab">活动</span><span class="tab">旅行</span>
-          <span class="tab">物品</span><span class="tab">符号</span>
+
+    <div class="app">
+      <aside class="sidebar" aria-label="侧栏">
+        <div class="sect">我的清单 <button class="addlink" id="newList" aria-label="新建清单" title="新建清单"><span data-icon="plus"></span></button></div>
+        <div id="lists"></div>
+      </aside>
+
+      <section class="pane">
+        <div class="phead">
+          <div>
+            <h1 id="vTitle">重要</h1>
+            <div class="sub" id="vSub">2 项未完成</div>
+          </div>
+          <div class="sp"></div>
+          <button class="btn panehead-btn" id="editList"><span data-icon="pencil"></span><span>编辑清单</span></button>
         </div>
-        <div class="grid">
-          <span class="emo">📋</span><span class="emo">⭐</span><span class="emo">❤️</span>
-          <span class="emo">🔥</span><span class="emo">✅</span><span class="emo">📌</span>
-          <span class="emo">💡</span><span class="emo">🎯</span><span class="emo">🗓</span>
-          <span class="emo">💤</span><span class="emo">🎁</span><span class="emo on">⭐</span>
+        <div class="rows" id="rows"></div>
+        <div class="statusbar">
+          <span>清单图标与颜色在三端保持一致</span>
+          <span class="sp"></span>
+          <span>Esc 取消</span>
         </div>
-        <div class="flabel">颜色</div>
-        <div class="swatches">
-          <span class="swatch" style="background:#007AFF"></span>
-          <span class="swatch" style="background:#FF3B30"></span>
-          <span class="swatch" style="background:#FF9500"></span>
-          <span class="swatch" style="background:#FFCC00"></span>
-          <span class="swatch" style="background:#4CD964"></span>
-          <span class="swatch" style="background:#5AC8FA"></span>
-          <span class="swatch" style="background:#5856D6"></span>
-          <span class="swatch" style="background:#FF2D55"></span>
-          <span class="swatch" style="background:#8E8E93"></span>
-          <span class="swatch" style="background:#C7C7CC"></span>
-          <span class="swatch" style="background:#A2845E"></span>
-          <span class="swatch on" style="background:#00C7BE"></span>
+      </section>
+    </div>
+
+    <div class="sheetwrap" id="sheetwrap">
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" id="sheet">
+        <div class="shd">
+          <h2 id="sheetTitle">编辑清单</h2>
+          <span class="saved" id="saved">已保存</span>
         </div>
-        <div class="note">目录与色板来自 shared/emoji.json 与本契约的固定 12 色 —— 三平台同一目录、同一分类顺序（picker 契约）。</div>
+
+        <div class="field">
+          <label class="flabel" for="listName">名称</label>
+          <div class="namewrap">
+            <span class="ldot" id="previewDot" style="background:var(--list-orange)">⭐</span>
+            <input class="input" id="listName" type="text" value="重要" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="flabel" id="iconLabel">图标</span>
+          <div class="tabs" role="tablist" aria-label="图标分类" id="iconTabs"></div>
+          <div class="grid" role="group" aria-labelledby="iconLabel" id="iconGrid"></div>
+        </div>
+
+        <div class="field">
+          <span class="flabel" id="colorLabel">颜色</span>
+          <div class="swatches" role="group" aria-labelledby="colorLabel" id="swatches"></div>
+        </div>
+
+        <p class="note">三平台共用同一套图标目录与 12 色板；色值以语义令牌渲染，由各平台映射表落到系统色，页面里不再写死十六进制。</p>
+
         <div class="sacts">
-          <span class="btn">取消</span>
-          <span class="btn primary">保存</span>
+          <button class="btn" id="cancelBtn">取消</button>
+          <button class="btn primary" id="saveBtn">保存</button>
         </div>
       </div>
     </div>
   </div>
-  <script>
-    document.getElementById('themeBtn').addEventListener('click', () => {
-      document.getElementById('app').classList.toggle('dark');
+
+  <div class="sr-only" id="live" aria-live="polite"></div>
+
+<script src="shared.js"></script>
+<script>
+(function () {
+  const T = window.Taskly;
+  const ICONS = T.ICONS, esc = T.esc, TODAY = T.TODAY, bucket = T.bucket, dueText = T.dueText, announce = T.announce;
+  const addDays = T.addDays;
+
+  const LISTS = {
+    work:      { name: '工作', emoji: '💼', color: 'var(--list-cyan)' },
+    home:      { name: '家',   emoji: '🏠', color: 'var(--list-green)' },
+    important: { name: '重要', emoji: '⭐', color: 'var(--list-orange)' },
+    reading:   { name: '读书', emoji: '📚', color: 'var(--list-indigo)' }
+  };
+
+  const EMOJIS = {
+    '常用': ['📋','⭐','❤️','🔥','✅','📌','💡','🎯','🗓','💤','🎁','☕'],
+    '人物': ['😀','😎','🧑‍💻','👩‍🎨','🧑‍🔬','👶','🧓','🧑‍🍳','🧑‍🏫','👮','🧑‍🌾','🧑‍🚀'],
+    '自然': ['🌱','🌿','🍀','🌵','🌲','🌸','🌻','🍁','🌙','☀️','⛰️','🌊'],
+    '食物': ['🍜','🍣','🍱','🥗','🍎','🍰','🥟','🍇','🍳','🍕','🍺','🧁'],
+    '活动': ['🏃','🚴','🏊','🧘','⚽','🎾','🏀','🎿','🎨','🎸','🎮','🧩'],
+    '旅行': ['✈️','🚄','🚗','🗺️','🏖️','🏕️','🧳','🎫','🏨','🗼','🚢','🚲'],
+    '物品': ['💻','📱','⌚️','🎧','📷','📚','✏️','🔑','💳','🧰','🪑','🕯️'],
+    '符号': ['✅','⚠️','❗','❓','➕','➖','⭐','🔥','💤','🎯','📌','💡']
+  };
+
+  const SWATCHES = [
+    { name: '蓝色', token: 'var(--list-blue)', ink: '#FFFFFF' },
+    { name: '红色', token: 'var(--list-red)', ink: '#FFFFFF' },
+    { name: '橙色', token: 'var(--list-orange)', ink: '#1D1D1F' },
+    { name: '黄色', token: 'var(--list-yellow)', ink: '#1D1D1F' },
+    { name: '绿色', token: 'var(--list-green)', ink: '#1D1D1F' },
+    { name: '浅蓝', token: 'var(--list-cyan)', ink: '#1D1D1F' },
+    { name: '靛蓝', token: 'var(--list-indigo)', ink: '#FFFFFF' },
+    { name: '粉色', token: 'var(--list-pink)', ink: '#FFFFFF' },
+    { name: '灰色', token: 'var(--list-gray)', ink: '#1D1D1F' },
+    { name: '浅灰', token: 'var(--list-silver)', ink: '#1D1D1F' },
+    { name: '棕色', token: 'var(--list-brown)', ink: '#1D1D1F' },
+    { name: '青色', token: 'var(--list-teal)', ink: '#1D1D1F' }
+  ];
+
+  const tasks = [
+    { id: 'e1', title: '回复出版社的排版确认函', list: 'important', date: addDays(TODAY, -1), time: '', priority: 2, note: '', tags: ['等回复'], done: false, subtasks: [] },
+    { id: 'e2', title: '预约牙医复诊', list: 'important', date: TODAY, time: '09:30', priority: 1, note: '带上上次拍的片子', tags: ['健康'], done: false, subtasks: [{ t: '挂号', done: false }] },
+    { id: 'e3', title: '确认周末的羽毛球场地', list: 'important', date: TODAY, time: '', priority: 0, note: '', tags: ['家'], done: true, subtasks: [] }
+  ];
+
+  let current = 'important';
+  let category = '常用';
+  let draft = { name: '', emoji: '⭐', color: 'var(--list-orange)' };
+  let editingId = null;
+  let isNew = false;
+  let uid = 1;
+
+  const $ = function (s, r) { return (r || document).querySelector(s); };
+  const $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  function listTasks(id) { return tasks.filter(function (t) { return t.list === id; }); }
+
+  function renderSidebar() {
+    $('#lists').innerHTML = Object.keys(LISTS).map(function (id) {
+      const l = LISTS[id];
+      const n = listTasks(id).filter(function (t) { return !t.done; }).length;
+      return '<button class="lrow" data-list="' + id + '" aria-current="' + (current === id ? 'true' : 'false') + '">' +
+        '<span class="ldot" style="background:' + l.color + '">' + l.emoji + '</span>' +
+        '<span class="name">' + esc(l.name) + '</span><span class="count">' + n + '</span></button>';
+    }).join('');
+
+  }
+
+  function renderPane() {
+    const l = LISTS[current];
+    $('#vTitle').textContent = l.name;
+    $('#winTitle').textContent = 'Taskly — ' + l.name;
+    const list = listTasks(current);
+    const open = list.filter(function (t) { return !t.done; });
+    const done = list.filter(function (t) { return t.done; });
+    $('#vSub').textContent = open.length + ' 项未完成';
+    if (!list.length) {
+      $('#rows').innerHTML = '<div class="paneempty"><div class="et">这个清单还没有任务</div><div class="es">用主窗的快速添加，或在详情页把任务移到这里。</div></div>';
+      return;
+    }
+    let html = open.map(function (t) {
+      const b = bucket(t);
+      return '<div class="row" data-id="' + t.id + '">' +
+        '<button class="check" data-act="toggle" role="checkbox" aria-checked="false" aria-label="标记为已完成：' + esc(t.title) + '" style="--list:' + l.color + '"></button>' +
+        '<div class="body"><span class="t">' + esc(t.title) + '</span>' +
+          '<div class="meta">' +
+            (t.date ? '<span class="due ' + (b === 'over' ? 'over' : b === 'today' ? 'today' : '') + '">' + esc(dueText(t)) + '</span>' : '') +
+            (t.priority > 0 ? '<span class="prio p' + t.priority + '">' + new Array(t.priority + 1).join('!') + '</span>' : '') +
+            t.tags.map(function (g) { return '<span class="tag">#' + esc(g) + '</span>'; }).join('') +
+            (t.subtasks.length ? '<span class="subcount">子任务 ' + t.subtasks.filter(function (s) { return s.done; }).length + '/' + t.subtasks.length + '</span>' : '') +
+            (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') +
+          '</div></div></div>';
+    }).join('');
+    done.forEach(function (t) {
+      html += '<div class="row" data-id="' + t.id + '">' +
+        '<button class="check done" data-act="toggle" role="checkbox" aria-checked="true" aria-label="标记为未完成：' + esc(t.title) + '" style="--list:' + l.color + '">' + ICONS.check + '</button>' +
+        '<div class="body"><span class="t done">' + esc(t.title) + '</span>' +
+          '<div class="meta"><span class="owner"><i style="background:' + l.color + '"></i>' + esc(l.name) + '</span></div></div></div>';
     });
-  </script>
+    $('#rows').innerHTML = html;
+  }
+
+  /* ==== 图标与色板 ==== */
+
+  function renderTabs() {
+    $('#iconTabs').innerHTML = Object.keys(EMOJIS).map(function (cat) {
+      return '<button class="tab" role="tab" data-cat="' + cat + '" aria-selected="' + (category === cat) + '" tabindex="' + (category === cat ? '0' : '-1') + '">' + cat + '</button>';
+    }).join('');
+  }
+
+  function renderGrid() {
+    $('#iconGrid').innerHTML = EMOJIS[category].map(function (e) {
+      return '<button class="emo" data-emoji="' + e + '" aria-pressed="' + (draft.emoji === e) + '" aria-label="图标 ' + e + '">' + e + '</button>';
+    }).join('');
+  }
+
+  function renderSwatches() {
+    $('#swatches').innerHTML = SWATCHES.map(function (s) {
+      const on = draft.color === s.token;
+      return '<button class="swatch" data-color="' + s.token + '" aria-pressed="' + on + '" aria-label="' + s.name + '"' +
+        ' style="background:' + s.token + ';color:' + s.ink + '">' + (on ? '✓' : '') + '</button>';
+    }).join('');
+  }
+
+  function syncPreview() {
+    $('#previewDot').textContent = draft.emoji;
+    $('#previewDot').style.background = draft.color;
+  }
+
+  function openSheet(id, asNew) {
+    isNew = !!asNew;
+    editingId = id;
+    category = '常用';
+    if (isNew) {
+      draft = { name: '', emoji: '📋', color: 'var(--list-blue)' };
+      $('#sheetTitle').textContent = '新建清单';
+      $('#listName').value = '';
+      $('#listName').placeholder = '清单名称';
+    } else {
+      const l = LISTS[id];
+      draft = { name: l.name, emoji: l.emoji, color: l.color };
+      $('#sheetTitle').textContent = '编辑清单';
+      $('#listName').value = l.name;
+      $('#listName').placeholder = '';
+    }
+    $('#saved').classList.remove('on');
+    $('.sheetwrap').hidden = false;
+    renderTabs(); renderGrid(); renderSwatches(); syncPreview();
+    $('#winTitle').textContent = 'Taskly — ' + (isNew ? '新建清单' : '编辑清单「' + draft.name + '」');
+    $('#listName').focus();
+    $('#listName').select();
+  }
+
+  function closeSheet() {
+    $('.sheetwrap').hidden = true;
+    $('#editList').focus();
+  }
+
+  function saveSheet() {
+    const name = $('#listName').value.trim() || '未命名清单';
+    if (isNew) {
+      const id = 'n' + (uid++);
+      LISTS[id] = { name: name, emoji: draft.emoji, color: draft.color };
+      current = id;
+    } else {
+      LISTS[editingId].name = name;
+      LISTS[editingId].emoji = draft.emoji;
+      LISTS[editingId].color = draft.color;
+    }
+    $('#saved').classList.add('on');
+    announce('清单已保存：' + name);
+    renderSidebar(); renderPane();
+    window.setTimeout(function () { $('#saved').classList.remove('on'); }, 1400);
+    closeSheet();
+  }
+
+  /* ==== 事件 ==== */
+
+  $('#lists').addEventListener('click', function (e) {
+    const b = e.target.closest('[data-list]');
+    if (!b) return;
+    current = b.dataset.list;
+    renderSidebar(); renderPane();
+    const el = $('#lists [data-list="' + current + '"]');
+    if (el) el.focus();
+  });
+
+  $('#rows').addEventListener('click', function (e) {
+    const b = e.target.closest('[data-act="toggle"]');
+    if (!b) return;
+    const row = b.closest('.row');
+    const t = tasks.find(function (x) { return x.id === row.dataset.id; });
+    if (!t) return;
+    t.done = !t.done;
+    renderSidebar(); renderPane();
+    const after = $('#rows .row[data-id="' + t.id + '"] .check');
+    if (after) after.focus();
+    announce(t.done ? '已完成：' + t.title : '已恢复：' + t.title);
+  });
+
+  $('#iconTabs').addEventListener('click', function (e) {
+    const b = e.target.closest('[data-cat]');
+    if (!b) return;
+    category = b.dataset.cat;
+    renderTabs(); renderGrid();
+    const el = $('#iconTabs [data-cat="' + category + '"]');
+    if (el) el.focus();
+  });
+  $('#iconTabs').addEventListener('keydown', function (e) {
+    const cats = Object.keys(EMOJIS);
+    const i = cats.indexOf(category);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const next = (i + (e.key === 'ArrowRight' ? 1 : cats.length - 1)) % cats.length;
+      category = cats[next];
+      renderTabs(); renderGrid();
+      const btn = $('#iconTabs [data-cat="' + category + '"]');
+      if (btn) btn.focus();
+    }
+  });
+
+  $('#iconGrid').addEventListener('click', function (e) {
+    const b = e.target.closest('[data-emoji]');
+    if (!b) return;
+    draft.emoji = b.dataset.emoji;
+    renderGrid(); syncPreview();
+    const el = $('#iconGrid [data-emoji="' + draft.emoji + '"]');
+    if (el) el.focus();
+  });
+
+  $('#swatches').addEventListener('click', function (e) {
+    const b = e.target.closest('[data-color]');
+    if (!b) return;
+    draft.color = b.dataset.color;
+    renderSwatches(); syncPreview();
+    const el = $('#swatches [data-color="' + draft.color + '"]');
+    if (el) el.focus();
+  });
+
+  $('#editList').addEventListener('click', function () { openSheet(current, false); });
+  $('#newList').addEventListener('click', function () { openSheet('', true); });
+  $('#cancelBtn').addEventListener('click', closeSheet);
+  $('#saveBtn').addEventListener('click', saveSheet);
+  $('.sheetwrap').addEventListener('pointerdown', function (e) {
+    if (e.target === this) closeSheet();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('.sheetwrap').hidden) closeSheet();
+  });
+  $('#sheet').addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab' || $('.sheetwrap').hidden) return;
+    const f = $$('#sheet button, #sheet input, #sheet select').filter(function (el) {
+      return !el.disabled && el.offsetParent !== null;
+    });
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+
+  function init() {
+    $$('[data-icon]').forEach(function (el) { el.innerHTML = ICONS[el.dataset.icon] || ''; });
+    renderSidebar(); renderPane();
+    const params = new URLSearchParams(location.search);
+    if (params.get('new') === '1') openSheet('', true);
+    else openSheet(current, false);
+  }
+  init();
+})();
+</script>
 </body>
 </html>

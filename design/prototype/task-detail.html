@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taskly — 任务详情层（评审态）</title>
+<script src="theme-boot.js"></script>
+<link rel="stylesheet" href="shared.css">
+<style>
+  /* ==== 详情评审页：行点开即出锚定弹层 ==== */
+  .hintline { font-size: 12px; color: var(--ink3); }
+  .newrow {
+    display: flex; align-items: center; gap: 8px; height: 40px; margin: 2px 8px 0;
+    padding: 0 16px; border-radius: 8px; color: var(--ink3); font-size: 13px;
+  }
+  .newrow:hover { background: var(--hover); color: var(--ink); }
+  .newrow .icon { color: var(--ink3); }
+  .detailhead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .detailhead .tag { background: var(--badge-bg); color: var(--badge-text); }
+  .dpop .flabel { display: flex; align-items: center; gap: 6px; }
+  .dpop .flabel .icon { color: var(--ink3); }
+  .checkline { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 12.5px; color: var(--ink2); }
+  .checkline input { width: 16px; height: 16px; accent-color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="window" id="app">
+    <div class="titlebar">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <div class="t" id="winTitle">Taskly — 今天</div>
+      <div class="sp"></div>
+    </div>
+
+    <div class="app">
+      <aside class="sidebar" aria-label="侧栏">
+        <div class="tiles" id="tiles"></div>
+        <div class="sect">我的清单 <a class="addlink" href="list-editor.html?new=1" aria-label="新建清单" title="新建清单"><span data-icon="plus"></span></a></div>
+        <div id="lists"></div>
+        <div class="sect">标签</div>
+        <div id="tags"></div>
+      </aside>
+
+      <section class="pane">
+        <div class="phead">
+          <div>
+            <h1 id="vTitle">今天</h1>
+            <div class="sub" id="vSub"></div>
+          </div>
+          <div class="sp"></div>
+          <span class="hintline">点任意任务查看详情</span>
+        </div>
+
+        <div class="rows" id="rows"></div>
+        <button class="newrow" id="newTask"><span data-icon="plus"></span><span>新建任务</span></button>
+
+        <div class="statusbar">
+          <span id="statusLeft"></span>
+          <span class="sp"></span>
+          <span>Esc 关闭详情 · 改动即时保存</span>
+        </div>
+
+        <div class="dpop" id="dpop" role="dialog" aria-labelledby="dpopTitle" aria-modal="false" hidden>
+          <div class="dhead">
+            <h2 id="dpopTitle">任务详情</h2>
+            <button class="iconbtn" data-icon="x" data-act="close-detail" aria-label="关闭详情"></button>
+          </div>
+          <div class="dbody">
+            <div class="detailhead">
+              <span class="tag" id="dHeadList">重要</span>
+              <span class="tag" id="dHeadSub">子任务 0/0</span>
+            </div>
+            <div class="checkline">
+              <input type="checkbox" id="fDone">
+              <label for="fDone">已完成</label>
+            </div>
+            <label class="field">
+              <span class="flabel">标题</span>
+              <input class="input" id="fTitle" type="text" autocomplete="off">
+            </label>
+            <div class="f2">
+              <label class="field"><span class="flabel">日期</span><input class="input" id="fDate" type="date"></label>
+              <label class="field"><span class="flabel">时间</span><input class="input" id="fTime" type="time"></label>
+            </div>
+            <label class="field">
+              <span class="flabel">提醒</span>
+              <select class="input" id="fRemind">
+                <option value="none">不提醒</option>
+                <option value="0">准时</option>
+                <option value="10m">提前 10 分钟</option>
+                <option value="1h">提前 1 小时</option>
+              </select>
+            </label>
+            <div class="field">
+              <span class="flabel" id="prioLabel">优先级</span>
+              <div class="seg" role="group" aria-labelledby="prioLabel" id="fPrio">
+                <button data-prio="0">无</button>
+                <button data-prio="1">低</button>
+                <button data-prio="2">中</button>
+                <button data-prio="3">高</button>
+              </div>
+            </div>
+            <div class="field">
+              <span class="flabel">标签</span>
+              <div class="taglist" id="fTags"></div>
+              <input class="input" id="fTagAdd" type="text" placeholder="输入标签后回车" aria-label="添加标签" autocomplete="off">
+            </div>
+            <div class="field">
+              <span class="flabel">子任务</span>
+              <div class="sublist" id="fSubs"></div>
+              <input class="input" id="fSubAdd" type="text" placeholder="输入子任务后回车" aria-label="添加子任务" autocomplete="off">
+            </div>
+            <label class="field"><span class="flabel">备注</span><textarea class="input" id="fNote" rows="3"></textarea></label>
+            <label class="field"><span class="flabel">链接</span><input class="input" id="fUrl" type="url" placeholder="https://"></label>
+            <label class="field">
+              <span class="flabel">所属清单</span>
+              <select class="input" id="fList"></select>
+            </label>
+          </div>
+          <div class="dacts">
+            <button class="btn danger" id="fDelete">删除</button>
+            <span class="sp"></span>
+            <span class="hint-inline">更改自动保存</span>
+            <button class="btn primary" data-act="close-detail">完成</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="sr-only" id="live" aria-live="polite"></div>
+
+<script src="shared.js"></script>
+<script>
+(function () {
+  const T = window.Taskly;
+  const ICONS = T.ICONS, esc = T.esc, TODAY = T.TODAY;
+  const addDays = T.addDays, bucket = T.bucket, dueText = T.dueText, place = T.place, announce = T.announce;
+
+  const LISTS = {
+    work:      { name: '工作', emoji: '💼', color: 'var(--list-cyan)' },
+    home:      { name: '家',   emoji: '🏠', color: 'var(--list-green)' },
+    important: { name: '重要', emoji: '⭐', color: 'var(--list-orange)' },
+    reading:   { name: '读书', emoji: '📚', color: 'var(--list-indigo)' }
+  };
+
+  const tasks = [
+    { id: 'a1', title: '同步季度 OKR 草稿到文档库', list: 'work', date: TODAY, time: '14:00', remind: '10m', priority: 2,
+      note: '先过一遍 Q3 复盘的结论', tags: ['工作', '本周'], done: false, url: '',
+      subtasks: [{ t: '整理 Q3 复盘结论', done: true }, { t: '同步到文档库并通知相关同事', done: false }] },
+    { id: 'a2', title: '预约牙医复诊', list: 'important', date: TODAY, time: '09:30', remind: '1h', priority: 1,
+      note: '带上上次拍的片子；顺便问一下矫压器的时间表。', tags: ['健康', '本周'], done: false, url: '',
+      subtasks: [{ t: '确认诊所营业时间', done: true }, { t: '挂号', done: false }] },
+    { id: 'a3', title: '回复出版社的排版确认函', list: 'important', date: addDays(TODAY, -1), time: '', remind: 'none', priority: 2,
+      note: '', tags: ['等回复'], done: false, url: '', subtasks: [] },
+    { id: 'a4', title: '给新同事开代码仓库权限', list: 'work', date: addDays(TODAY, 1), time: '', remind: 'none', priority: 0,
+      note: '', tags: ['工作'], done: false, url: '', subtasks: [] },
+    { id: 'a5', title: '预约周末的羽毛球场地', list: 'home', date: TODAY, time: '', remind: 'none', priority: 0,
+      note: '', tags: ['家'], done: true, url: '', subtasks: [] }
+  ];
+
+  const state = { view: 'today', listId: null, tag: null, doneOpen: true };
+  let openId = 'a2';
+  let uid = 10;
+  let delArmed = false;
+
+  const $ = function (s, r) { return (r || document).querySelector(s); };
+  const $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  function taskById(id) { return tasks.find(function (t) { return t.id === id; }); }
+
+  function inView(t) {
+    if (state.tag && t.tags.indexOf(state.tag) < 0) return false;
+    if (state.view === 'today') return bucket(t) === 'today' || bucket(t) === 'over';
+    if (state.view === 'planned') return !!t.date;
+    if (state.view === 'completed') return t.done;
+    if (state.view === 'list') return t.list === state.listId;
+    return true;
+  }
+  function visible() { return tasks.filter(inView); }
+
+  function counts() {
+    const open = tasks.filter(function (t) { return !t.done; });
+    const c = { today: 0, planned: 0, all: open.length, done: tasks.length - open.length, list: {}, tag: {} };
+    open.forEach(function (t) {
+      const b = bucket(t);
+      if (b === 'today' || b === 'over') c.today += 1;
+      if (t.date) c.planned += 1;
+      c.list[t.list] = (c.list[t.list] || 0) + 1;
+      t.tags.forEach(function (g) { c.tag[g] = (c.tag[g] || 0) + 1; });
+    });
+    return c;
+  }
+
+  function renderSidebar() {
+    const c = counts();
+    const tiles = [
+      { view: 'today', label: '今天', count: c.today, glyph: '<span class="glyph num">12</span>' },
+      { view: 'planned', label: '计划', count: c.planned, glyph: '<span class="glyph planned">' + ICONS.calendar + '</span>' },
+      { view: 'all', label: '全部', count: c.all, glyph: '<span class="glyph gray">' + ICONS.lines + '</span>' },
+      { view: 'completed', label: '已完成', count: c.done, glyph: '<span class="glyph gray">' + ICONS.checkCircle + '</span>' }
+    ];
+    $('#tiles').innerHTML = tiles.map(function (x) {
+      return '<button class="tile" data-view="' + x.view + '" aria-current="' + (state.view === x.view ? 'true' : 'false') + '">' +
+        x.glyph + '<span class="label">' + x.label + '</span><span class="count">' + x.count + '</span></button>';
+    }).join('');
+
+    $('#lists').innerHTML = Object.keys(LISTS).map(function (id) {
+      const l = LISTS[id];
+      const on = state.view === 'list' && state.listId === id;
+      return '<button class="lrow" data-list="' + id + '" aria-current="' + (on ? 'true' : 'false') + '">' +
+        '<span class="ldot" style="background:' + l.color + '">' + l.emoji + '</span>' +
+        '<span class="name">' + esc(l.name) + '</span><span class="count">' + (c.list[id] || 0) + '</span></button>';
+    }).join('');
+
+    const tags = [];
+    tasks.forEach(function (t) { t.tags.forEach(function (g) { if (tags.indexOf(g) < 0) tags.push(g); }); });
+    $('#tags').innerHTML = tags.map(function (g) {
+      return '<button class="trow" data-tag="' + esc(g) + '" aria-pressed="' + (state.tag === g) + '">' +
+        '<span class="thash">#</span><span class="name">' + esc(g) + '</span>' +
+        '<span class="count">' + (c.tag[g] || 0) + '</span></button>';
+    }).join('');
+  }
+
+  function viewMeta() {
+    const all = visible();
+    const openN = all.filter(function (t) { return !t.done; }).length;
+    let title = '今天', sub = '11月12日 星期四';
+    if (state.view === 'list') { title = LISTS[state.listId].name; sub = openN + ' 项未完成'; }
+    else if (state.view === 'planned') { title = '计划'; sub = openN + ' 项待安排'; }
+    else if (state.view === 'all') { title = '全部'; sub = openN + ' 项未完成'; }
+    else if (state.view === 'completed') { title = '已完成'; sub = all.length + ' 项'; }
+    if (state.tag) sub = '标签 #' + state.tag + ' · ' + openN + ' 项';
+    return { title: title, sub: sub, openN: openN };
+  }
+
+  function renderHeader() {
+    const m = viewMeta();
+    $('#vTitle').textContent = m.title;
+    $('#vSub').textContent = m.sub;
+    $('#winTitle').textContent = 'Taskly — ' + m.title;
+  }
+
+  function rowMeta(t) {
+    const parts = [];
+    const due = dueText(t);
+    const b = bucket(t);
+    if (due) parts.push('<span class="due ' + (b === 'over' ? 'over' : b === 'today' ? 'today' : '') + '">' + esc(due) + '</span>');
+    if (t.priority > 0) parts.push('<span class="prio p' + t.priority + '" aria-label="优先级：' + ['', '低', '中', '高'][t.priority] + '">' + new Array(t.priority + 1).join('!') + '</span>');
+    const l = LISTS[t.list];
+    if (l) parts.push('<span class="owner"><i style="background:' + l.color + '"></i>' + esc(l.name) + '</span>');
+    t.tags.forEach(function (g) { parts.push('<button class="tag" data-act="tag" data-tag="' + esc(g) + '">#' + esc(g) + '</button>'); });
+    if (t.subtasks.length) {
+      const d = t.subtasks.filter(function (s) { return s.done; }).length;
+      parts.push('<span class="subcount">子任务 ' + d + '/' + t.subtasks.length + '</span>');
+    }
+    if (t.note) parts.push('<span class="note">' + esc(t.note) + '</span>');
+    return '<div class="meta">' + parts.join('') + '</div>';
+  }
+
+  function rowHTML(t) {
+    const l = LISTS[t.list];
+    const color = l ? l.color : 'var(--accent)';
+    return '<div class="row' + (openId === t.id ? ' sel' : '') + '" data-id="' + t.id + '">' +
+      '<button class="check' + (t.done ? ' done' : '') + '" data-act="toggle" role="checkbox" aria-checked="' + t.done + '"' +
+        ' aria-label="' + (t.done ? '标记为未完成' : '标记为已完成') + '：' + esc(t.title) + '" style="--list:' + color + '">' + (t.done ? ICONS.check : '') + '</button>' +
+      '<div class="body">' +
+        '<button class="t' + (t.done ? ' done' : '') + '" data-act="open">' + esc(t.title) + '</button>' +
+        rowMeta(t) +
+      '</div>' +
+      '<button class="info" data-act="open" aria-label="任务详情：' + esc(t.title) + '" aria-haspopup="dialog" aria-expanded="' + (openId === t.id) + '">' + ICONS.info + '</button>' +
+    '</div>';
+  }
+
+  function emptyHTML() {
+    if (state.tag) return '<div class="empty"><div class="et">这个标签下没有任务</div><div class="es">换个标签，或清除标签筛选。</div><button class="btn" data-act="clear-tag">清除筛选</button></div>';
+    return '<div class="empty"><div class="et">这一栏还是空的</div><div class="es">用下方的「新建任务」添加第一条。</div></div>';
+  }
+
+  function renderRows() {
+    const all = visible();
+    const open = all.filter(function (t) { return !t.done; });
+    const done = all.filter(function (t) { return t.done; });
+    let html = '';
+    if (state.view === 'completed') html = all.length ? all.map(rowHTML).join('') : emptyHTML();
+    else if (!all.length) html = emptyHTML();
+    else {
+      html = open.map(rowHTML).join('');
+      if (done.length) {
+        html += '<button class="fold" data-act="fold" aria-expanded="' + state.doneOpen + '">' +
+          (state.doneOpen ? ICONS.chevDown : ICONS.chevRight) + '已完成 ' + done.length + '</button>';
+        html += '<div class="donegroup"' + (state.doneOpen ? '' : ' hidden') + '>' + done.map(rowHTML).join('') + '</div>';
+      }
+    }
+    $('#rows').innerHTML = html;
+    if (openId) {
+      const row = $('.row[data-id="' + openId + '"]');
+      if (row) place($('#dpop'), row, $('.pane'));
+      else { $('#dpop').hidden = true; }
+    } else {
+      $('#dpop').hidden = true;
+    }
+  }
+
+  function render() {
+    renderSidebar(); renderHeader(); renderRows();
+    const m = viewMeta();
+    $('#statusLeft').textContent = m.title + ' · ' + m.openN + ' 项未完成';
+  }
+
+  /* ==== 详情 ==== */
+
+  function current() { return openId ? taskById(openId) : null; }
+
+  function fill(t) {
+    $('#fTitle').value = t.title;
+    $('#fDate').value = t.date || '';
+    $('#fTime').value = t.time || '';
+    $('#fRemind').value = t.remind || 'none';
+    $('#fNote').value = t.note || '';
+    $('#fUrl').value = t.url || '';
+    $('#fList').value = t.list;
+    $('#fDone').checked = t.done;
+    renderPrio(); renderTags(); renderSubs(); renderHead();
+  }
+
+  function renderHead() {
+    const t = current(); if (!t) return;
+    $('#dHeadList').textContent = LISTS[t.list] ? LISTS[t.list].name : '清单';
+    const d = t.subtasks.filter(function (s) { return s.done; }).length;
+    $('#dHeadSub').textContent = t.subtasks.length ? '子任务 ' + d + '/' + t.subtasks.length : '无子任务';
+  }
+
+  function renderPrio() {
+    const t = current();
+    $$('#fPrio [data-prio]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(!!t && Number(b.dataset.prio) === t.priority));
+    });
+  }
+
+  function renderTags() {
+    const t = current(); if (!t) return;
+    $('#fTags').innerHTML = t.tags.length ? t.tags.map(function (g) {
+      return '<span class="tag tag-edit">#' + esc(g) + '<button data-dtag="' + esc(g) + '" aria-label="移除标签 ' + esc(g) + '">' + ICONS.x + '</button></span>';
+    }).join('') : '<span class="muted">还没有标签</span>';
+  }
+
+  function renderSubs() {
+    const t = current(); if (!t) return;
+    $('#fSubs').innerHTML = t.subtasks.length ? t.subtasks.map(function (s, i) {
+      return '<div class="sub"><input type="checkbox" id="sub' + i + '" data-sub="' + i + '"' + (s.done ? ' checked' : '') + '>' +
+        '<label for="sub' + i + '">' + esc(s.t) + '</label>' +
+        '<button class="subdel" data-dsub="' + i + '" aria-label="删除子任务：' + esc(s.t) + '">' + ICONS.x + '</button></div>';
+    }).join('') : '<span class="muted">还没有子任务</span>';
+  }
+
+  function openDetail(id) {
+    const t = taskById(id);
+    if (!t) return;
+    if (openId === id) { closeDetail(true); return; }
+    openId = id;
+    delArmed = false;
+    $('#fDelete').textContent = '删除';
+    fill(t);
+    render();
+    const input = $('#fTitle');
+    if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+  }
+
+  function closeDetail(refocus) {
+    const id = openId;
+    openId = null;
+    $('#dpop').hidden = true;
+    $$('.row.sel').forEach(function (r) { r.classList.remove('sel'); });
+    $$('.info[aria-expanded="true"]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+    if (refocus && id) {
+      const btn = $('.row[data-id="' + id + '"] [data-act="open"]');
+      if (btn) btn.focus();
+      else {
+        const nav = $('.tile[aria-current="true"], .lrow[aria-current="true"], .trow[aria-pressed="true"]');
+        if (nav) nav.focus();
+      }
+    }
+  }
+
+  function guard(t) {
+    if (!inView(t)) { render(); closeDetail(false); announce('任务已移出当前视图'); }
+  }
+
+  function addTask() {
+    if (state.view === 'completed') { state.view = 'today'; state.listId = null; }
+    const t = { id: 'n' + (uid++), title: '新任务', list: state.view === 'list' ? state.listId : 'important',
+      date: TODAY, time: '', remind: 'none', priority: 0, note: '', tags: state.tag ? [state.tag] : [],
+      done: false, url: '', subtasks: [] };
+    tasks.unshift(t);
+    openId = t.id;
+    fill(t);
+    render();
+    const input = $('#fTitle');
+    if (input) { input.focus(); input.select(); }
+    announce('已新建任务');
+  }
+
+  /* ==== 事件 ==== */
+  $('.sidebar').addEventListener('click', function (e) {
+    const v = e.target.closest('[data-view]');
+    const l = e.target.closest('[data-list]');
+    const g = e.target.closest('[data-tag]');
+    if (!v && !l && !g) return;
+    closeDetail(false);
+    if (v) { state.view = v.dataset.view; state.listId = null; state.tag = null; }
+    else if (l) { state.view = 'list'; state.listId = l.dataset.list; state.tag = null; }
+    else if (g) { state.tag = state.tag === g.dataset.tag ? null : g.dataset.tag; }
+    render();
+    const sel = v ? '[data-view="' + v.dataset.view + '"]'
+      : l ? '[data-list="' + l.dataset.list + '"]'
+      : '[data-tag="' + g.dataset.tag + '"]';
+    const el = $(sel);
+    if (el) el.focus();
+  });
+
+  $('#rows').addEventListener('click', function (e) {
+    const rowEl = e.target.closest('.row');
+    if (!rowEl) {
+      if (e.target.closest('[data-act="clear-tag"]')) { state.tag = null; render(); }
+      if (e.target.closest('[data-act="fold"]')) { state.doneOpen = !state.doneOpen; render(); }
+      return;
+    }
+    const id = rowEl.dataset.id;
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    if (act === 'toggle') {
+      const t = taskById(id); if (!t) return;
+      t.done = !t.done; render();
+      const after = $('.row[data-id="' + id + '"] .check');
+      if (after) after.focus();
+      else {
+        const nav = $('.tile[aria-current="true"], .lrow[aria-current="true"], .trow[aria-pressed="true"]');
+        if (nav) nav.focus();
+      }
+      announce(t.done ? '已完成：' + t.title : '已恢复：' + t.title);
+    } else if (act === 'open') {
+      openDetail(id);
+    } else if (act === 'tag') {
+      state.tag = state.tag === btn.dataset.tag ? null : btn.dataset.tag;
+      render();
+    }
+  });
+
+  $('#newTask').addEventListener('click', addTask);
+
+  $('#fTitle').addEventListener('input', function () {
+    const t = current(); if (!t) return;
+    if (this.value.trim()) { t.title = this.value; renderRows(); renderHeader(); }
+  });
+  $('#fNote').addEventListener('input', function () {
+    const t = current(); if (!t) return;
+    t.note = this.value; renderRows();
+  });
+  $('#fUrl').addEventListener('input', function () {
+    const t = current(); if (!t) return;
+    t.url = this.value;
+  });
+  $('#fDone').addEventListener('change', function () {
+    const t = current(); if (!t) return;
+    t.done = this.checked;
+    render(); guard(t);
+  });
+  $('#fDate').addEventListener('change', function () {
+    const t = current(); if (!t) return;
+    t.date = this.value;
+    if (!t.date) { t.time = ''; $('#fTime').value = ''; }
+    render(); guard(t);
+  });
+  $('#fTime').addEventListener('change', function () {
+    const t = current(); if (!t) return;
+    t.time = this.value; render(); guard(t);
+  });
+  $('#fRemind').addEventListener('change', function () {
+    const t = current(); if (!t) return;
+    t.remind = this.value;
+  });
+  $('#fList').addEventListener('change', function () {
+    const t = current(); if (!t) return;
+    t.list = this.value; renderHead(); render(); guard(t);
+  });
+  $('#fPrio').addEventListener('click', function (e) {
+    const b = e.target.closest('[data-prio]');
+    if (!b) return;
+    const t = current(); if (!t) return;
+    t.priority = Number(b.dataset.prio);
+    renderPrio(); render();
+  });
+  $('#fTags').addEventListener('click', function (e) {
+    const b = e.target.closest('[data-dtag]');
+    if (!b) return;
+    const t = current(); if (!t) return;
+    t.tags = t.tags.filter(function (g) { return g !== b.dataset.dtag; });
+    renderTags(); render(); guard(t);
+  });
+  $('#fTagAdd').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    const t = current(); if (!t) return;
+    const v = this.value.trim().replace(/^#/, '');
+    if (v && t.tags.indexOf(v) < 0) { t.tags.push(v); renderTags(); render(); guard(t); }
+    this.value = '';
+  });
+  $('#fSubs').addEventListener('change', function (e) {
+    const box = e.target.closest('[data-sub]'); if (!box) return;
+    const t = current(); if (!t) return;
+    t.subtasks[Number(box.dataset.sub)].done = box.checked;
+    renderHead(); renderRows();
+  });
+  $('#fSubs').addEventListener('click', function (e) {
+    const b = e.target.closest('[data-dsub]'); if (!b) return;
+    const t = current(); if (!t) return;
+    t.subtasks.splice(Number(b.dataset.dsub), 1);
+    renderSubs(); renderHead(); renderRows();
+  });
+  $('#fSubAdd').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    const t = current(); if (!t) return;
+    const v = this.value.trim();
+    if (v) { t.subtasks.push({ t: v, done: false }); renderSubs(); renderHead(); renderRows(); }
+    this.value = '';
+  });
+  $('#fDelete').addEventListener('click', function () {
+    if (!openId) return;
+    if (!delArmed) {
+      delArmed = true;
+      this.textContent = '确认删除？';
+      window.setTimeout(function () {
+        delArmed = false;
+        const el = $('#fDelete'); if (el) el.textContent = '删除';
+      }, 3000);
+      return;
+    }
+    const i = tasks.findIndex(function (t) { return t.id === openId; });
+    const removed = i > -1 ? tasks.splice(i, 1)[0] : null;
+    closeDetail(false);
+    render();
+    announce(removed ? '已删除：' + removed.title : '任务已删除');
+  });
+  $('#dpop').addEventListener('click', function (e) {
+    if (e.target.closest('[data-act="close-detail"]')) closeDetail(true);
+  });
+  $('.rows').addEventListener('scroll', function () {
+    if (!openId) return;
+    const row = $('.row[data-id="' + openId + '"]');
+    if (row) place($('#dpop'), row, $('.pane'));
+  });
+  document.addEventListener('pointerdown', function (e) {
+    if (openId && !e.target.closest('#dpop') && !e.target.closest('[data-act="open"]') && !e.target.closest('#newTask')) {
+      closeDetail(false);
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && openId) { closeDetail(true); }
+  });
+
+  function init() {
+    $$('[data-icon]').forEach(function (el) { el.innerHTML = ICONS[el.dataset.icon] || ''; });
+    $('#fList').innerHTML = Object.keys(LISTS).map(function (id) {
+      return '<option value="' + id + '">' + esc(LISTS[id].name) + '</option>';
+    }).join('');
+    render();
+    if (openId) {
+      const t = taskById(openId);
+      if (t) fill(t);
+      render();
+    }
+  }
+  init();
+})();
+</script>
+</body>
+</html>

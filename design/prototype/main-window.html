@@ -3,213 +3,838 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Taskly — 主窗原型（今天视图 + 内联编辑器）</title>
+<title>Taskly — 主窗原型（今天视图 + 行内编辑 + 任务详情）</title>
+<script src="theme-boot.js"></script>
 <link rel="stylesheet" href="shared.css">
 <style>
-  /* ==== 主窗布局 ==== */
-  .app { flex: 1; display: flex; min-height: 0; }
-  .sidebar {
-    width: 280px; flex: none; display: flex; flex-direction: column; gap: 2px;
-    background: var(--sidebar); border-right: 1px solid var(--divider); padding: 10px 8px;
-    overflow-y: auto;
+  /* ==== 主窗：行内编辑器 ==== */
+  .editor { margin-top: 2px; }
+  .etitle {
+    width: 100%; font-size: 15px; font-weight: 600; line-height: 1.4; color: var(--ink);
+    border: 0; border-bottom: 1px solid var(--divider); padding: 0 0 5px;
+    background: none; outline: none;
   }
-  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .tile {
-    height: 34px; display: flex; align-items: center; gap: 7px; padding: 0 8px;
-    border-radius: 8px; background: var(--surface); border: 1px solid var(--divider);
-    cursor: default; user-select: none;
-  }
-  .tile:hover { background: var(--hover); }
-  .tile.checked { background: var(--sel); }
-  .tile .glyph { width: 14px; text-align: center; font-size: 13px; font-weight: 700; }
-  .tile .label { font-size: 13px; }
-  .tile .count { margin-left: auto; font-size: 12px; color: var(--ink3); }
-  .sect { display: flex; align-items: center; gap: 6px; padding: 14px 8px 4px; font-size: 12px; font-weight: 600; color: var(--ink2); }
-  .sect .add { margin-left: auto; color: var(--ink2); font-size: 13px; }
-  .lrow {
-    display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 8px;
-    font-size: 13px; user-select: none;
-  }
-  .lrow:hover { background: var(--hover); }
-  .lrow.checked { background: var(--sel); }
-  .ldot {
-    width: 20px; height: 20px; border-radius: 50%; flex: none;
-    display: grid; place-items: center; font-size: 11px; color: #fff;
-  }
-  .lrow .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lrow .count { margin-left: auto; font-size: 12px; color: var(--ink3); }
-  /* ==== 任务窗格 ==== */
-  .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  .phead { flex: none; display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px 10px; }
-  .phead h1 { font-size: 22px; font-weight: 600; letter-spacing: .1px; }
-  .phead .sub { margin-top: 2px; font-size: 13px; color: var(--ink2); }
-  .phead .sp { flex: 1; }
-  .search {
-    display: flex; align-items: center; gap: 6px; width: 200px; height: 30px; padding: 0 10px; align-self: center;
-    border: 1px solid var(--input-border); border-radius: 10px; background: var(--bg);
-    color: var(--ink3); font-size: 13px;
-  }
-  .toggle { align-self: center; font-size: 12px; font-weight: 600; color: var(--accent); white-space: nowrap; }
-  .quickadd {
-    flex: none; margin: 0 16px 8px; height: 36px; display: flex; align-items: center; padding: 0 12px;
-    border: 1px solid var(--input-border); border-radius: 10px; color: var(--ink3); font-size: 13px;
-    background: var(--bg);
-  }
-  /* ==== 任务行 ==== */
-  .rows { flex: 1; overflow-y: auto; padding: 0 8px; }
-  .row {
-    display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 9px 16px;
-    border-radius: 8px; transition: background .12s ease;
-  }
-  .row:hover { background: var(--hover); }
-  .row.selected { background: var(--sel); }
-  .check {
-    width: 20px; height: 20px; border-radius: 50%; flex: none; margin-top: 2px;
-    border: 1.5px solid var(--list, var(--accent)); display: grid; place-items: center; color: #fff; font-size: 11px;
-  }
-  .check.done { background: var(--list, var(--accent)); }
-  .body { flex: 1; min-width: 0; }
-  .t { font-size: 14px; line-height: 1.45; }
-  .t.done { text-decoration: line-through; color: var(--ink3); }
-  .meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 12px; color: var(--ink2); flex-wrap: wrap; }
-  .meta .due-over { color: var(--danger); }
-  .meta .due-today { color: var(--accent); }
-  .meta .owner { display: inline-flex; align-items: center; gap: 4px; }
-  .meta .owner i { width: 8px; height: 8px; border-radius: 50%; }
-  .info { flex: none; margin-top: 2px; color: var(--ink3); opacity: .45; font-size: 12px; }
-  .row:hover .info { opacity: 1; }
-  /* ==== 内联编辑器（无模态，行原地展开）==== */
-  .editor { margin-top: 6px; }
-  .editor .etitle {
-    font-size: 15px; font-weight: 600; line-height: 1.4; outline: none;
-    border-bottom: 1px solid var(--divider); padding-bottom: 4px;
-  }
-  .editor .echips { display: flex; gap: 8px; margin-top: 8px; }
+  .etitle:focus-visible { outline: none; border-bottom-color: var(--today); }
+  .echips { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
   .echip {
-    display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 8px;
-    border: 1px solid var(--input-border); font-size: 12px; color: var(--ink2); background: var(--bg);
+    display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px;
+    border-radius: 7px; border: 1px solid var(--input-border);
+    font-size: 12px; color: var(--ink2); background: var(--bg);
   }
-  .echip.accent { border-color: var(--accent); color: var(--accent); }
-  .editor .enotes {
-    margin-top: 8px; font-size: 13px; line-height: 1.55; color: var(--ink2);
-    border: none; outline: none; min-height: 40px;
+  .echip:hover { background: var(--hover); color: var(--ink); }
+  .enotes {
+    width: 100%; margin-top: 8px; min-height: 42px; border: 0; outline: none; resize: vertical;
+    background: none; font-size: 13px; line-height: 1.55; color: var(--ink2);
   }
-  .editor .enotes:empty::before { content: "备注…"; color: var(--ink3); }
-  .editor .eacts { display: flex; gap: 8px; margin-top: 8px; }
-  .fold {
-    display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: 13px; font-weight: 600; color: var(--ink2);
-  }
+  .enotes:focus-visible { outline: none; box-shadow: inset 0 -1px 0 0 var(--today); }
+  .eacts { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .eacts .hint { font-size: 11px; color: var(--ink3); }
 </style>
 </head>
 <body>
   <div class="window" id="app">
     <div class="titlebar">
       <div class="lights"><i></i><i></i><i></i></div>
-      <div class="t">Taskly — 今天</div>
+      <div class="t" id="winTitle">Taskly — 今天</div>
       <div class="sp"></div>
-      <button class="iconbtn" id="themeBtn" title="切换亮暗主题">◐</button>
     </div>
+
     <div class="app">
-      <aside class="sidebar">
-        <div class="tiles">
-          <div class="tile checked"><span class="glyph" style="color:var(--today)">31</span><span class="label">今天</span><span class="count">3</span></div>
-          <div class="tile"><span class="glyph" style="color:var(--planned)">◌</span><span class="label">计划</span><span class="count">12</span></div>
-          <div class="tile"><span class="glyph" style="color:var(--gray-tile)">☰</span><span class="label">全部</span><span class="count">34</span></div>
-          <div class="tile"><span class="glyph" style="color:var(--gray-tile)">✓</span><span class="label">已完成</span><span class="count">7</span></div>
-        </div>
-        <div class="sect">我的清单 <span class="add">✚</span></div>
-        <div class="lrow"><span class="ldot" style="background:#5AC8FA">💼</span><span class="name">工作</span><span class="count">6</span></div>
-        <div class="lrow"><span class="ldot" style="background:#4CD964">🏠</span><span class="name">家</span><span class="count">4</span></div>
-        <div class="lrow checked"><span class="ldot" style="background:#FF9500">⭐</span><span class="name">重要</span><span class="count">2</span></div>
-        <div class="lrow"><span class="ldot" style="background:#5856D6">📚</span><span class="name">读书</span><span class="count">1</span></div>
+      <aside class="sidebar" aria-label="侧栏">
+        <div class="tiles" id="tiles"></div>
+
+        <div class="sect">我的清单 <a class="addlink" href="list-editor.html?new=1" aria-label="新建清单" title="新建清单"><span data-icon="plus"></span></a></div>
+        <div id="lists"></div>
+
+        <div class="sect">标签</div>
+        <div id="tags"></div>
       </aside>
+
       <section class="pane">
         <div class="phead">
           <div>
-            <h1>今天</h1>
-            <div class="sub">8月31日 星期一</div>
+            <h1 id="vTitle">今天</h1>
+            <div class="sub" id="vSub"></div>
           </div>
           <div class="sp"></div>
-          <div class="search">⌕ 搜索<span class="sp" style="flex:1"></span><kbd>/</kbd></div>
-          <div class="toggle">显示已完成</div>
-        </div>
-        <div class="quickadd">+ 添加任务　（支持 @10am、+1d）</div>
-        <div class="rows">
-          <div class="row">
-            <span class="check" style="--list:#5AC8FA"></span>
-            <div class="body">
-              <div class="t">同步季度 OKR 草稿到文档库</div>
-              <div class="meta">
-                <span class="due-today">今天 14:00</span>
-                <span class="owner"><i style="background:#5AC8FA"></i>工作</span>
-                <span style="color:var(--ink3)">先过一遍 Q3 复盘的结论</span>
-              </div>
-            </div>
-            <span class="info">ⓘ</span>
-          </div>
-          <div class="row selected">
-            <span class="check" style="--list:#FF9500"></span>
-            <div class="body">
-              <div class="t" style="font-size:15px;font-weight:600;">预约牙医复诊</div>
-              <div class="editor">
-                <div class="echips">
-                  <span class="echip accent">📅 今天</span>
-                  <span class="echip">⏰ 09:30</span>
-                </div>
-                <div class="enotes">带上上次拍的片子；顺便问一下矫压器的时间表。</div>
-                <div class="eacts">
-                  <span class="btn primary">保存</span>
-                  <span class="btn">取消</span>
-                  <span style="font-size:11px;color:var(--ink3);align-self:center;">Enter 保存 · Esc 取消 · 点其他行自动保存</span>
-                </div>
-              </div>
-            </div>
-            <span class="info">ⓘ</span>
-          </div>
-          <div class="row">
-            <span class="check" style="--list:#FF9500"></span>
-            <div class="body">
-              <div class="t">回复出版社的排版确认函</div>
-              <div class="meta">
-                <span class="due-over">昨天 · 已逾期</span>
-                <span class="owner"><i style="background:#FF9500"></i>重要</span>
-              </div>
-            </div>
-            <span class="info">ⓘ</span>
-          </div>
-          <div class="row">
-            <span class="check" style="--list:#5AC8FA"></span>
-            <div class="body">
-              <div class="t">给新同事开代码仓库权限</div>
-              <div class="meta">
-                <span style="color:var(--ink2)">明天</span>
-                <span class="owner"><i style="background:#5AC8FA"></i>工作</span>
-              </div>
-            </div>
-            <span class="info">ⓘ</span>
-          </div>
-          <div class="fold">▸ 已完成 2</div>
-          <div class="row">
-            <span class="check done" style="--list:#4CD964">✓</span>
-            <div class="body">
-              <div class="t done">缴纳物业费</div>
-              <div class="meta"><span class="owner"><i style="background:#4CD964"></i>家</span></div>
-            </div>
-            <span class="info">ⓘ</span>
+          <div class="search">
+            <span data-icon="search"></span>
+            <input id="q" type="search" placeholder="搜索任务" aria-label="搜索任务" autocomplete="off">
+            <kbd>/</kbd>
           </div>
         </div>
+
+        <div class="filterbar" id="filterBar" hidden></div>
+
+        <div class="quickadd">
+          <span data-icon="plus"></span>
+          <input id="quickAdd" type="text" placeholder="添加任务，支持 #标签、@14:00、+1d" aria-label="添加任务" autocomplete="off">
+        </div>
+
+        <div class="rows" id="rows"></div>
+
         <div class="statusbar">
-          <span>今天 · 3 项未完成</span>
+          <span id="statusLeft"></span>
           <span class="sp"></span>
-          <span class="theme-note">原型 v0.1 · 按 ◐ 切换亮暗 · 契约：shared/spec/DESIGN-TOKENS.md</span>
+          <span>⌘K 搜索 · Enter 保存 · Esc 取消</span>
+        </div>
+
+        <!-- 任务详情层：锚定在该行右侧，改动即时写回 -->
+        <div class="dpop" id="dpop" role="dialog" aria-labelledby="dpopTitle" aria-modal="false" hidden>
+          <div class="dhead">
+            <h2 id="dpopTitle">任务详情</h2>
+            <button class="iconbtn" data-icon="x" data-act="close-detail" aria-label="关闭详情"></button>
+          </div>
+          <div class="dbody">
+            <label class="field">
+              <span class="flabel">标题</span>
+              <input class="input" id="fTitle" type="text" autocomplete="off">
+            </label>
+            <div class="f2">
+              <label class="field"><span class="flabel">日期</span><input class="input" id="fDate" type="date"></label>
+              <label class="field"><span class="flabel">时间</span><input class="input" id="fTime" type="time"></label>
+            </div>
+            <label class="field">
+              <span class="flabel">提醒</span>
+              <select class="input" id="fRemind">
+                <option value="none">不提醒</option>
+                <option value="0">准时</option>
+                <option value="10m">提前 10 分钟</option>
+                <option value="1h">提前 1 小时</option>
+              </select>
+            </label>
+            <div class="field">
+              <span class="flabel" id="prioLabel">优先级</span>
+              <div class="seg" role="group" aria-labelledby="prioLabel" id="fPrio">
+                <button data-prio="0">无</button>
+                <button data-prio="1">低</button>
+                <button data-prio="2">中</button>
+                <button data-prio="3">高</button>
+              </div>
+            </div>
+            <div class="field">
+              <span class="flabel">标签</span>
+              <div class="taglist" id="fTags"></div>
+              <input class="input" id="fTagAdd" type="text" placeholder="输入标签后回车" aria-label="添加标签" autocomplete="off">
+            </div>
+            <div class="field">
+              <span class="flabel">子任务</span>
+              <div class="sublist" id="fSubs"></div>
+              <input class="input" id="fSubAdd" type="text" placeholder="输入子任务后回车" aria-label="添加子任务" autocomplete="off">
+            </div>
+            <label class="field"><span class="flabel">备注</span><textarea class="input" id="fNote" rows="3"></textarea></label>
+            <label class="field"><span class="flabel">链接</span><input class="input" id="fUrl" type="url" placeholder="https://"></label>
+            <label class="field">
+              <span class="flabel">所属清单</span>
+              <select class="input" id="fList"></select>
+            </label>
+          </div>
+          <div class="dacts">
+            <button class="btn danger" id="fDelete">删除</button>
+            <span class="sp"></span>
+            <span class="hint-inline">更改自动保存</span>
+            <button class="btn primary" data-act="close-detail">完成</button>
+          </div>
         </div>
       </section>
     </div>
   </div>
-  <script>
-    document.getElementById('themeBtn').addEventListener('click', () => {
-      document.getElementById('app').classList.toggle('dark');
+
+  <div class="sr-only" id="live" aria-live="polite"></div>
+
+<script src="shared.js"></script>
+<script>
+(function () {
+  const T = window.Taskly;
+  const ICONS = T.ICONS, esc = T.esc, TODAY = T.TODAY;
+  const addDays = T.addDays, fmtDate = T.fmtDate, bucket = T.bucket, dueText = T.dueText, place = T.place, announce = T.announce;
+
+  const LISTS = {
+    work:      { name: '工作', emoji: '💼', color: 'var(--list-cyan)' },
+    home:      { name: '家',   emoji: '🏠', color: 'var(--list-green)' },
+    important: { name: '重要', emoji: '⭐', color: 'var(--list-orange)' },
+    reading:   { name: '读书', emoji: '📚', color: 'var(--list-indigo)' }
+  };
+
+  const tasks = [
+    { id: 't1', title: '同步季度 OKR 草稿到文档库', list: 'work', date: TODAY, time: '14:00', remind: '10m', priority: 2,
+      note: '先过一遍 Q3 复盘的结论', tags: ['工作', '本周'], done: false, url: '',
+      subtasks: [{ t: '整理 Q3 复盘结论', done: true }, { t: '同步到文档库并通知相关同事', done: false }] },
+    { id: 't2', title: '预约牙医复诊', list: 'important', date: TODAY, time: '09:30', remind: '1h', priority: 1,
+      note: '带上上次拍的片子；顺便问一下矫压器的时间表。', tags: ['健康', '本周'], done: false, url: '',
+      subtasks: [{ t: '确认诊所营业时间', done: true }, { t: '挂号', done: false }] },
+    { id: 't3', title: '回复出版社的排版确认函', list: 'important', date: addDays(TODAY, -1), time: '', remind: 'none', priority: 2,
+      note: '', tags: ['等回复'], done: false, url: '', subtasks: [] },
+    { id: 't4', title: '给新同事开代码仓库权限', list: 'work', date: addDays(TODAY, 1), time: '', remind: 'none', priority: 0,
+      note: '', tags: ['工作'], done: false, url: '', subtasks: [] },
+    { id: 't5', title: '整理读书笔记：深度工作', list: 'reading', date: '', time: '', remind: 'none', priority: 0,
+      note: '第三章关于注意力残留的部分', tags: ['读书'], done: false, url: '', subtasks: [] },
+    { id: 't6', title: '预约周末的羽毛球场地', list: 'home', date: TODAY, time: '', remind: 'none', priority: 0,
+      note: '', tags: ['家'], done: true, url: '', subtasks: [] },
+    { id: 't7', title: '缴纳物业费', list: 'home', date: '', time: '', remind: 'none', priority: 0,
+      note: '', tags: ['家'], done: true, url: '', subtasks: [] }
+  ];
+
+  const state = { view: 'today', listId: null, tag: null, q: '', editing: null, doneOpen: true };
+  let draft = null;
+  let openId = null;
+  let uid = 30;
+  let delArmed = false;
+
+  const $ = function (s, r) { return (r || document).querySelector(s); };
+  const $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  function taskById(id) { return tasks.find(function (t) { return t.id === id; }); }
+
+  function inView(t) {
+    if (state.tag && t.tags.indexOf(state.tag) < 0) return false;
+    if (state.q) {
+      const q = state.q.toLowerCase();
+      const hay = (t.title + ' ' + t.note + ' ' + t.tags.join(' ')).toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    if (state.view === 'today') return bucket(t) === 'today' || bucket(t) === 'over';
+    if (state.view === 'planned') return !!t.date;
+    if (state.view === 'completed') return t.done;
+    if (state.view === 'list') return t.list === state.listId;
+    return true;
+  }
+
+  function visible() { return tasks.filter(inView); }
+
+  function counts() {
+    const open = tasks.filter(function (t) { return !t.done; });
+    const c = { today: 0, planned: 0, all: open.length, done: tasks.length - open.length, list: {}, tag: {} };
+    open.forEach(function (t) {
+      const b = bucket(t);
+      if (b === 'today' || b === 'over') c.today += 1;
+      if (t.date) c.planned += 1;
+      c.list[t.list] = (c.list[t.list] || 0) + 1;
+      t.tags.forEach(function (g) { c.tag[g] = (c.tag[g] || 0) + 1; });
     });
-  </script>
+    return c;
+  }
+
+  /* ==== 渲染 ==== */
+
+  function renderSidebar() {
+    const c = counts();
+    const tiles = [
+      { view: 'today', label: '今天', count: c.today, glyph: '<span class="glyph num">12</span>' },
+      { view: 'planned', label: '计划', count: c.planned, glyph: '<span class="glyph planned">' + ICONS.calendar + '</span>' },
+      { view: 'all', label: '全部', count: c.all, glyph: '<span class="glyph gray">' + ICONS.lines + '</span>' },
+      { view: 'completed', label: '已完成', count: c.done, glyph: '<span class="glyph gray">' + ICONS.checkCircle + '</span>' }
+    ];
+    $('#tiles').innerHTML = tiles.map(function (x) {
+      return '<button class="tile" data-view="' + x.view + '" aria-current="' + (state.view === x.view ? 'true' : 'false') + '">' +
+        x.glyph + '<span class="label">' + x.label + '</span><span class="count">' + x.count + '</span></button>';
+    }).join('');
+
+    $('#lists').innerHTML = Object.keys(LISTS).map(function (id) {
+      const l = LISTS[id];
+      const on = state.view === 'list' && state.listId === id;
+      return '<button class="lrow" data-list="' + id + '" aria-current="' + (on ? 'true' : 'false') + '">' +
+        '<span class="ldot" style="background:' + l.color + '">' + l.emoji + '</span>' +
+        '<span class="name">' + esc(l.name) + '</span>' +
+        '<span class="count">' + (c.list[id] || 0) + '</span></button>';
+    }).join('');
+
+    const tags = [];
+    tasks.forEach(function (t) { t.tags.forEach(function (g) { if (tags.indexOf(g) < 0) tags.push(g); }); });
+    $('#tags').innerHTML = tags.length ? tags.map(function (g) {
+      return '<button class="trow" data-tag="' + esc(g) + '" aria-pressed="' + (state.tag === g) + '">' +
+        '<span class="thash">#</span><span class="name">' + esc(g) + '</span>' +
+        '<span class="count">' + (c.tag[g] || 0) + '</span></button>';
+    }).join('') : '<div class="thint">在快速添加里输入 #标签</div>';
+  }
+
+  function viewMeta() {
+    const all = visible();
+    const openN = all.filter(function (t) { return !t.done; }).length;
+    let title, sub;
+    if (state.view === 'list') { title = LISTS[state.listId].name; sub = openN + ' 项未完成'; }
+    else if (state.view === 'today') { title = '今天'; sub = '11月12日 星期四'; }
+    else if (state.view === 'planned') { title = '计划'; sub = openN + ' 项待安排'; }
+    else if (state.view === 'all') { title = '全部'; sub = openN + ' 项未完成'; }
+    else { title = '已完成'; sub = all.length + ' 项'; }
+    if (state.tag) sub = '标签 #' + state.tag + ' · ' + openN + ' 项' + (state.q ? ' · 关键词“' + state.q + '”' : '');
+    else if (state.q) sub = '搜索“' + state.q + '” · ' + openN + ' 项';
+    return { title: title, sub: sub, openN: openN, total: all.length };
+  }
+
+  function renderHeader() {
+    const m = viewMeta();
+    $('#vTitle').textContent = m.title;
+    $('#vSub').textContent = m.sub;
+    $('#winTitle').textContent = 'Taskly — ' + m.title;
+    const fb = $('#filterBar');
+    if (state.tag || state.q) {
+      fb.hidden = false;
+      fb.innerHTML = '<span>筛选：' + (state.tag ? '#' + esc(state.tag) : '') +
+        (state.tag && state.q ? ' · ' : '') +
+        (state.q ? '“' + esc(state.q) + '”' : '') + '</span><span class="sp"></span>' +
+        '<button class="btn ghost" data-act="clear-filter">清除</button>';
+    } else {
+      fb.hidden = true;
+    }
+  }
+
+  function dateChip(d) {
+    if (!d.date) return '无日期';
+    if (d.date === TODAY) return '今天' + (d.time ? ' ' + d.time : '');
+    if (d.date === addDays(TODAY, 1)) return '明天' + (d.time ? ' ' + d.time : '');
+    return fmtDate(d.date) + (d.time ? ' ' + d.time : '');
+  }
+
+  function rowMeta(t) {
+    const parts = [];
+    const due = dueText(t);
+    const b = bucket(t);
+    if (due) parts.push('<span class="due ' + (b === 'over' ? 'over' : b === 'today' ? 'today' : '') + '">' + esc(due) + '</span>');
+    if (t.priority > 0) {
+      parts.push('<span class="prio p' + t.priority + '" aria-label="优先级：' + ['', '低', '中', '高'][t.priority] + '">' + new Array(t.priority + 1).join('!') + '</span>');
+    }
+    const l = LISTS[t.list];
+    if (l) parts.push('<span class="owner"><i style="background:' + l.color + '"></i>' + esc(l.name) + '</span>');
+    t.tags.forEach(function (g) {
+      parts.push('<button class="tag" data-act="tag" data-tag="' + esc(g) + '">#' + esc(g) + '</button>');
+    });
+    if (t.subtasks.length) {
+      const d = t.subtasks.filter(function (s) { return s.done; }).length;
+      parts.push('<span class="subcount">子任务 ' + d + '/' + t.subtasks.length + '</span>');
+    }
+    if (t.note) parts.push('<span class="note">' + esc(t.note) + '</span>');
+    return '<div class="meta">' + parts.join('') + '</div>';
+  }
+
+  function rowHTML(t) {
+    if (state.editing === t.id) return editorHTML(t);
+    const l = LISTS[t.list];
+    const color = l ? l.color : 'var(--accent)';
+    return '<div class="row' + (openId === t.id ? ' sel' : '') + '" data-id="' + t.id + '">' +
+      '<button class="check' + (t.done ? ' done' : '') + '" data-act="toggle" role="checkbox" aria-checked="' + t.done + '"' +
+        ' aria-label="' + (t.done ? '标记为未完成' : '标记为已完成') + '：' + esc(t.title) + '"' +
+        ' style="--list:' + color + '">' + (t.done ? ICONS.check : '') + '</button>' +
+      '<div class="body">' +
+        '<button class="t' + (t.done ? ' done' : '') + '" data-act="edit">' + esc(t.title) + '</button>' +
+        rowMeta(t) +
+      '</div>' +
+      '<button class="info" data-act="info" aria-label="任务详情：' + esc(t.title) + '" aria-haspopup="dialog" aria-expanded="' + (openId === t.id) + '">' + ICONS.info + '</button>' +
+    '</div>';
+  }
+
+  function editorHTML(t) {
+    const l = LISTS[t.list];
+    const color = l ? l.color : 'var(--accent)';
+    return '<div class="row editing' + (openId === t.id ? ' sel' : '') + '" data-id="' + t.id + '">' +
+      '<button class="check" data-act="toggle" role="checkbox" aria-checked="' + t.done + '"' +
+        ' aria-label="标记为已完成：' + esc(t.title) + '" style="--list:' + color + '">' + (t.done ? ICONS.check : '') + '</button>' +
+      '<div class="body"><div class="editor">' +
+        '<input class="etitle" id="etitle" type="text" value="' + esc(draft.title) + '" aria-label="任务标题" autocomplete="off">' +
+        '<div class="echips">' +
+          '<button class="echip" id="chipDate" data-act="cycle-date">' + ICONS.calendar + '<span>' + esc(dateChip(draft)) + '</span></button>' +
+          '<button class="echip" id="chipPrio" data-act="cycle-prio">' + ICONS.flag + '<span>优先级：' + ['无', '低', '中', '高'][draft.priority] + '</span></button>' +
+        '</div>' +
+        '<textarea class="enotes" rows="2" aria-label="备注" placeholder="备注…">' + esc(draft.note) + '</textarea>' +
+        '<div class="eacts">' +
+          '<button class="btn primary" data-act="save">保存</button>' +
+          '<button class="btn" data-act="cancel">取消</button>' +
+          '<span class="hint">Enter 保存 · Esc 取消 · 点其他任务自动保存</span>' +
+        '</div>' +
+      '</div></div>' +
+      '<button class="info" data-act="info" aria-label="任务详情：' + esc(t.title) + '" aria-haspopup="dialog" aria-expanded="false">' + ICONS.info + '</button>' +
+    '</div>';
+  }
+
+  function emptyHTML() {
+    if (state.tag || state.q) {
+      return '<div class="empty"><div class="et">没有匹配的任务</div>' +
+        '<div class="es">当前筛选下没有结果，换个标签或清除筛选再看看。</div>' +
+        '<button class="btn" data-act="clear-filter">清除筛选</button></div>';
+    }
+    return '<div class="empty"><div class="et">这一栏还是空的</div>' +
+      '<div class="es">用上方的输入框添加第一条任务。<br>支持 #标签、@14:00 的时间和 +1d 的日期。</div></div>';
+  }
+
+  function renderRows() {
+    const all = visible();
+    const open = all.filter(function (t) { return !t.done; });
+    const done = all.filter(function (t) { return t.done; });
+    let html = '';
+
+    if (state.view === 'completed') {
+      html = all.length ? all.map(rowHTML).join('') : emptyHTML();
+    } else if (!all.length) {
+      html = emptyHTML();
+    } else {
+      html = open.map(rowHTML).join('');
+      if (!open.length) html += '<div class="allclear">这一栏已经全部完成。</div>';
+      if (done.length) {
+        html += '<button class="fold" data-act="fold" aria-expanded="' + state.doneOpen + '">' +
+          (state.doneOpen ? ICONS.chevDown : ICONS.chevRight) + '已完成 ' + done.length + '</button>';
+        html += '<div class="donegroup"' + (state.doneOpen ? '' : ' hidden') + '>' + done.map(rowHTML).join('') + '</div>';
+      }
+    }
+    $('#rows').innerHTML = html;
+
+    const card = $('#dpop');
+    if (openId) {
+      const row = $('.row[data-id="' + openId + '"]');
+      if (row) { place(card, row, $('.pane')); } else { card.hidden = true; }
+    } else {
+      card.hidden = true;
+    }
+  }
+
+  function renderStatus() {
+    const m = viewMeta();
+    $('#statusLeft').textContent = m.title + ' · ' + m.openN + ' 项未完成';
+  }
+
+  function render() { renderSidebar(); renderHeader(); renderRows(); renderStatus(); }
+  function renderRowsOnly() { renderRows(); renderStatus(); }
+
+  /* ==== 行内编辑 ==== */
+
+  function openEdit(id) {
+    if (state.editing && state.editing !== id) commitEdit(true);
+    if (openId === id) closeDetail(false);
+    const t = taskById(id);
+    if (!t) return;
+    state.editing = id;
+    draft = { title: t.title, date: t.date, time: t.time, priority: t.priority, note: t.note };
+    render();
+    const input = $('#etitle');
+    if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+  }
+
+  function syncDraft() {
+    const titleEl = $('#etitle'), noteEl = $('.enotes');
+    if (titleEl) draft.title = titleEl.value;
+    if (noteEl) draft.note = noteEl.value;
+  }
+
+  function commitEdit(save) {
+    if (!state.editing) return;
+    const t = taskById(state.editing);
+    if (save && t) {
+      syncDraft();
+      const title = (draft.title || '').trim();
+      if (title) t.title = title;
+      t.date = draft.date; t.time = draft.time;
+      t.priority = draft.priority; t.note = (draft.note || '').trim();
+    }
+    state.editing = null;
+    draft = null;
+  }
+
+  function focusTitle(id) {
+    const btn = $('.row[data-id="' + id + '"] [data-act="edit"]');
+    if (btn) { btn.focus(); return; }
+    const nav = $('.tile[aria-current="true"], .lrow[aria-current="true"], .trow[aria-pressed="true"]');
+    if (nav) nav.focus();
+  }
+
+  function cycleDate() {
+    if (!draft) return;
+    syncDraft();
+    const b = bucket({ date: draft.date });
+    if (b === 'today') draft.date = addDays(TODAY, 1);
+    else if (b === 'future') { draft.date = ''; draft.time = ''; }
+    else draft.date = TODAY;
+    updateChips();
+  }
+
+  function cyclePrio() {
+    if (!draft) return;
+    syncDraft();
+    draft.priority = (draft.priority + 1) % 4;
+    updateChips();
+  }
+
+  function updateChips() {
+    const dc = $('#chipDate'), pc = $('#chipPrio');
+    if (dc) dc.innerHTML = ICONS.calendar + '<span>' + esc(dateChip(draft)) + '</span>';
+    if (pc) pc.innerHTML = ICONS.flag + '<span>优先级：' + ['无', '低', '中', '高'][draft.priority] + '</span>';
+  }
+
+  /* ==== 详情层 ==== */
+
+  function currentDetail() { return openId ? taskById(openId) : null; }
+
+  function fillDetail(t) {
+    $('#fTitle').value = t.title;
+    $('#fDate').value = t.date || '';
+    $('#fTime').value = t.time || '';
+    $('#fRemind').value = t.remind || 'none';
+    $('#fNote').value = t.note || '';
+    $('#fUrl').value = t.url || '';
+    $('#fList').value = t.list;
+    renderPrio(); renderCardTags(); renderSubs();
+  }
+
+  function renderPrio() {
+    const t = currentDetail();
+    $$('#fPrio [data-prio]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(!!t && Number(b.dataset.prio) === t.priority));
+    });
+  }
+
+  function renderCardTags() {
+    const t = currentDetail();
+    if (!t) return;
+    $('#fTags').innerHTML = t.tags.length ? t.tags.map(function (g) {
+      return '<span class="tag tag-edit">#' + esc(g) +
+        '<button data-dtag="' + esc(g) + '" aria-label="移除标签 ' + esc(g) + '">' + ICONS.x + '</button></span>';
+    }).join('') : '<span class="muted">还没有标签</span>';
+  }
+
+  function renderSubs() {
+    const t = currentDetail();
+    if (!t) return;
+    $('#fSubs').innerHTML = t.subtasks.length ? t.subtasks.map(function (s, i) {
+      return '<div class="sub">' +
+        '<input type="checkbox" id="sub' + i + '" data-sub="' + i + '"' + (s.done ? ' checked' : '') + '>' +
+        '<label for="sub' + i + '">' + esc(s.t) + '</label>' +
+        '<button class="subdel" data-dsub="' + i + '" aria-label="删除子任务：' + esc(s.t) + '">' + ICONS.x + '</button>' +
+      '</div>';
+    }).join('') : '<span class="muted">还没有子任务</span>';
+  }
+
+  function openDetail(id) {
+    if (state.editing) { commitEdit(true); render(); }
+    const t = taskById(id);
+    if (!t) return;
+    if (openId === id) { closeDetail(true); return; }
+    openId = id;
+    delArmed = false;
+    $('#fDelete').textContent = '删除';
+    fillDetail(t);
+    render();
+    const input = $('#fTitle');
+    if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+  }
+
+  function closeDetail(refocus) {
+    const id = openId;
+    openId = null;
+    $('#dpop').hidden = true;
+    $$('.row.sel').forEach(function (r) { r.classList.remove('sel'); });
+    $$('.info[aria-expanded="true"]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+    if (refocus && id) {
+      const btn = $('.row[data-id="' + id + '"] [data-act="info"]');
+      if (btn) btn.focus();
+      else {
+        const nav = $('.tile[aria-current="true"], .lrow[aria-current="true"], .trow[aria-pressed="true"]');
+        if (nav) nav.focus();
+      }
+    }
+  }
+
+  function guardView(t) {
+    if (!inView(t)) {
+      render();
+      closeDetail(false);
+      announce('任务已移出当前视图');
+    }
+  }
+
+  /* ==== 快速添加 ==== */
+
+  function parseQuick(raw) {
+    let tags = [];
+    const tagRe = /#([\p{L}\p{N}_-]+)/gu;
+    let m;
+    while ((m = tagRe.exec(raw)) !== null) { if (tags.indexOf(m[1]) < 0) tags.push(m[1]); }
+    let time = '';
+    const at = raw.match(/@(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+    if (at) {
+      let h = Number(at[1]);
+      const ap = (at[3] || '').toLowerCase();
+      if (ap === 'pm' && h < 12) h += 12;
+      if (ap === 'am' && h === 12) h = 0;
+      time = String(h).padStart(2, '0') + ':' + (at[2] || '00');
+    }
+    let date = TODAY;
+    const plus = raw.match(/\+(\d{1,2})d/);
+    if (plus) date = addDays(TODAY, Number(plus[1]));
+    if (raw.indexOf('+今天') >= 0) date = TODAY;
+    if (raw.indexOf('+明天') >= 0) date = addDays(TODAY, 1);
+    const title = raw
+      .replace(/#([\p{L}\p{N}_-]+)/gu, '')
+      .replace(/@\d{1,2}(?::\d{2})?\s*(am|pm)?/gi, '')
+      .replace(/\+\d{1,2}d|\+今天|\+明天/g, '')
+      .replace(/\s+/g, ' ').trim();
+    return { title: title, tags: tags, time: time, date: date };
+  }
+
+  function addTask(raw) {
+    const p = parseQuick(raw);
+    if (!p.title) return;
+    const list = state.view === 'list' ? state.listId : 'important';
+    if (state.tag && p.tags.indexOf(state.tag) < 0) p.tags.push(state.tag);
+    const created = {
+      id: 'n' + (uid++), title: p.title, list: list, date: p.date, time: p.time,
+      remind: 'none', priority: 0, note: '', tags: p.tags, done: false, url: '', subtasks: []
+    };
+    tasks.unshift(created);
+    if (!inView(created)) {
+      state.view = 'today'; state.listId = null; state.tag = null; state.q = '';
+      $('#q').value = '';
+    }
+    render();
+    announce('已添加任务：' + p.title);
+  }
+
+  /* ==== 事件 ==== */
+
+  function bind() {
+    $('#filterBar').addEventListener('click', function (e) {
+      if (!e.target.closest('[data-act="clear-filter"]')) return;
+      state.tag = null; state.q = ''; $('#q').value = '';
+      render();
+    });
+
+    $('.sidebar').addEventListener('click', function (e) {
+      const v = e.target.closest('[data-view]');
+      const l = e.target.closest('[data-list]');
+      const g = e.target.closest('[data-tag]');
+      if (!v && !l && !g) return;
+      if (state.editing) { commitEdit(true); }
+      closeDetail(false);
+      if (v) { state.view = v.dataset.view; state.listId = null; state.tag = null; }
+      else if (l) { state.view = 'list'; state.listId = l.dataset.list; state.tag = null; }
+      else if (g) { state.tag = state.tag === g.dataset.tag ? null : g.dataset.tag; }
+      render();
+      const sel = v ? '[data-view="' + v.dataset.view + '"]'
+        : l ? '[data-list="' + l.dataset.list + '"]'
+        : '[data-tag="' + g.dataset.tag + '"]';
+      const el = $(sel);
+      if (el) el.focus();
+    });
+
+    $('#rows').addEventListener('click', function (e) {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const rowEl = e.target.closest('.row');
+      if (!rowEl) {
+        if (btn.dataset.act === 'fold') {
+          state.doneOpen = !state.doneOpen;
+          render();
+          const f = $('.fold');
+          if (f) f.focus();
+        } else if (btn.dataset.act === 'clear-filter') {
+          state.tag = null; state.q = ''; $('#q').value = '';
+          render();
+        }
+        return;
+      }
+      const id = rowEl.dataset.id;
+      const act = btn.dataset.act;
+      const tag = btn.dataset.tag;
+
+      if (state.editing && state.editing !== id) { commitEdit(true); render(); }
+
+      if (act === 'toggle') {
+        const t = taskById(id);
+        if (!t) return;
+        t.done = !t.done;
+        if (t.done) state.doneOpen = true;
+        render();
+        const after = $('.row[data-id="' + id + '"] .check');
+        const fold = $('.fold');
+        if (after) after.focus();
+        else if (fold) fold.focus();
+        else {
+          const nav = $('.tile[aria-current="true"], .lrow[aria-current="true"], .trow[aria-pressed="true"]');
+          if (nav) nav.focus();
+        }
+        announce(t.done ? '已完成：' + t.title : '已恢复：' + t.title);
+      } else if (act === 'edit') {
+        if (state.editing === id) { commitEdit(true); render(); focusTitle(id); }
+        else openEdit(id);
+      } else if (act === 'info') {
+        openDetail(id);
+      } else if (act === 'tag') {
+        if (state.editing) { commitEdit(true); render(); }
+        state.tag = state.tag === tag ? null : tag;
+        render();
+        const active = $('.trow[aria-pressed="true"]');
+        if (active) active.focus();
+      } else if (act === 'save') {
+        commitEdit(true); render(); focusTitle(id); announce('任务已保存');
+      } else if (act === 'cancel') {
+        commitEdit(false); render(); focusTitle(id);
+      } else if (act === 'cycle-date') {
+        cycleDate();
+      } else if (act === 'cycle-prio') {
+        cyclePrio();
+      }
+    });
+
+    $('#rows').addEventListener('keydown', function (e) {
+      const row = e.target.closest('.row');
+      const id = row ? row.dataset.id : '';
+      if (e.key === 'Enter' && !e.isComposing && e.target.id === 'etitle') {
+        e.preventDefault(); commitEdit(true); render(); focusTitle(id);
+      }
+      if (e.key === 'Escape' && state.editing) {
+        e.preventDefault(); commitEdit(false); render(); focusTitle(id);
+      }
+    });
+
+    $('#q').addEventListener('input', function () {
+      state.q = this.value.trim();
+      renderHeader(); renderRowsOnly();
+    });
+    $('#q').addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { this.value = ''; state.q = ''; renderHeader(); renderRowsOnly(); this.blur(); }
+    });
+
+    const qa = $('#quickAdd');
+    qa.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addTask(this.value); this.value = ''; }
+      if (e.key === 'Escape') { this.value = ''; this.blur(); }
+    });
+
+    /* 详情层字段 */
+    $('#fTitle').addEventListener('input', function () {
+      const t = currentDetail(); if (!t) return;
+      if (this.value.trim()) { t.title = this.value; renderRowsOnly(); }
+    });
+    $('#fNote').addEventListener('input', function () {
+      const t = currentDetail(); if (!t) return;
+      t.note = this.value; renderRowsOnly();
+    });
+    $('#fUrl').addEventListener('input', function () {
+      const t = currentDetail(); if (!t) return;
+      t.url = this.value;
+    });
+    $('#fDate').addEventListener('change', function () {
+      const t = currentDetail(); if (!t) return;
+      t.date = this.value;
+      if (!t.date) { t.time = ''; $('#fTime').value = ''; }
+      render(); guardView(t);
+    });
+    $('#fTime').addEventListener('change', function () {
+      const t = currentDetail(); if (!t) return;
+      t.time = this.value; render(); guardView(t);
+    });
+    $('#fRemind').addEventListener('change', function () {
+      const t = currentDetail(); if (!t) return;
+      t.remind = this.value;
+    });
+    $('#fList').addEventListener('change', function () {
+      const t = currentDetail(); if (!t) return;
+      t.list = this.value; render(); guardView(t);
+    });
+    $('#fPrio').addEventListener('click', function (e) {
+      const b = e.target.closest('[data-prio]');
+      if (!b) return;
+      const t = currentDetail(); if (!t) return;
+      t.priority = Number(b.dataset.prio);
+      renderPrio(); render();
+    });
+    $('#fTags').addEventListener('click', function (e) {
+      const b = e.target.closest('[data-dtag]');
+      if (!b) return;
+      const t = currentDetail(); if (!t) return;
+      t.tags = t.tags.filter(function (g) { return g !== b.dataset.dtag; });
+      renderCardTags(); render(); guardView(t);
+    });
+    $('#fTagAdd').addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      e.preventDefault();
+      const t = currentDetail(); if (!t) return;
+      const v = this.value.trim().replace(/^#/, '');
+      if (v && t.tags.indexOf(v) < 0) { t.tags.push(v); renderCardTags(); render(); guardView(t); }
+      this.value = '';
+    });
+    $('#fSubs').addEventListener('change', function (e) {
+      const box = e.target.closest('[data-sub]');
+      if (!box) return;
+      const t = currentDetail(); if (!t) return;
+      t.subtasks[Number(box.dataset.sub)].done = box.checked;
+      renderRowsOnly();
+    });
+    $('#fSubs').addEventListener('click', function (e) {
+      const b = e.target.closest('[data-dsub]');
+      if (!b) return;
+      const t = currentDetail(); if (!t) return;
+      t.subtasks.splice(Number(b.dataset.dsub), 1);
+      renderSubs(); renderRowsOnly();
+    });
+    $('#fSubAdd').addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      e.preventDefault();
+      const t = currentDetail(); if (!t) return;
+      const v = this.value.trim();
+      if (v) { t.subtasks.push({ t: v, done: false }); renderSubs(); renderRowsOnly(); }
+      this.value = '';
+    });
+    $('#fDelete').addEventListener('click', function () {
+      if (!openId) return;
+      if (!delArmed) {
+        delArmed = true;
+        this.textContent = '确认删除？';
+        window.setTimeout(function () {
+          delArmed = false;
+          const el = $('#fDelete'); if (el) el.textContent = '删除';
+        }, 3000);
+        return;
+      }
+      const i = tasks.findIndex(function (t) { return t.id === openId; });
+      const removed = i > -1 ? tasks.splice(i, 1)[0] : null;
+      closeDetail(false);
+      render();
+      announce(removed ? '已删除：' + removed.title : '任务已删除');
+      const nav = $('.tile[aria-current="true"], .lrow[aria-current="true"], .trow[aria-pressed="true"]');
+      if (nav) nav.focus();
+    });
+    $('#dpop').addEventListener('click', function (e) {
+      if (e.target.closest('[data-act="close-detail"]')) closeDetail(true);
+    });
+
+    $('.rows').addEventListener('scroll', function () {
+      if (!openId) return;
+      const row = $('.row[data-id="' + openId + '"]');
+      if (row) place($('#dpop'), row, $('.pane'));
+    });
+
+    document.addEventListener('pointerdown', function (e) {
+      if (state.editing && !e.target.closest('.row.editing') && !e.target.closest('#rows')) {
+        commitEdit(true); renderRowsOnly();
+      }
+      if (openId && !e.target.closest('#dpop') && !e.target.closest('[data-act="info"]')) {
+        closeDetail(false);
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        if (openId) { closeDetail(true); return; }
+        if (state.editing) { commitEdit(false); render(); return; }
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault(); $('#q').focus(); return;
+      }
+      if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {
+        e.preventDefault(); $('#q').focus();
+      }
+    });
+  }
+
+  function init() {
+    $$('[data-icon]').forEach(function (el) { el.innerHTML = ICONS[el.dataset.icon] || ''; });
+    $('#fList').innerHTML = Object.keys(LISTS).map(function (id) {
+      return '<option value="' + id + '">' + esc(LISTS[id].name) + '</option>';
+    }).join('');
+    bind();
+    render();
+  }
+
+  init();
+})();
+</script>
 </body>
 </html>

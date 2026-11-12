@@ -95,14 +95,20 @@ README's honest gaps).
   A task with no metadata renders as one clean centered checkbox/title row.
 - Meta line under the text when present: the localized due date
   (today/tomorrow/yesterday/`Aug 31`/`8月31日`, plus the time when set) in
-  its semantic color (overdue incomplete `#FF3B30`, due today accent,
-  otherwise text/secondary; completed always secondary), and a
-  single-line-ellipsized notes preview. The checkbox ring takes the task's
+  its semantic color (overdue incomplete → `danger`, due today →
+  `today-ink`, otherwise text/secondary; completed always secondary),
+  priority glyphs (!/!!/!!!), the owning list (list-colored dot + name, in
+  multi-list views), clickable tag chips (click filters the view by the
+  tag), the subtask done/total count, and a single-line-ellipsized notes
+  preview. The checkbox ring takes the task's
   list color (accent fallback); Linux, whose stock CheckButton carries no
   recolorable ring, renders an 8px list-color dot before the row instead
   (platform-native idiom, same information).
-- `ⓘ` button (always visible) expands the row's inline editor.
-- Edit mode (ⓘ / Return / double-click): the title field receives focus;
+- `ⓘ` button (always visible, `aria-haspopup="dialog"`) opens the anchored
+  task-detail popover — full fields, per-field autosave (§5b). Clicking the
+  task title opens the row's inline quick editor.
+- Quick-edit mode (title click / Return / double-click): the title field
+  receives focus;
   a visible **Save** and **Cancel** pair is always present; Enter saves, Esc
   cancels the complete draft, and clicking another row saves before moving
   focus. Save immediately shows a saving acknowledgement, then a persisted
@@ -130,7 +136,7 @@ differ, but draft, identity and persistence outcomes do not.
   place, Esc cancels the expanded draft (a second Esc clears selection).
   While a text field has focus, normal editing shortcuts pass through; Enter
   and Esc retain the commit/cancel meanings above.
-- Inline expansion (ⓘ / Return / double-click): the row expands in place —
+- Inline expansion (title click / Return / double-click): the row expands in place —
   title (15px semibold borderless), date/time chips (5-minute time steps),
   borderless notes, then visible Save/Cancel actions — edits commit on Save,
   Return or click-away; no modal sheet. Esc and Cancel discard all buffered
@@ -140,6 +146,14 @@ differ, but draft, identity and persistence outcomes do not.
   updates the draft only; Save/Return/click-away performs the persistence,
   matching the Reminders details-popover discoverability without hiding
   Taskly's explicit transaction boundary.
+- Detail popover (`ⓘ`): opens the anchored task-detail layer
+  (DESIGN-TOKENS §Anchored task detail layer) with **per-field autosave** —
+  every field change persists immediately (the Reminders details-popover
+  model), so 完成 and click-away only close it and nothing is discarded.
+  删除 inside the popover follows the delete/undo semantics below. If a
+  change fails to persist, an actionable error anchors to that field and
+  the popover stays open for retry. The popover closes when its task leaves
+  the current view.
 - Delete: no confirmation from the row; instead the host hides the selected
   rows and stages their original records for about six seconds. 撤销 restores
   the same task IDs and complete metadata because no backend delete has yet
@@ -160,15 +174,18 @@ draft/persistence results may not.
 
 | Scenario | Before | Action | Required result |
 |---|---|---|---|
-| Edit → Escape | stored task `id=N`; editor holds changed title/notes/date/time | press Esc while a field owns focus | editor closes; all fields still equal the stored record for `N` |
-| Edit → click away / Return | stored task `id=N`; editor holds a valid draft | select another row, or press Return in title | one update commits the draft to `N`; a refresh preserves it |
-| Edit → visible Save | stored task `id=N`; editor holds changed title/notes/date/time | press Save | status announces saving, then success; reopening reads every field from persistence; an optimistic close must restore the complete draft if persistence fails |
-| Edit → save failure | stored task `id=N`; editor holds a valid draft | press Save; backend rejects/fails | an actionable error is visible; all buffered fields remain available for correction/retry; stored `N` is unchanged |
-| Edit → visible Cancel | stored task `id=N`; editor holds changed title/notes/date/time | press Cancel | editor closes, cancellation is acknowledged, and reopening shows the stored record unchanged |
+| Quick edit → Escape | stored task `id=N`; editor holds changed title/notes/date/time | press Esc while a field owns focus | editor closes; all fields still equal the stored record for `N` |
+| Quick edit → click away / Return | stored task `id=N`; editor holds a valid draft | select another row, or press Return in title | one update commits the draft to `N`; a refresh preserves it |
+| Quick edit → visible Save | stored task `id=N`; editor holds changed title/notes/date/time | press Save | status announces saving, then success; reopening reads every field from persistence; an optimistic close must restore the complete draft if persistence fails |
+| Quick edit → save failure | stored task `id=N`; editor holds a valid draft | press Save; backend rejects/fails | an actionable error is visible; all buffered fields remain available for correction/retry; stored `N` is unchanged |
+| Quick edit → visible Cancel | stored task `id=N`; editor holds changed title/notes/date/time | press Cancel | editor closes, cancellation is acknowledged, and reopening shows the stored record unchanged |
+| Detail → field change | stored task `id=N`; detail popover open | change any field (title/date/time/reminder/priority/tags/subtasks/notes/URL/list) | the change persists without further action; a refresh preserves it |
+| Detail → persist failure | stored task `id=N`; detail popover open | backend rejects/fails a field change | an actionable error anchors to that field; the popover stays open; other fields are unaffected; retry persists |
+| Detail → close | stored task `id=N`; popover holds persisted changes | press 完成 or click outside | the popover closes; every change is already persisted; nothing is discarded |
 | Delete → undo | stored rows with IDs and metadata | delete, then undo inside ~6 s | rows return with the original IDs, completion, dates, notes and list ownership |
 | Delete → timeout | stored rows with IDs and metadata | delete; let ~6 s expire | backend deletes exactly the captured IDs; later refresh does not restore them |
 | Search refresh | global results include task `N` from another list | backend `changed` event / periodic refresh | search remains owner; `N` retains its real list label, selection and in-progress draft |
-| Database switch | edit or delete batch belongs to database A | open/close/switch to database B | A's pending callbacks cannot mutate B; selection, drafts and undo state are cleared |
+| Database switch | edit or delete batch belongs to database A | open/close/switch to database B | A's pending callbacks cannot mutate B; selection, drafts, detail popovers and undo state are cleared |
 
 Windows UI Automation, macOS Accessibility and Linux AT-SPI traces cover the
 keyboard/focus and identity-preserving undo paths. Core/RVT1 tests cover the
