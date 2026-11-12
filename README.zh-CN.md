@@ -27,6 +27,7 @@ Taskly 构建在 [Rivet](https://github.com/turlamai/rivet) 之上：全部领�
 - **Reminders 风格界面**——智能视图（今天 / 计划 / 全部 / 已完成），emoji 图标 + 12 色板的自定义清单，明暗主题跟随系统，中英双语实时切换。
 - **自然语言快速添加**——输入 `明天买菜` 或 `standup @9am +1d`，回车前就能在实时预览 chip 里看到解析出的排程。
 - **对齐 Reminders 的交互**——⌘/⇧ 多选、批量操作、删除一键撤销横幅；↑/↓ 导航，Return 行内展开（标题、日期/时间 chip、备注），Esc 收起；已完成任务收进可折叠分组。全套能力（含共享应用快捷键 Ctrl/⌘+1…4、N、F、⇧C）已在三平台齐装（[进度](docs/UX-BENCHMARKS.md)）。
+- **锚定任务详情弹层（macOS 预览）**——ⓘ 打开一层集中编辑：完成状态、标题、日期/时间、优先级、标签、子任务、备注、链接与所属清单；所有更改即时保存，关闭不会丢弃。Windows 与 Linux 预览随后跟进。
 - **到期提醒通知**——60 秒轮询 + 启动检查，去重，超过三条合并为一条汇总。
 - **单文件数据**——所有任务存在一个 SQLite 文件（`~/.taskly/tasks.db`，WAL）。退出应用后再备份；云文件夹复制不提供安全的数据库并发同步。格式文档化且稳定：[DATA-FORMAT](shared/spec/DATA-FORMAT.md)。
 - **面向 agent 的 CLI**——`taskly list|add|update|done|rm|search|mklist…`，`--json` 输出稳定、退出码固定、跨平台字节级一致（63 例 golden 套件钉死）。规格：[CLI-SPEC](shared/spec/CLI-SPEC.md)。

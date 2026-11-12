@@ -46,6 +46,10 @@ Development preview; no paid checkout is open. A future official desktop purchas
   The full set — including the shared app accelerators (Ctrl/⌘+1…4,
   N, F, ⇧C) — ships on all three platforms
   ([status](docs/UX-BENCHMARKS.md)).
+- **Anchored task details (macOS preview)** — ⓘ opens one layer with
+  completion, title, date/time, priority, tags, subtasks, notes, URL and
+  list membership; every change saves immediately and closing never
+  discards. Windows and Linux previews follow.
 - **Due-task notifications** — a 60 s poll plus a startup check, deduped,
   capped at three separate banners (more → one summary).
 - **One data file** — your tasks live in a single SQLite file

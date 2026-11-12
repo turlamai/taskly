@@ -32,6 +32,8 @@ Tasks use SQLite, normally ~/.taskly/tasks.db, with configuration in ~/.taskly/c
 
 Use Command on macOS and Ctrl on Windows/Linux: 1–4 switches smart views, N focuses quick add, F focuses search, and Shift+C toggles completed tasks. In the task list, arrows move selection and Enter opens inline editing. The editor always shows Save and Cancel; Enter saves, while Escape or Cancel discards the whole draft, then a second Escape clears selection. The date action offers Today, Tomorrow and This Weekend above the native calendar. Choosing a date only changes the draft: Save, Enter or clicking another row persists it, with saving/success/error feedback. A failed explicit save keeps the draft available for retry. Delete is staged for about six seconds; Undo restores the same task identity and metadata.
 
+The ⓘ button on a task row opens the task details popover (macOS preview): completion, title, date, time, priority, tags, subtasks, notes, URL and list membership in one layer. Every change saves as it is made — closing never discards — and a failed save anchors an actionable error to its field. Clicking the task title still opens the inline editor. The details popover for Windows and Linux lands in an upcoming preview.
+
 ## Network, keys and privacy
 
 Core task use is local. Update checks/downloads and links you open contact external services. Sharing a database or diagnostics can disclose task titles and notes.

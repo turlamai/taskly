@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.12] - 2026-11-13
+
+### Added
+- macOS: the ⓘ button opens the anchored task-details popover — completion,
+  title, date, time, priority, tags, subtasks, notes, URL and list
+  membership in one layer. Every change saves as it is made (closing never
+  discards), a failed save anchors an actionable error to its field, and
+  the layer closes when its task leaves the current view. Clicking the
+  task title still opens the inline quick editor.
+- Task rows on macOS surface priority markers (!/!!/!!!), a subtask
+  done/total count and clickable tag chips; clicking a chip filters the
+  current view by that tag.
+- Per-task priority, tags, subtasks and URL now persist: the local
+  database migrates to schema v5 transparently on first launch and the
+  CLI contract is unchanged. The details layer and row meta for Windows
+  and Linux land in an upcoming preview (#135).
+
+### Changed
+- Overdue task text renders in the themed danger color pair (deep red on
+  light, soft coral on dark) on all three platforms instead of the
+  theme-independent system red; secondary and tertiary text tones align
+  with the polished v0.2 prototype.
+
+### Fixed
+- Development tooling: the macOS accessibility e2e driver caps its tree
+  walk, so a self-referential accessibility bridge can no longer overflow
+  the driver stack.
+
 ## [0.2.11] - 2026-11-10
 
 ### Changed
