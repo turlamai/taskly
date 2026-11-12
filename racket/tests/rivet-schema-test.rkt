@@ -17,7 +17,7 @@
    (parameterize ([current-taskly-home temp-root])
      (define names
        (map (lambda (entry) (hash-ref entry 'name)) (record-schema)))
-     (check-equal? names '("QuickAddParse" "ReminderDecision" "Settings" "SmartCounts" "Snapshot" "Task" "TodoList" "UpdateCheck" "UpdateState"))
+     (check-equal? names '("QuickAddParse" "ReminderDecision" "Settings" "SmartCounts" "Snapshot" "Subtask" "Task" "TodoList" "UpdateCheck" "UpdateState"))
 
      (define service (open-taskly-service (build-path temp-root "schema.db")))
      (define created (service-add-task! service "typed task" #:due-date "2026-09-20"))
@@ -33,6 +33,33 @@
      (check-equal? (task-item-text restored-task) (task-item-text created))
      (check-equal? (task-item-due-date restored-task) "2026-09-20")
      (check-false (task-item-due-time restored-task))
+     (check-equal? (record-ref dto 'priority) 0)
+     (check-equal? (record-ref dto 'tags) (list))
+     (check-equal? (record-ref dto 'subtasks) (list))
+
+     ;; v5 detail fields survive the record round trip.
+     (define detailed
+       (service-update-task!
+        service
+        (struct-copy task-item created
+                     [priority 2]
+                     [tags (list "work" "week")]
+                     [subtasks (list (subtask "step one" #t)
+                                     (subtask "step two" #f))]
+                     [url "https://example.com/okr"])))
+     (define detailed-dto (task->dto detailed))
+     (check-equal? (record-ref detailed-dto 'priority) 2)
+     (check-equal? (record-ref detailed-dto 'tags) (list "work" "week"))
+     (check-equal? (map (lambda (s) (list (record-ref s 'text) (record-ref s 'done)))
+                        (record-ref detailed-dto 'subtasks))
+                   (list (list "step one" #t) (list "step two" #f)))
+     (check-equal? (record-ref detailed-dto 'url) "https://example.com/okr")
+     (define restored-detailed (dto->task detailed-dto))
+     (check-equal? (task-item-priority restored-detailed) 2)
+     (check-equal? (task-item-tags restored-detailed) (list "work" "week"))
+     (check-equal? (task-item-subtasks restored-detailed)
+                   (list (subtask "step one" #t) (subtask "step two" #f)))
+     (check-equal? (task-item-url restored-detailed) "https://example.com/okr")
 
      (define first-list (car (service-lists service)))
      (define list-dto (list->dto first-list))

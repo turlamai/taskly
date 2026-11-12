@@ -284,7 +284,9 @@ struct TaskRowView: View {
         RivetTypes.Task(
             id: base.id, list_id: base.list_id, list_name: base.list_name, text: base.text,
             completed: base.completed, due_date: date, due_time: time,
-            notes: base.notes, created_at: base.created_at)
+            notes: base.notes, created_at: base.created_at,
+            priority: base.priority, tags: base.tags,
+            subtasks: base.subtasks, url: base.url)
     }
 
     // MARK: - Inline expansion (ⓘ / Return / double-click)
@@ -305,7 +307,9 @@ struct TaskRowView: View {
             due_time: (expandedDueDate == nil) ? nil : expandedDueTime,
             notes: (expandedNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true)
                 ? nil : expandedNotes,
-            created_at: task.created_at)
+            created_at: task.created_at,
+            priority: task.priority, tags: task.tags,
+            subtasks: task.subtasks, url: task.url)
     }
 
     /// Writes buffered edits back for click-away compatibility. The explicit

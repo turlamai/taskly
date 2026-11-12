@@ -842,7 +842,9 @@ final class AppModel {
         RivetTypes.Task(
             id: base.id, list_id: base.list_id, list_name: base.list_name,
             text: base.text, completed: completed, due_date: base.due_date,
-            due_time: base.due_time, notes: base.notes, created_at: base.created_at)
+            due_time: base.due_time, notes: base.notes, created_at: base.created_at,
+            priority: base.priority, tags: base.tags,
+            subtasks: base.subtasks, url: base.url)
     }
 
     func saveTask(_ task: RivetTypes.Task, completion: ((Bool) -> Void)? = nil) {
@@ -942,7 +944,9 @@ final class AppModel {
         let updated = RivetTypes.Task(
             id: task.id, list_id: list.id, list_name: list.name, text: task.text,
             completed: task.completed, due_date: task.due_date, due_time: task.due_time,
-            notes: task.notes, created_at: task.created_at)
+            notes: task.notes, created_at: task.created_at,
+            priority: task.priority, tags: task.tags,
+            subtasks: task.subtasks, url: task.url)
         _Concurrency.Task {
             do {
                 _ = try await api.update_task(task: updated)
