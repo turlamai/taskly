@@ -17,7 +17,7 @@ concurrency:
 # Single source of truth for the rivet pin; every install step below
 # references this so a bump is one edit, not a grep-replace across jobs.
 env:
-  RIVET_PIN: v0.16.0
+  RIVET_PIN: 7f34eee832418c3ad3bd73981e7a318d78d3be24
 jobs:
   signing-preflight:
     name: Verify update signing key before native packaging
@@ -257,7 +257,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@v0.16.0
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@7f34eee832418c3ad3bd73981e7a318d78d3be24
       # Installed after the embeddable runtime so the catalog dependency
       # closure (cext-lib, crypto-lib, keel) resolves against the minimal
       # build — it ships no packages of its own. db backs taskly's storage;
