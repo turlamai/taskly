@@ -10,12 +10,13 @@ enum Palette {
     static let completed = Color(hex: 0x8E8E93)
     static let calendar = Color(hex: 0x5856D6)
     static let flagged = Color(hex: 0xFF9500)
-    static let danger = Color(hex: 0xFF3B30)
 
     static let accentLight = Color(hex: 0xC94F30)
     static let accentDark = Color(hex: 0xE8704F)
     static let lightAccentInk = Color(hex: 0xFFFFFF)
     static let darkAccentInk = Color(hex: 0x1B120F)
+    static let lightDanger = Color(hex: 0xB3261E)
+    static let darkDanger = Color(hex: 0xFF8A7A)
 
     // Light theme
     static let lightBackground = Color(hex: 0xFFFFFF)
@@ -138,4 +139,5 @@ final class ThemeState {
     var badgeText: Color { isDark ? Palette.darkBadgeText : Palette.lightBadgeText }
     var accent: Color { isDark ? Palette.accentDark : Palette.accentLight }
     var accentInk: Color { isDark ? Palette.darkAccentInk : Palette.lightAccentInk }
+    var danger: Color { isDark ? Palette.darkDanger : Palette.lightDanger }
 }

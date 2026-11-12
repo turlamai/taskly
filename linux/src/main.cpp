@@ -433,14 +433,14 @@ struct Palette {
 constexpr Palette kLight{
     "#FFFFFF", "#F3F2F1", "#C94F30", "#5F5D5B", "#6B6866",
     "#E1DFDD", "#8A8785", "#FFFFFF", "rgba(0,0,0,0.05)",
-    "rgba(0,0,0,0.08)", "#FF3B30", "#FF3B30",
+    "rgba(0,0,0,0.08)", "#B3261E", "#FF3B30",
     "#1D1D1F", "rgba(201,79,48,0.10)",
 };
 
 constexpr Palette kDark{
     "#1E1E1E", "#272424", "#E8704F", "#C3BFBD", "#A8A5A3",
     "#3B3939", "#777371", "#323234", "rgba(255,255,255,0.07)",
-    "rgba(255,255,255,0.12)", "#FF3B30", "#FF3B30",
+    "rgba(255,255,255,0.12)", "#FF8A7A", "#FF3B30",
     "#F5F5F7", "rgba(232,112,79,0.18)",
 };
 
