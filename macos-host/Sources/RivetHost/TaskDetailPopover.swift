@@ -139,7 +139,9 @@ struct TaskDetailPopover: View {
                     .background(model.theme.accent, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
-            .keyboardShortcut(.defaultAction)
+            // No defaultAction shortcut on purpose: Return belongs to the
+            // focused field (submit = autosave), matching the prototype
+            // where only Esc and 完成 close the layer.
             .accessibilityIdentifier("detail-done-\(task.id)")
         }
         .padding(.horizontal, 14)
