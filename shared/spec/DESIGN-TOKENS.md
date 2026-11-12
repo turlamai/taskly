@@ -7,74 +7,43 @@
 > implements these values as named constants; smart-tile colors remain
 > theme-independent.
 
-**v0.2 baseline (2026-11-12, prototype polish, issue #130).** The polished
-prototype (`design/prototype/`) updates values and interactions; the three
-hosts and `check-design-tokens.py` align in a follow-up atomic slice
-(drift ledger D11–D13 — the checker stays at v0.1 values until then, so CI
-stays green): light tertiary darkened `#767370 → #6B6866` (4.9:1, safe at
-12px); dark secondary lifted `#B2AEAC → #C3BFBD`; danger and planned become
+**v0.2 baseline (2026-11-12, prototype polish, issue #130).** Values have a
+single home: `design/prototype/shared.css`. `scripts/check-design-tokens.py`
+parses the CSS and gates the three hosts against it — hosts aligned in the
+same atomic slice (drift D11 ✅): light tertiary darkened `#767370 → #6B6866`
+(4.9:1, safe at 12px); dark secondary lifted `#B2AEAC → #C3BFBD`; danger and
+planned become
 light/dark pairs; new semantic tokens (divider-strong, accent-ink,
 today-ink, warn-ink, success, tag fills, scrim, shadow scale, motion, focus
 ring); the list palette is semanticized with dark variants; a second editing
 surface — the anchored task-detail popover with per-field autosave — joins
 the inline quick editor.
 
-## Semantic colors (light/dark pairs unless noted)
+## Semantic colors (names only; canonical values in shared.css)
 
-| Token | Light | Dark | Use |
-|---|---|---|---|
-| `accent/today` | `#007AFF` | `#0A84FF` | Today tile, default list color, focus ring |
-| `today-ink` | `#0060C0` | `#64B5FF` | Today numerals and due-today text on surface |
-| `tile/planned` | `#FF3B30` | `#FF453A` | Planned tile glyph |
-| `tile/all` | `#8E8E93` | `#98989D` | All / Completed tiles (`gray-tile`) |
-| `accent/action` | `#C94F30` | `#E8704F` | Primary actions, switches, accent fills |
-| `accent-ink` | `#FFFFFF` | `#1B120F` | Text/icon on accent fills |
-| `danger` | `#B3261E` | `#FF8A7A` | Destructive actions, overdue text, high priority |
-| `warn-ink` | `#B25E00` | `#E0A33F` | Medium priority |
-| `success` | `#1B7F4B` | `#5BD6A0` | Status confirmation |
-| `flag` | — | — | retired in v0.2 (superseded by `list-orange`) |
+| Token | CSS vars | Use |
+|---|---|---|
+| `accent/action` | `--accent` | Primary actions, switches, accent fills |
+| `accent-ink` | `--accent-ink` | Text/icon on accent fills |
+| `accent/today` | `--today` | Today tile, default list color, focus ring |
+| `today-ink` | `--today-ink` | Today numerals, due-today text |
+| `tile/planned` | `--planned` | Planned tile glyph |
+| `tile/all` | `--gray-tile` | All / Completed tiles |
+| `danger` | `--danger` | Destructive actions, overdue text, high priority |
+| `warn-ink` | `--warn-ink` | Medium priority |
+| `success` | `--success` | Status confirmation |
 
-## Light theme
+`flag` is retired in v0.2 (superseded by `list-orange`).
 
-| Token | Hex |
-|---|---|
-| `background` | `#FFFFFF` |
-| `sidebar` | `#F3F2F1` |
-| `surface` | `#FFFFFF` |
-| `divider` | `#E1DFDD` |
-| `text/primary` | `#1D1D1F` |
-| `text/secondary` | `#5F5D5B` |
-| `text/tertiary` | `#6B6866` |
-| `selection` | `#14000000` (black @ 8%) |
-| `hover` | `#0D000000` (black @ 5%) |
-| `input-border` | `#8A8785` |
-| `badge/background` | `#E9E9EE` |
-| `badge/text` | `#58585D` |
-| `divider-strong` | `#C8C6C4` |
-| `tag/background` | `#EDEBE9` |
-| `tag/text` | `#4F4D4B` |
-| `scrim` | `rgba(29,29,31,0.40)` |
+## Theme values (canonical in shared.css — never duplicated here)
 
-## Dark theme (layered grays, never pure black)
-
-| Token | Hex |
-|---|---|
-| `background` | `#1E1E1E` |
-| `sidebar` | `#272424` (one step lighter than content) |
-| `surface` | `#323234` |
-| `divider` | `#3B3939` |
-| `text/primary` | `#F5F5F7` |
-| `text/secondary` | `#C3BFBD` |
-| `text/tertiary` | `#A8A5A3` |
-| `selection` | `#1FFFFFFF` (white @ 12%) |
-| `hover` | `#12FFFFFF` (white @ 7%) |
-| `input-border` | `#777371` |
-| `badge/background` | `#3F3F44` |
-| `badge/text` | `#E9E9EE` |
-| `divider-strong` | `#4E4B4A` |
-| `tag/background` | `#3A3A3D` |
-| `tag/text` | `#D9D6D3` |
-| `scrim` | `rgba(0,0,0,0.55)` |
+Light and dark values for surfaces (`--bg --sidebar --surface --divider
+--divider-strong`), text tiers (`--ink --ink2 --ink3`), alpha interaction
+fills (`--sel --hover`), inputs (`--input-border`), badges (`--badge-bg
+--badge-text`), tags (`--tag-bg --tag-text`) and the scrim (`--scrim`) live
+in `design/prototype/shared.css`. Contrast floors (4.5:1 for text tiers and
+accents, 3:1 for input borders) are computed by the checker from the parsed
+CSS values. Dark keeps layered grays, never pure black.
 
 ## System tokens (v0.2)
 
@@ -93,20 +62,20 @@ the inline quick editor.
 Tasks store the semantic name, never the hex — theme switching re-maps
 automatically. iOS system colors, light/dark paired:
 
-| Name | Light | Dark |
-|---|---|---|
-| `blue` | `#007AFF` | `#0A84FF` |
-| `red` | `#FF3B30` | `#FF453A` |
-| `orange` | `#FF9500` | `#FF9F0A` |
-| `yellow` | `#FFCC00` | `#FFD60A` |
-| `green` | `#4CD964` | `#30D158` |
-| `cyan` | `#5AC8FA` | `#64D2FF` |
-| `indigo` | `#5856D6` | `#5E5CE6` |
-| `pink` | `#FF2D55` | `#FF375F` |
-| `gray` | `#8E8E93` | `#98989D` |
-| `silver` | `#C7C7CC` | `#D1D1D6` |
-| `brown` | `#A2845E` | `#AC8E68` |
-| `teal` | `#00C7BE` | `#66D4CF` |
+| Name | CSS var |
+|---|---|
+| `blue` | `--list-blue` |
+| `red` | `--list-red` |
+| `orange` | `--list-orange` |
+| `yellow` | `--list-yellow` |
+| `green` | `--list-green` |
+| `cyan` | `--list-cyan` |
+| `indigo` | `--list-indigo` |
+| `pink` | `--list-pink` |
+| `gray` | `--list-gray` |
+| `silver` | `--list-silver` |
+| `brown` | `--list-brown` |
+| `teal` | `--list-teal` |
 
 ## Emoji catalog (single source: `shared/emoji.json`)
 
@@ -139,7 +108,7 @@ every platform. Never a text dropdown of hex values.
 | content padding | 16, 8; sidebar item 12, 10 |
 | task text | 14px; list name 13px |
 | view header | large title 22px semibold (view name) + 13px secondary subtitle line beneath (today view → full weekday date, calendar → month with task count, list/all → N open tasks); the show-completed toggle stays top-right |
-| due-date semantics | due dates render localized (今天/明天/昨天/8月31日); overdue incomplete → `danger` (light `#B3261E` / dark `#FF8A7A`), due today → `today-ink`, otherwise text/secondary; a leading clock glyph only when a time is set |
+| due-date semantics | due dates render localized (今天/明天/昨天/8月31日); overdue incomplete → `--danger`, due today → `--today-ink`, otherwise text/secondary; a leading clock glyph only when a time is set |
 | input fields | search 30px, quick add 36px, radius 10, 1px input-border |
 | font stack | system UI font of the platform (`-apple-system` / Segoe UI / GNOME default), CJK fallback PingFang SC / Microsoft YaHei / Noto Sans CJK SC |
 
@@ -246,7 +215,7 @@ silently pick a side:
 | D8 | List editor picker | tabbed 8×12 emoji grid + 12-swatch row, same on every platform | macOS complete · Linux ✅ upgraded to shared/emoji.json tabbed grid · **Windows has no picker at all** (plain text prompt) | Windows leg slice — the remaining contract violation |
 | D9 | Token CI coverage | every shared hex gated on every host | ~~only 6 values on Windows~~ | ✅ extended on leg/win-drift-2 |
 | D10 | Completed checkbox | ~~PRODUCT-SPEC §5: "ring + check in accent"~~ | leg audit 2026-11-11: macOS compliant · Linux declared exception (§5 8px dot) · **Windows stock CheckBox = undeclared drift** | ✅ spec amended; Windows leg slice: implement the 20px list-color ring or declare the exception in §5 first |
-| D11 | Token values v0.2 on hosts (issue #130) | light tertiary `#6B6866`, dark secondary `#C3BFBD`, danger/planned pairs, new semantic tokens (§System tokens), semantic list palette × light/dark | all three hosts + `check-design-tokens.py` TOKENS still at v0.1 (host files keep the old hexes, so CI stays green) | one atomic alignment slice: checker + Theme.swift + main.cpp + MainWindow.xaml together, then close |
+| D11 | Token values v0.2 on hosts (issue #130) | light tertiary `#6B6866`, dark secondary `#C3BFBD`, checker derives all gated values from shared.css | ~~hosts + checker at v0.1 values~~ | ✅ resolved: atomic slice aligned Theme.swift + MainWindow.xaml + main.cpp + checker (checker now parses shared.css, no value dict) |
 | D12 | Overdue color on Windows/Linux | `danger` pair (see D11) | Windows gate literal `FF3B30` + Windows/Linux overdue brushes | Windows/Linux leg slices (after D11) |
 | D13 | Detail layer on hosts | anchored task-detail popover with per-field autosave (§Anchored task detail layer) + theme system (persisted light/dark/system, boot-before-paint) | hosts implement the inline quick editor only | implementation slices per leg, PRODUCT-SPEC §5b governs |
 

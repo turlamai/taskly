@@ -70,6 +70,13 @@ scripts/sync-i18n.sh --check    # CI 模式：仅校验
 
 发布 = 改 `VERSION` + `rivet.rktd` + `CHANGELOG.md`（三处同值）→ 推 tag `v*`，release.yml 自动打包三平台 + SHA256SUMS + 签名 update manifest。
 
+## 实现路由（agent 按任务读真源）
+
+- **实现界面**：以 `design/prototype/` 为准——对照 HTML/CSS/JS 与实物截图验收，不依赖散文复述。原型里契约与脚手架混用（假数据、`TODAY` 常量）；行为拿不准时以 `shared/spec/PRODUCT-SPEC.md` 为准，不要从 JS 反推契约。
+- **Token/几何值**：唯一真源 = `design/prototype/shared.css`；`scripts/check-design-tokens.py` 解析它并门禁三腿常量（Theme.swift / MainWindow.xaml / main.cpp）。改值 = 只改 shared.css，同一切片对齐三腿；不在文档或脚本里复制值。
+- **行为契约**：`shared/spec/PRODUCT-SPEC.md`（§6 场景表 = 验收测试计划，覆盖映射见表后 Coverage map）；视觉语义 = `shared/spec/DESIGN-TOKENS.md`（值已指向 shared.css，只记语义与决策）。
+- **动共享层**（spec/prototype/scripts/rivet-acceptance.rktd）先 issue 声明，契约与实现同 commit 落账。
+
 ## 契约文档（改任何行为前必读，改动必须同步契约）
 
 | 文档 | 内容 |
@@ -141,5 +148,5 @@ The paired `docs/USER-GUIDE.md` / `docs/USER-GUIDE.zh-CN.md` own the public inst
 
 所有 UI 开发与界面改造一律先原型后代码：brief → `design/DESIGN.md`
 视觉契约 → HTML 原型 → 按 HIG 基准评审通过才开工；改界面先改原型再改
-代码。契约与原型放本仓 `design/`（尚未建立时随首个 UI 切片建立），
-实物截图验收后才能作为对外宣传素材。
+代码。契约与原型已建立于本仓 `design/`；常态循环 = 打磨 → 落账 →
+实现对齐，实物截图验收后才能作为对外宣传素材。

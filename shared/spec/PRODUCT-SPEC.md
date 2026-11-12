@@ -187,6 +187,25 @@ draft/persistence results may not.
 | Search refresh | global results include task `N` from another list | backend `changed` event / periodic refresh | search remains owner; `N` retains its real list label, selection and in-progress draft |
 | Database switch | edit or delete batch belongs to database A | open/close/switch to database B | A's pending callbacks cannot mutate B; selection, drafts, detail popovers and undo state are cleared |
 
+Coverage map (enforcement lives in the `rivet-acceptance.rktd` suites and
+their `scripts/e2e/` drivers; this table is the pointer, not a second spec):
+
+| Scenario | Enforced by | Status |
+|---|---|---|
+| Quick edit → Escape | windows-native-ui (`Escape cancelled inline task draft`), linux-native-ui (Escape step) | windows+linux ✅ · macos gap |
+| Quick edit → click away / Return | linux-native-ui (Return steps) | linux ✅ · windows/macos partial (editor traversal asserted, Return/click-away not traced) |
+| Quick edit → visible Save | linux-native-ui (`Save` asserts), windows (inline editor traversal) | linux ✅ · windows partial · macos gap |
+| Quick edit → save failure | — | gap: needs an injectable persistence failure |
+| Quick edit → visible Cancel | windows-native-ui (`inline-task-cancel`), linux-native-ui (`Cancel`) | ✅ |
+| Detail → field change / persist failure / close | — | gap: lands with the D13 host detail-layer slices |
+| Delete → undo | macos-native-ui (`undo-delete`), linux-native-ui (staged delete + `Undo`) | macos+linux ✅ · windows partial (batch delete staged, undo trace not asserted) |
+| Delete → timeout | — | gap |
+| Search refresh | — | gap |
+| Database switch (stale token) | core-contract (`core-test.rkt` reopen/stale-token) | core ✅ · host-level trace gap |
+
+Gaps are the acceptance queue: closing one means adding a requirement to
+`rivet-acceptance.rktd` — never softening existing ones.
+
 Windows UI Automation, macOS Accessibility and Linux AT-SPI traces cover the
 keyboard/focus and identity-preserving undo paths. Core/RVT1 tests cover the
 database-session and stale-callback boundary. A host-specific exception must

@@ -1,31 +1,78 @@
 #!/usr/bin/env python3
-"""Keep Taskly's shared palette aligned and enforce useful contrast floors."""
+"""Keep Taskly's shared palette aligned and enforce useful contrast floors.
+
+Canonical token values live in design/prototype/shared.css — the prototype
+is the single source. This gate parses them from the CSS and enforces the
+three host implementations against the parsed values. Do not duplicate
+values here: change shared.css and align the hosts in the same slice."""
 
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CSS = (ROOT / "design" / "prototype" / "shared.css").read_text(encoding="utf-8")
 
-TOKENS = {
-    "accentLight": "C94F30",
-    "accentDark": "E8704F",
-    "lightBackground": "FFFFFF",
-    "lightSidebar": "F3F2F1",
-    "lightSurface": "FFFFFF",
-    "lightDivider": "E1DFDD",
-    "lightOnSurface": "1D1D1F",
-    "lightSecondaryText": "5F5D5B",
-    "lightTertiaryText": "767370",
-    "lightInputBorder": "8A8785",
-    "darkBackground": "1E1E1E",
-    "darkSidebar": "272424",
-    "darkSurface": "323234",
-    "darkDivider": "3B3939",
-    "darkOnSurface": "F5F5F7",
-    "darkSecondaryText": "B2AEAC",
-    "darkTertiaryText": "A8A5A3",
-    "darkInputBorder": "777371",
+# CSS custom property -> gate slot pair (light, dark)
+CORE_VARS = {
+    "--accent": ("accentLight", "accentDark"),
+    "--bg": ("lightBackground", "darkBackground"),
+    "--sidebar": ("lightSidebar", "darkSidebar"),
+    "--surface": ("lightSurface", "darkSurface"),
+    "--divider": ("lightDivider", "darkDivider"),
+    "--ink": ("lightOnSurface", "darkOnSurface"),
+    "--ink2": ("lightSecondaryText", "darkSecondaryText"),
+    "--ink3": ("lightTertiaryText", "darkTertiaryText"),
+    "--input-border": ("lightInputBorder", "darkInputBorder"),
 }
+
+
+def fail(message: str):
+    raise SystemExit(message)
+
+
+def block(pattern: str) -> str:
+    found = re.search(pattern, CSS, re.S)
+    if not found:
+        fail(f"shared.css: cannot locate canonical block for {pattern!r}")
+    return found.group(1)
+
+
+def parse_vars(body: str) -> dict:
+    return {
+        name: value.strip()
+        for name, value in re.findall(r"(--[a-z0-9-]+)\s*:\s*([^;]+);", body)
+    }
+
+
+light = parse_vars(block(r":root\s*\{([^}]*)\}"))
+dark = parse_vars(block(r'html\[data-taskly-theme="dark"\]\s*\.window\s*\{([^}]*)\}'))
+
+TOKENS: dict[str, str] = {}
+for var, (light_slot, dark_slot) in CORE_VARS.items():
+    for values, slot in ((light, light_slot), (dark, dark_slot)):
+        if var not in values:
+            fail(f"shared.css: missing canonical var {var} for {slot}")
+        TOKENS[slot] = values[var].lstrip("#").upper()
+
+
+def solid(values: dict, var: str) -> str:
+    if var not in values:
+        fail(f"shared.css: missing canonical var {var}")
+    return values[var].lstrip("#").upper()
+
+
+def argb(values: dict, var: str) -> str:
+    raw = values.get(var)
+    if not raw:
+        fail(f"shared.css: missing canonical var {var}")
+    match = re.match(r"rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)$", raw)
+    if not match:
+        fail(f"shared.css: cannot parse rgba var {var}: {raw!r}")
+    red, green, blue, alpha = (
+        int(match[1]), int(match[2]), int(match[3]), float(match[4]),
+    )
+    return f"{round(alpha * 255):02X}{red:02X}{green:02X}{blue:02X}"
 
 
 def channel(value: int) -> float:
@@ -43,7 +90,7 @@ def contrast(first: str, second: str) -> float:
     return (high + 0.05) / (low + 0.05)
 
 
-def require(path: str, fragments: list[str]) -> None:
+def require(path: str, fragments: list) -> None:
     content = (ROOT / path).read_text(encoding="utf-8")
     missing = [fragment for fragment in fragments if fragment not in content]
     if missing:
@@ -59,21 +106,24 @@ def main() -> None:
         "linux/src/main.cpp",
         [f'"#{value}"' for value in TOKENS.values()],
     )
+    # Overdue red stays the classic system red until D12 migrates Windows
+    # (and Linux) overdue text to the danger pair — see DESIGN-TOKENS ledger.
+    windows_values = [
+        TOKENS["accentLight"], TOKENS["accentDark"],
+        TOKENS["lightSidebar"], TOKENS["darkSidebar"],
+        TOKENS["lightSurface"], TOKENS["darkSurface"],
+        TOKENS["lightDivider"], TOKENS["darkDivider"],
+        TOKENS["lightSecondaryText"], TOKENS["lightTertiaryText"],
+        TOKENS["darkSecondaryText"], TOKENS["darkTertiaryText"],
+        argb(light, "--sel"), argb(dark, "--sel"),
+        argb(light, "--hover"), argb(dark, "--hover"),
+        solid(light, "--planned"),
+        solid(light, "--today"),
+        solid(light, "--gray-tile"),
+    ]
     require(
         "windows/MainWindow.xaml",
-        [f'Color="#{value}"' for value in (
-            TOKENS["accentLight"], TOKENS["accentDark"],
-            TOKENS["lightSidebar"], TOKENS["darkSidebar"],
-            TOKENS["lightSurface"], TOKENS["darkSurface"],
-            TOKENS["lightDivider"], TOKENS["darkDivider"],
-            TOKENS["lightSecondaryText"], TOKENS["lightTertiaryText"],
-            TOKENS["darkSecondaryText"], TOKENS["darkTertiaryText"],
-            "14000000", "1FFFFFFF",  # selection fills (light / dark)
-            "0D000000", "12FFFFFF",  # hover fills (light / dark)
-            "FF3B30",                # overdue / danger (theme-independent)
-            "007AFF",                # today tile
-            "8E8E93",                # all / completed tiles
-        )],
+        [f'Color="#{value}"' for value in windows_values],
     )
 
     checks = {
@@ -93,6 +143,8 @@ def main() -> None:
         if ratio < minimum:
             raise SystemExit(f"{label}: {ratio:.2f}:1 is below {minimum:.1f}:1")
         print(f"ok: {label} {ratio:.2f}:1")
+
+    print(f"ok: canonical source design/prototype/shared.css ({len(TOKENS)} core slots)")
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@
                         <SolidColorBrush x:Key="TasklyDueTodayBrush" Color="#C94F30" />
                         <SolidColorBrush x:Key="TasklyOverdueBrush" Color="#FF3B30" />
                         <SolidColorBrush x:Key="TasklySecondaryTextBrush" Color="#5F5D5B" />
-                        <SolidColorBrush x:Key="TasklyMutedTextBrush" Color="#767370" />
+                        <SolidColorBrush x:Key="TasklyMutedTextBrush" Color="#6B6866" />
                     </ResourceDictionary>
                     <ResourceDictionary x:Key="Dark">
                         <SolidColorBrush x:Key="TasklySidebarBrush" Color="#272424" />
@@ -33,7 +33,7 @@
                         <SolidColorBrush x:Key="TasklyAccentSoftBrush" Color="#14E8704F" />
                         <SolidColorBrush x:Key="TasklyDueTodayBrush" Color="#E8704F" />
                         <SolidColorBrush x:Key="TasklyOverdueBrush" Color="#FF3B30" />
-                        <SolidColorBrush x:Key="TasklySecondaryTextBrush" Color="#B2AEAC" />
+                        <SolidColorBrush x:Key="TasklySecondaryTextBrush" Color="#C3BFBD" />
                         <SolidColorBrush x:Key="TasklyMutedTextBrush" Color="#A8A5A3" />
                     </ResourceDictionary>
                 </ResourceDictionary.ThemeDictionaries>
