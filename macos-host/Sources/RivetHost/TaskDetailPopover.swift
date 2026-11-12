@@ -51,17 +51,17 @@ struct TaskDetailPopover: View {
                 VStack(alignment: .leading, spacing: 14) {
                     headTags
                     completionRow
-                    field(model.t("fieldTitle"), .title, titleField)
+                    field(model.t("fieldTitle"), .title) { titleField }
                     HStack(alignment: .top, spacing: 10) {
-                        field(model.t("fieldDate"), .date, dateField)
-                        field(model.t("fieldTime"), .time, timeField)
+                        field(model.t("fieldDate"), .date) { dateField }
+                        field(model.t("fieldTime"), .time) { timeField }
                     }
-                    field(model.t("fieldPriority"), .priority, priorityPicker)
-                    field(model.t("fieldTags"), .tags, tagSection)
-                    field(model.t("fieldSubtasks"), .subtasks, subtaskSection)
-                    field(model.t("fieldNotes"), .notes, notesField)
-                    field(model.t("fieldUrl"), .url, urlField)
-                    field(model.t("fieldList"), .list, listPicker)
+                    field(model.t("fieldPriority"), .priority) { priorityPicker }
+                    field(model.t("fieldTags"), .tags) { tagSection }
+                    field(model.t("fieldSubtasks"), .subtasks) { subtaskSection }
+                    field(model.t("fieldNotes"), .notes) { notesField }
+                    field(model.t("fieldUrl"), .url) { urlField }
+                    field(model.t("fieldList"), .list) { listPicker }
                 }
                 .padding(14)
             }
@@ -480,7 +480,10 @@ struct TaskDetailPopover: View {
         Binding(
             get: { subtasks[index].done },
             set: {
-                subtasks[index].done = $0
+                // The generated Subtask record is immutable — replace the
+                // element rather than mutating it.
+                subtasks[index] = RivetTypes.Subtask(
+                    text: subtasks[index].text, done: $0)
                 persist(.subtasks)
             })
     }
