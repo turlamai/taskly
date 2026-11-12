@@ -106,7 +106,8 @@ taskly/
 │   ├── emoji.json      清单图标单源
 │   └── cli-golden/     63 例 golden CLI 套件（cases.json + runner.py + golden/）
 ├── scripts/            taskly-cli.sh · sync-i18n.sh · check-release-version.sh · make-update-manifest.sh · update-keys.sh · e2e/
-├── docs/               GitHub Pages 站点（taskly.jrtx.site）
+├── site/               GitHub Pages 站点（taskly.jrtx.site，pages.yml 部署）
+├── docs/               用户文档（USER-GUIDE 等 .md）
 ├── .github/workflows/  ci.yml（contract·core+golden·三平台宿主）· release.yml（三平台打包+签名清单）
 ├── VERSION + rivet.rktd  版本双源（发版前必须同值）
 ├── ARCHITECTURE.md     架构决策记录

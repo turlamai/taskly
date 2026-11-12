@@ -54,7 +54,7 @@ Windows MSI 从“应用和功能”卸载，macOS 从“应用程序”删除�
 
 ## 深入阅读
 
-- [详细手册](../docs/manual.html)
+- [详细手册](../site/manual.html)
 - [数据格式](../shared/spec/DATA-FORMAT.md)
 - [更新说明](../shared/spec/UPDATE.md)
 - [项目说明与开发入口](../README.zh-CN.md)

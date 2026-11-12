@@ -54,7 +54,7 @@ Report problems in [GitHub Issues](https://github.com/turlamai/taskly/issues), i
 
 ## Further reading
 
-- [Detailed manual](../docs/manual.html)
+- [Detailed manual](../site/manual.html)
 - [Data format](../shared/spec/DATA-FORMAT.md)
 - [Update contract](../shared/spec/UPDATE.md)
 - [Project overview and development](../README.md)
