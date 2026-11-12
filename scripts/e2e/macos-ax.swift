@@ -21,8 +21,19 @@ func children(_ element: AXUIElement) -> [AXUIElement] {
     attribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? []
 }
 
-func walk(_ element: AXUIElement) -> [AXUIElement] {
-    [element] + children(element).flatMap(walk)
+func walk(_ element: AXUIElement, depth: Int = 0) -> [AXUIElement] {
+    // The macOS 26 AX bridge can expose the application element as its own
+    // descendant; descending into that self-referential chain re-walks the
+    // entire tree per level (and an unbounded recursion overflows the
+    // driver stack — segfault: 11). Application elements only carry
+    // meaningful children at an application root; skip them mid-walk and
+    // keep the depth cap as the belt-and-braces bound.
+    if depth > 0,
+       stringAttribute(element, kAXRoleAttribute) == (kAXApplicationRole as String) {
+        return [element]
+    }
+    guard depth < 40 else { return [element] }
+    return [element] + children(element).flatMap { walk($0, depth: depth + 1) }
 }
 
 func find(_ root: AXUIElement, identifier: String) -> AXUIElement? {
@@ -143,7 +154,7 @@ func postKey(_ keyCode: CGKeyCode) throws {
     keyUp.post(tap: .cghidEventTap)
 }
 
-func rightClick(_ element: AXUIElement) throws {
+func clickPoint(_ element: AXUIElement) throws -> CGPoint {
     guard let positionRaw = attribute(element, kAXPositionAttribute),
           let sizeRaw = attribute(element, kAXSizeAttribute),
           CFGetTypeID(positionRaw) == AXValueGetTypeID(),
@@ -155,21 +166,37 @@ func rightClick(_ element: AXUIElement) throws {
     var position = CGPoint.zero
     var size = CGSize.zero
     guard AXValueGetValue(positionValue, .cgPoint, &position),
-          AXValueGetValue(sizeValue, .cgSize, &size),
-          let source = CGEventSource(stateID: .hidSystemState) else {
+          AXValueGetValue(sizeValue, .cgSize, &size) else {
         throw DriverError.failure("could not resolve clickable bounds")
     }
-    let point = CGPoint(x: position.x + size.width / 2, y: position.y + size.height / 2)
-    guard let down = CGEvent(
-        mouseEventSource: source, mouseType: .rightMouseDown,
-        mouseCursorPosition: point, mouseButton: .right),
-          let up = CGEvent(
-            mouseEventSource: source, mouseType: .rightMouseUp,
-            mouseCursorPosition: point, mouseButton: .right) else {
-        throw DriverError.failure("could not create right-click events")
+    return CGPoint(x: position.x + size.width / 2, y: position.y + size.height / 2)
+}
+
+func postClick(
+    _ element: AXUIElement, _ description: String,
+    button: CGMouseButton, downType: CGEventType, upType: CGEventType) throws {
+    let point = try clickPoint(element)
+    guard let source = CGEventSource(stateID: .hidSystemState),
+          let down = CGEvent(mouseEventSource: source, mouseType: downType,
+                             mouseCursorPosition: point, mouseButton: button),
+          let up = CGEvent(mouseEventSource: source, mouseType: upType,
+                           mouseCursorPosition: point, mouseButton: button) else {
+        throw DriverError.failure("could not create click events for \(description)")
     }
     down.post(tap: .cghidEventTap)
     up.post(tap: .cghidEventTap)
+}
+
+func rightClick(_ element: AXUIElement) throws {
+    try postClick(element, "right-click", button: .right,
+                  downType: .rightMouseDown, upType: .rightMouseUp)
+}
+
+/// §5: the task title opens the inline quick editor — a real click, since
+/// the title is a gesture target rather than an AXPressable control.
+func leftClick(_ element: AXUIElement, _ description: String) throws {
+    try postClick(element, description, button: .left,
+                  downType: .leftMouseDown, upType: .leftMouseUp)
 }
 
 var diagnosticApplication: AXUIElement?
@@ -244,12 +271,36 @@ do {
         throw DriverError.failure("task title had no stable id: \(taskIdentifier)")
     }
 
-    // Escape is a true draft cancel even while the native field editor owns
-    // focus. Return commits, and the same stable task ID remains visible.
+    // §5b/§6 — the anchored detail layer: ⓘ opens it, every field change
+    // persists immediately (per-field autosave), and closing never discards.
+    // The layer lives in its own popover window, so its elements are found
+    // from the application root.
     let details: AXUIElement = try waitFor("task details control") {
         find(window, identifier: "task-details-\(taskID)")
     }
     try press(details, "task-details-\(taskID)")
+    let detailTitle: AXUIElement = try waitFor("detail layer title field") {
+        find(application, identifier: "detail-title-\(taskID)")
+    }
+    try setValue("Autosaved detail title", on: detailTitle)
+    try postKey(36) // Return — ends title editing; autosave persists
+    _ = try waitFor("detail autosave committed to the stored row") {
+        findTaskTitle(window, text: "Autosaved detail title") != nil ? true : nil
+    }
+    let detailDone: AXUIElement = try waitFor("detail layer Done action") {
+        find(application, identifier: "detail-done-\(taskID)")
+    }
+    try press(detailDone, "detail-done-\(taskID)")
+    _ = try waitFor("detail layer closed without discarding") {
+        find(application, identifier: "detail-title-\(taskID)") == nil ? true : nil
+    }
+
+    // §5: the task title opens the inline quick editor. Escape is a true
+    // draft cancel even while the native field editor owns focus.
+    let cancelledEntry: AXUIElement = try waitFor("row title for inline entry") {
+        findTaskTitle(window, text: "Autosaved detail title")
+    }
+    try leftClick(cancelledEntry, "task title")
     let cancelledEditor: AXUIElement = try waitFor("inline title editor") {
         find(window, identifier: "inline-task-title-\(taskID)")
     }
@@ -257,13 +308,13 @@ do {
     try postKey(53) // Escape
     _ = try waitFor("Escape cancelled inline draft") {
         find(window, identifier: "inline-task-title-\(taskID)") == nil &&
-            findTaskTitle(window, text: "Acceptance task") != nil ? true : nil
+            findTaskTitle(window, text: "Autosaved detail title") != nil ? true : nil
     }
 
-    let detailsAgain: AXUIElement = try waitFor("task details control after cancel") {
-        find(window, identifier: "task-details-\(taskID)")
+    let savedEntry: AXUIElement = try waitFor("row title for Save entry") {
+        findTaskTitle(window, text: "Autosaved detail title")
     }
-    try press(detailsAgain, "task-details-\(taskID)")
+    try leftClick(savedEntry, "task title")
     let committedEditor: AXUIElement = try waitFor("inline title editor after cancel") {
         find(window, identifier: "inline-task-title-\(taskID)")
     }
@@ -291,10 +342,10 @@ do {
             find(window, identifier: "inline-task-title-\(taskID)") == nil ? true : nil
     }
 
-    let detailsForReturn: AXUIElement = try waitFor("task details control after Save") {
-        find(window, identifier: "task-details-\(taskID)")
+    let returnEntry: AXUIElement = try waitFor("row title for Return entry") {
+        findTaskTitle(window, text: "Edited acceptance task")
     }
-    try press(detailsForReturn, "task-details-\(taskID)")
+    try leftClick(returnEntry, "task title")
     let returnEditor: AXUIElement = try waitFor("inline title editor for Return") {
         find(window, identifier: "inline-task-title-\(taskID)")
     }
@@ -401,7 +452,8 @@ do {
         "platform": "macos",
         "actions": [
             "type:quick-add", "press:quick-add-submit",
-            "edit:escape-cancel", "edit:return-commit",
+            "press:task-details-\(taskID)", "press:detail-done-\(taskID)",
+            "click:task-title", "edit:escape-cancel", "edit:return-commit",
             "context-menu:delete", "press:undo-delete",
             "press:\(completionIdentifier)", "press:show-completed",
             "press:task-complete-\(taskID)",
@@ -411,6 +463,10 @@ do {
             "fresh profile exposes an actionable first-task empty state",
             "stable AXIdentifiers exposed",
             "RPC-created task appeared",
+            "ⓘ opened the anchored detail layer",
+            "detail title change autosaved to the stored row without further action",
+            "Done closed the layer without discarding",
+            "title click opened the inline quick editor",
             "Escape cancelled the focused inline draft and visible Save/Cancel actions were exposed",
             "visible Save acknowledged and committed the inline draft",
             "Tomorrow was chosen through the native date popover before Save",

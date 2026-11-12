@@ -141,7 +141,8 @@
   (define default-list (car (db-lists db)))
   (db-add-task! db (task-item 0 (todo-list-id default-list)
                               "OTA survival probe" #f #f #f
-                              "2026-10-23T00:00:00" #f #f))
+                              "2026-10-23T00:00:00" #f #f
+                              0 (list) (list) #f))
   (close-taskly-db db)
   home)
 

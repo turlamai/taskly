@@ -6,8 +6,9 @@ import SwiftUI
 ///   popover (Reminders keeps its quick-date buttons in the details
 ///   popover too, not on the row)
 /// - click selects (⌘ toggles, ⇧ extends — see AppModel.clickSelectTask)
-/// - ⓘ (or Return / double-click) expands the row in place for editing —
-///   no modal sheet; visible Save/Cancel plus Return/Escape define the draft
+/// - ⓘ opens the anchored task-detail layer (§5b); the title click,
+///   Return and double-click expand the row in place for editing — no
+///   modal sheet; visible Save/Cancel plus Return/Escape define the draft
 ///   transaction, while click-away preserves the native collapse behavior
 /// - context menu: complete · schedule · details · custom date · move · delete
 struct TaskRowView: View {
@@ -89,6 +90,14 @@ struct TaskRowView: View {
                     .strikethrough(task.completed)
                     .foregroundStyle(task.completed ? model.theme.tertiaryText : model.theme.onSurface)
                     .lineLimit(3)
+                    // §5: clicking the title opens the inline quick editor.
+                    // Modifier clicks keep the selection semantics (§5b).
+                    .simultaneousGesture(SpatialTapGesture().onEnded { _ in
+                        let flags = model.lastModifierFlags
+                        if !flags.contains(.command) && !flags.contains(.shift) {
+                            expand()
+                        }
+                    })
 
                 if hasMeta {
                     metaLine
@@ -98,7 +107,9 @@ struct TaskRowView: View {
             Spacer(minLength: 8)
 
             Button {
-                expand()
+                // §5: ⓘ opens the anchored detail layer; clicking it again
+                // closes (aria-expanded tracked through detailTaskID).
+                model.detailTaskID = (model.detailTaskID == task.id) ? nil : task.id
             } label: {
                 Image(systemName: "info.circle")
                     .font(.system(size: 15))
@@ -112,11 +123,22 @@ struct TaskRowView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("task-details-\(task.id)")
             .help(model.t("contextMenuDetails"))
+            .popover(
+                isPresented: Binding(
+                    get: { model.detailTaskID == task.id },
+                    set: { present in
+                        if !present { model.detailTaskID = nil }
+                    })) {
+                TaskDetailPopover(task: task) {
+                    model.detailTaskID = nil
+                }
+            }
         }
     }
 
     private var hasMeta: Bool {
-        task.due_date != nil || (task.notes?.isEmpty == false)
+        task.due_date != nil || (task.notes?.isEmpty == false) ||
+            task.priority > 0 || !task.tags.isEmpty || !task.subtasks.isEmpty
     }
 
     /// In views spanning several lists (today / planned / all / completed),
@@ -155,6 +177,32 @@ struct TaskRowView: View {
                         Text(time).font(.system(size: 12))
                     }
                     .foregroundStyle(dueDateColor)
+                }
+                if task.priority > 0 {
+                    Text(String(repeating: "!", count: Int(task.priority)))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(model.theme.danger)
+                        .accessibilityLabel(model.t("fieldPriority"))
+                }
+                if !task.subtasks.isEmpty {
+                    Text(model.t("subtitleSubtaskCount",
+                                 task.subtasks.filter(\.done).count, task.subtasks.count))
+                        .font(.system(size: 12))
+                        .foregroundStyle(model.theme.secondaryText)
+                }
+                ForEach(task.tags, id: \.self) { tag in
+                    // §5: tag chips are clickable and filter the view.
+                    Button {
+                        model.toggleTagFilter(tag)
+                    } label: {
+                        Text("#\(tag)")
+                            .font(.system(size: 12))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .foregroundStyle(model.theme.badgeText)
+                            .background(model.theme.badgeBackground, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             if let notes = task.notes, !notes.isEmpty {
@@ -284,7 +332,9 @@ struct TaskRowView: View {
         RivetTypes.Task(
             id: base.id, list_id: base.list_id, list_name: base.list_name, text: base.text,
             completed: base.completed, due_date: date, due_time: time,
-            notes: base.notes, created_at: base.created_at)
+            notes: base.notes, created_at: base.created_at,
+            priority: base.priority, tags: base.tags,
+            subtasks: base.subtasks, url: base.url)
     }
 
     // MARK: - Inline expansion (ⓘ / Return / double-click)
@@ -305,7 +355,9 @@ struct TaskRowView: View {
             due_time: (expandedDueDate == nil) ? nil : expandedDueTime,
             notes: (expandedNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true)
                 ? nil : expandedNotes,
-            created_at: task.created_at)
+            created_at: task.created_at,
+            priority: task.priority, tags: task.tags,
+            subtasks: task.subtasks, url: task.url)
     }
 
     /// Writes buffered edits back for click-away compatibility. The explicit

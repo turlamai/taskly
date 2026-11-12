@@ -189,6 +189,25 @@
     {
       "fields": [
         {
+          "name": "text",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "done",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        }
+      ],
+      "name": "Subtask"
+    },
+    {
+      "fields": [
+        {
           "name": "id",
           "type": {
             "kind": "scalar",
@@ -261,6 +280,43 @@
           "type": {
             "kind": "scalar",
             "name": "String"
+          }
+        },
+        {
+          "name": "priority",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "tags",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "list"
+          }
+        },
+        {
+          "name": "subtasks",
+          "type": {
+            "element": {
+              "kind": "record",
+              "name": "Subtask"
+            },
+            "kind": "list"
+          }
+        },
+        {
+          "name": "url",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
           }
         }
       ],

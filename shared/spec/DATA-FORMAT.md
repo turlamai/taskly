@@ -1,6 +1,6 @@
 # Taskly Data Format (Contract)
 
-> Version 4 (`PRAGMA user_version = 4`). Canonical for **all** platforms.
+> Version 5 (`PRAGMA user_version = 5`). Canonical for **all** platforms.
 > Any schema change must land in this file and in all platform apps in the
 > same release. Never break an existing `.db` file.
 
@@ -25,7 +25,7 @@ OneDrive / Dropbox.
 - `PRAGMA user_version` is written **outside** any transaction (a no-op
   inside one).
 
-## 3. Schema (fresh install creates v4 directly)
+## 3. Schema (fresh install creates v5 directly)
 
 ```sql
 CREATE TABLE lists (
@@ -44,6 +44,10 @@ CREATE TABLE tasks (
     completed INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     notes TEXT,
+    priority INTEGER DEFAULT 0,
+    tags TEXT,
+    subtasks TEXT,
+    url TEXT,
     FOREIGN KEY (list_id) REFERENCES lists (id)
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_list_id ON tasks(list_id);
@@ -70,6 +74,10 @@ VALUES ('工作', '📋', -16745729, '<created_at>');
 | `created_at` | TEXT ISO-8601 round-trip with local offset (e.g. `2026-09-15T14:23:45.1234567+08:00`; fractional digits may vary by platform) |
 | `completed` | INTEGER 0/1 |
 | `color` | INTEGER signed ARGB |
+| `priority` | INTEGER 0 none · 1 low · 2 medium · 3 high (NULL reads as 0) |
+| `tags` | TEXT JSON array of strings (e.g. `["work","week"]`); NULL or unparseable reads as empty |
+| `subtasks` | TEXT JSON array of `{"text": string, "done": bool}` objects in stored order; NULL or unparseable reads as empty |
+| `url` | TEXT ≤2048 chars; blank/NULL = absent |
 
 "Today" is decided **locally**: `date(t.due_date) = '<yyyy-MM-dd of now>'`.
 
@@ -84,8 +92,9 @@ after commit. Detection is idempotent (`PRAGMA table_info` before
 | 2 | create the three indexes above |
 | 3 | `lists.icon TEXT`, `lists.color INTEGER` |
 | 4 | `tasks.due_time TEXT`, `tasks.notes TEXT` |
+| 5 | `tasks.priority INTEGER DEFAULT 0`, `tasks.tags TEXT`, `tasks.subtasks TEXT`, `tasks.url TEXT` |
 
-Fresh DBs (`oldVersion == 0`) create v4 directly and seed the default list.
+Fresh DBs (`oldVersion == 0`) create v5 directly and seed the default list.
 After connect, re-ensure `lists.icon`/`lists.color` exist (belt-and-braces,
 failures logged only).
 
@@ -94,7 +103,8 @@ failures logged only).
 `tasks` + `LEFT JOIN lists l ON t.list_id = l.id` (`l.name AS list_name`):
 
 `id`, `list_id`, `text`, `due_date`, `due_time`, `completed` (true iff ==1),
-`created_at`, `notes`, `list_name` (derived, never persisted).
+`created_at`, `notes`, `list_name` (derived, never persisted), `priority`
+(NULL → 0), `tags` (JSON, §4), `subtasks` (JSON, §4), `url`.
 
 ## 7. Config (`config.ini`)
 
@@ -119,4 +129,4 @@ sides trimmed; keys case-insensitive. Writer emits two fixed header lines:
 
 Each platform's test suite must: create a fresh DB and assert the schema
 above; open a fixture DB written by another platform and round-trip every
-column; migrate a `user_version=0..3` fixture to 4 idempotently.
+column; migrate a `user_version=0..4` fixture to 5 idempotently.

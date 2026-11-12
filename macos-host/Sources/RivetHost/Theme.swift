@@ -13,6 +13,8 @@ enum Palette {
 
     static let accentLight = Color(hex: 0xC94F30)
     static let accentDark = Color(hex: 0xE8704F)
+    static let lightAccentInk = Color(hex: 0xFFFFFF)
+    static let darkAccentInk = Color(hex: 0x1B120F)
     static let lightDanger = Color(hex: 0xB3261E)
     static let darkDanger = Color(hex: 0xFF8A7A)
 
@@ -136,5 +138,6 @@ final class ThemeState {
     var badgeBackground: Color { isDark ? Palette.darkBadgeBackground : Palette.lightBadgeBackground }
     var badgeText: Color { isDark ? Palette.darkBadgeText : Palette.lightBadgeText }
     var accent: Color { isDark ? Palette.accentDark : Palette.accentLight }
+    var accentInk: Color { isDark ? Palette.darkAccentInk : Palette.lightAccentInk }
     var danger: Color { isDark ? Palette.darkDanger : Palette.lightDanger }
 }

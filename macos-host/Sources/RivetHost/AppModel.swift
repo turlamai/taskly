@@ -84,6 +84,13 @@ final class AppModel {
     var selectionAnchorIndex: Int?
     /// Row expanded inline for detail editing (Reminders-style ⓘ).
     var expandedTaskID: Int64?
+    /// Anchored task-detail layer (§5b): the row whose popover is open.
+    /// Cleared whenever the task leaves the current view.
+    var detailTaskID: Int64?
+    /// Row tag-chip filter (§5 clickable tag chips): narrows the current
+    /// view client-side to tasks carrying the tag. Toggled from row chips,
+    /// cleared on view changes and from the header chip.
+    var tagFilter: String?
     /// Incremented when Escape cancels an expanded editor. The row owns the
     /// draft buffers, so it observes this token and discards them in place.
     var cancelTaskEditToken = 0
@@ -603,6 +610,10 @@ final class AppModel {
         if !isConnected || !searchText.isEmpty {
             return ""
         }
+        if let tagFilter {
+            let open = tasks.filter { !$0.completed }.count
+            return t("subtitleTagFilter", tagFilter, open)
+        }
         switch currentView {
         case .today:
             // Date shapes come from the platform locale, not copy (§11).
@@ -631,8 +642,14 @@ final class AppModel {
         counts = snapshot.counts
         lists = snapshot.lists
         let stagedIDs = Set(stagedDeleteTasks.map(\.id))
+        var visible = snapshot.tasks.filter { !stagedIDs.contains($0.id) }
+        if let tagFilter { visible = visible.filter { $0.tags.contains(tagFilter) } }
         withAnimation(.easeOut(duration: 0.15)) {
-            tasks = snapshot.tasks.filter { !stagedIDs.contains($0.id) }
+            tasks = visible
+        }
+        // The detail layer closes when its task leaves the current view (§5b).
+        if let detailTaskID, !tasks.contains(where: { $0.id == detailTaskID }) {
+            self.detailTaskID = nil
         }
     }
 
@@ -666,8 +683,12 @@ final class AppModel {
             guard let results = try? await api.search_tasks(keyword: keyword) else { return }
             guard let self, seq == self.reloadSequence else { return }
             let stagedIDs = Set(self.stagedDeleteTasks.map(\.id))
+            var visible = results.filter { !stagedIDs.contains($0.id) }
+            if let tagFilter = self.tagFilter {
+                visible = visible.filter { $0.tags.contains(tagFilter) }
+            }
             withAnimation(.easeOut(duration: 0.15)) {
-                self.tasks = results.filter { !stagedIDs.contains($0.id) }
+                self.tasks = visible
             }
         }
     }
@@ -688,12 +709,35 @@ final class AppModel {
     func select(_ view: SmartView) {
         guard isConnected else { return }
         currentView = view
+        tagFilter = nil
         clearTaskSelection()
         expandedTaskID = nil
         if case .list(let id) = view {
             persistLastSelectedList(id)
         }
         refreshStatusPersistent()
+        reload()
+    }
+
+    /// §5: clicking a row tag chip filters the current view by the tag
+    /// (second click clears). Filtering is client-side over the loaded
+    /// snapshot — a subset of the selected view, never a new query.
+    func toggleTagFilter(_ tag: String) {
+        if tagFilter == tag {
+            clearTagFilter()
+        } else {
+            tagFilter = tag
+            clearTaskSelection()
+            expandedTaskID = nil
+            reload()
+        }
+    }
+
+    func clearTagFilter() {
+        guard tagFilter != nil else { return }
+        tagFilter = nil
+        clearTaskSelection()
+        expandedTaskID = nil
         reload()
     }
 
@@ -842,7 +886,9 @@ final class AppModel {
         RivetTypes.Task(
             id: base.id, list_id: base.list_id, list_name: base.list_name,
             text: base.text, completed: completed, due_date: base.due_date,
-            due_time: base.due_time, notes: base.notes, created_at: base.created_at)
+            due_time: base.due_time, notes: base.notes, created_at: base.created_at,
+            priority: base.priority, tags: base.tags,
+            subtasks: base.subtasks, url: base.url)
     }
 
     func saveTask(_ task: RivetTypes.Task, completion: ((Bool) -> Void)? = nil) {
@@ -868,6 +914,35 @@ final class AppModel {
             } catch {
                 flashStatus("\(error)")
                 completion?(false)
+            }
+        }
+    }
+
+    /// Per-field autosave for the detail layer (§5b): same concurrency
+    /// guard as saveTask, but the completion carries the error so the
+    /// popover can anchor it to the changed field.
+    func saveDetailTask(_ task: RivetTypes.Task,
+                        completion: ((Bool, String?) -> Void)? = nil) {
+        guard let api else {
+            completion?(false, nil)
+            return
+        }
+        // Completion is not a field the editor owns exclusively: a save
+        // built before a concurrent toggle must not silently revert it.
+        var outgoing = task
+        if let current = tasks.first(where: { $0.id == task.id }),
+           current.completed != task.completed {
+            outgoing = Self.withCompletion(outgoing, current.completed)
+        }
+        _Concurrency.Task {
+            do {
+                _ = try await api.update_task(task: outgoing)
+                flashStatus(i18n.t("statusTaskUpdated"))
+                reload()
+                completion?(true, nil)
+            } catch {
+                flashStatus("\(error)")
+                completion?(false, Self.cleanError(error))
             }
         }
     }
@@ -942,7 +1017,9 @@ final class AppModel {
         let updated = RivetTypes.Task(
             id: task.id, list_id: list.id, list_name: list.name, text: task.text,
             completed: task.completed, due_date: task.due_date, due_time: task.due_time,
-            notes: task.notes, created_at: task.created_at)
+            notes: task.notes, created_at: task.created_at,
+            priority: task.priority, tags: task.tags,
+            subtasks: task.subtasks, url: task.url)
         _Concurrency.Task {
             do {
                 _ = try await api.update_task(task: updated)
