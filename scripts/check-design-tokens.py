@@ -24,6 +24,7 @@ CORE_VARS = {
     "--ink2": ("lightSecondaryText", "darkSecondaryText"),
     "--ink3": ("lightTertiaryText", "darkTertiaryText"),
     "--input-border": ("lightInputBorder", "darkInputBorder"),
+    "--danger": ("lightDanger", "darkDanger"),
 }
 
 
@@ -106,10 +107,9 @@ def main() -> None:
         "linux/src/main.cpp",
         [f'"#{value}"' for value in TOKENS.values()],
     )
-    # Overdue red stays the classic system red until D12 migrates Windows
-    # (and Linux) overdue text to the danger pair — see DESIGN-TOKENS ledger.
     windows_values = [
         TOKENS["accentLight"], TOKENS["accentDark"],
+        TOKENS["lightDanger"], TOKENS["darkDanger"],
         TOKENS["lightSidebar"], TOKENS["darkSidebar"],
         TOKENS["lightSurface"], TOKENS["darkSurface"],
         TOKENS["lightDivider"], TOKENS["darkDivider"],

@@ -249,7 +249,7 @@ struct TaskRowView: View {
             return model.theme.secondaryText
         }
         let today = Calendar.current.startOfDay(for: Date())
-        if day < today { return Palette.danger }
+        if day < today { return model.theme.danger }
         if day == today { return model.theme.accent }
         return model.theme.secondaryText
     }

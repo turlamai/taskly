@@ -216,7 +216,7 @@ silently pick a side:
 | D9 | Token CI coverage | every shared hex gated on every host | ~~only 6 values on Windows~~ | ✅ extended on leg/win-drift-2 |
 | D10 | Completed checkbox | ~~PRODUCT-SPEC §5: "ring + check in accent"~~ | leg audit 2026-11-11: macOS compliant · Linux declared exception (§5 8px dot) · **Windows stock CheckBox = undeclared drift** | ✅ spec amended; Windows leg slice: implement the 20px list-color ring or declare the exception in §5 first |
 | D11 | Token values v0.2 on hosts (issue #130) | light tertiary `#6B6866`, dark secondary `#C3BFBD`, checker derives all gated values from shared.css | ~~hosts + checker at v0.1 values~~ | ✅ resolved: atomic slice aligned Theme.swift + MainWindow.xaml + main.cpp + checker (checker now parses shared.css, no value dict) |
-| D12 | Overdue color on Windows/Linux | `danger` pair (see D11) | Windows gate literal `FF3B30` + Windows/Linux overdue brushes | Windows/Linux leg slices (after D11) |
+| D12 | Overdue color on hosts | `danger` pair (see D11) | ~~theme-independent `#FF3B30` overdue brush/text on all three legs~~ | ✅ resolved: atomic slice migrated Theme.swift (`lightDanger`/`darkDanger` + `ThemeState.danger`), Windows `TasklyOverdueBrush` and Linux `Palette.overdue` to the parsed `--danger` pair; checker gates all legs |
 | D13 | Detail layer on hosts | anchored task-detail popover with per-field autosave (§Anchored task detail layer) + theme system (persisted light/dark/system, boot-before-paint) | hosts implement the inline quick editor only | implementation slices per leg, PRODUCT-SPEC §5b governs |
 
 ## Prototype-first process (this repo)
