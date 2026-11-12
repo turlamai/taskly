@@ -12,13 +12,13 @@
                         <SolidColorBrush x:Key="TasklySidebarBrush" Color="#F3F2F1" />
                         <SolidColorBrush x:Key="TasklySurfaceBrush" Color="#FFFFFF" />
                         <SolidColorBrush x:Key="TasklyDividerBrush" Color="#E1DFDD" />
-                        <SolidColorBrush x:Key="TasklySelectedBrush" Color="#E8E4E0" />
+                        <SolidColorBrush x:Key="TasklySelectedBrush" Color="#14000000" />
                         <SolidColorBrush x:Key="TasklySelectionBrush" Color="#14000000" />
-                        <SolidColorBrush x:Key="TasklyHoverBrush" Color="#EBE9E7" />
+                        <SolidColorBrush x:Key="TasklyHoverBrush" Color="#0D000000" />
                         <SolidColorBrush x:Key="TasklyAccentBrush" Color="#C94F30" />
                         <SolidColorBrush x:Key="TasklyAccentSoftBrush" Color="#14C94F30" />
-                        <SolidColorBrush x:Key="TasklyDueTodayBrush" Color="#C4501B" />
-                        <SolidColorBrush x:Key="TasklyOverdueBrush" Color="#D13438" />
+                        <SolidColorBrush x:Key="TasklyDueTodayBrush" Color="#C94F30" />
+                        <SolidColorBrush x:Key="TasklyOverdueBrush" Color="#FF3B30" />
                         <SolidColorBrush x:Key="TasklySecondaryTextBrush" Color="#5F5D5B" />
                         <SolidColorBrush x:Key="TasklyMutedTextBrush" Color="#767370" />
                     </ResourceDictionary>
@@ -26,13 +26,13 @@
                         <SolidColorBrush x:Key="TasklySidebarBrush" Color="#272424" />
                         <SolidColorBrush x:Key="TasklySurfaceBrush" Color="#323234" />
                         <SolidColorBrush x:Key="TasklyDividerBrush" Color="#3B3939" />
-                        <SolidColorBrush x:Key="TasklySelectedBrush" Color="#3A3736" />
+                        <SolidColorBrush x:Key="TasklySelectedBrush" Color="#1FFFFFFF" />
                         <SolidColorBrush x:Key="TasklySelectionBrush" Color="#1FFFFFFF" />
-                        <SolidColorBrush x:Key="TasklyHoverBrush" Color="#332F2F" />
+                        <SolidColorBrush x:Key="TasklyHoverBrush" Color="#12FFFFFF" />
                         <SolidColorBrush x:Key="TasklyAccentBrush" Color="#E8704F" />
                         <SolidColorBrush x:Key="TasklyAccentSoftBrush" Color="#14E8704F" />
-                        <SolidColorBrush x:Key="TasklyDueTodayBrush" Color="#F2913D" />
-                        <SolidColorBrush x:Key="TasklyOverdueBrush" Color="#FF6B6E" />
+                        <SolidColorBrush x:Key="TasklyDueTodayBrush" Color="#E8704F" />
+                        <SolidColorBrush x:Key="TasklyOverdueBrush" Color="#FF3B30" />
                         <SolidColorBrush x:Key="TasklySecondaryTextBrush" Color="#B2AEAC" />
                         <SolidColorBrush x:Key="TasklyMutedTextBrush" Color="#A8A5A3" />
                     </ResourceDictionary>
@@ -319,7 +319,7 @@
                             x:Name="SearchBox"
                             AutomationProperties.AutomationId="task-search"
                             Width="200"
-                            Height="28"
+                            Height="30"
                             CornerRadius="10"
                             VerticalContentAlignment="Center"
                             UseSystemFocusVisuals="False"
@@ -367,7 +367,7 @@
                         <Border
                             x:Name="QuickAddCard"
                             Margin="24,4,24,10"
-                            CornerRadius="12"
+                            CornerRadius="10"
                             Background="{ThemeResource TasklySurfaceBrush}"
                             BorderBrush="{ThemeResource TasklyDividerBrush}"
                             BorderThickness="1">
@@ -395,7 +395,7 @@
                                     AutomationProperties.AutomationId="quick-add"
                                     Grid.Column="1"
                                     Margin="10,0,0,0"
-                                    MinHeight="40"
+                                    MinHeight="36"
                                     FontSize="14"
                                     VerticalAlignment="Center"
                                     UseSystemFocusVisuals="False"

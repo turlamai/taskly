@@ -17,7 +17,9 @@ README's honest gaps).
 
 ## 2. Window & layout
 
-- Default 1024×768, min 760×520. Menu bar (or native menu on macOS) +
+- Default 1280×880, min 760×520 (amended 2026-11-11 per drift D1 — the
+  visual contract's value; macOS already ships it, Windows/Linux align).
+  Menu bar (or native menu on macOS) +
   status bar + main split: sidebar 280px (min 200, max 420, resizable) +
   task pane.
 - Status bar shows a persistent line (search term > view description >
@@ -83,8 +85,10 @@ README's honest gaps).
 
 ## 5. Task row
 
-- 20px circular checkbox: incomplete = hollow ring; complete = ring +
-  check in accent; completed text gets strikethrough + tertiary color.
+- 20px circular checkbox: incomplete = hollow ring; complete = list-color
+  fill with a white check (amended 2026-11-11 per drift D10 — DESIGN-TOKENS
+  wins, keeping the color continuity with the owning list); completed text
+  gets strikethrough + tertiary color.
   The checkbox and task title share the **same first-row vertical center**
   on every platform. Due date, time and notes (only when actually present)
   sit beneath the title, not beside or vertically above the checkbox.
