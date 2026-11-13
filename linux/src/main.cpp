@@ -2953,6 +2953,10 @@ GtkWidget* detail_date_popover_button(TaskDetail* detail) {
 }
 
 void open_task_detail(std::int64_t id, GtkWidget* anchor) {
+  g_printerr("detail-open: id=%lld open_id=%lld open=%p\n",
+             static_cast<long long>(id),
+             static_cast<long long>(g_state.open_detail_id),
+             static_cast<void*>(g_state.open_detail));
   // ⓘ on an open layer closes it again (aria-expanded tracked by state).
   if (g_state.open_detail_id == id && g_state.open_detail != nullptr) {
     detail_close();
@@ -2960,6 +2964,7 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   }
   detail_close();
   auto* stored = find_by_id(g_state.tasks, id);
+  g_printerr("detail-open: stored=%s\n", stored != nullptr ? "yes" : "no");
   if (stored == nullptr) return;
 
   auto* detail = new TaskDetail();
