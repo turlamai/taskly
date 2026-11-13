@@ -4829,6 +4829,9 @@ void on_search_stopped(GtkSearchEntry* entry, gpointer) {
 // the Things escape ladder.
 gboolean on_window_key_pressed(GtkEventControllerKey*, guint keyval,
                                guint, GdkModifierType, gpointer) {
+  // While the task-detail layer is open, Esc and Return belong to it; the
+  // autohide popover closes on Esc by itself.
+  if (g_state.open_detail != nullptr) return FALSE;
   if (keyval != GDK_KEY_Escape) return FALSE;
   if (g_state.open_editor_id >= 0) {
     collapse_open_editor();
@@ -5428,6 +5431,11 @@ void on_activate(GtkApplication* app, gpointer) {
   g_signal_connect(
       task_list, "row-activated",
       G_CALLBACK(+[](GtkListBox*, GtkListBoxRow* row, gpointer) {
+        if (g_state.open_detail != nullptr) {
+          // The detail layer owns Enter while open (its title field uses
+          // Return to commit); row activation must not tear it down.
+          return;
+        }
         auto const data = g_object_get_data(G_OBJECT(row), "task-id");
         if (data == nullptr) return;  // completed-section header
         auto const id = static_cast<std::int64_t>(GPOINTER_TO_SIZE(data));
