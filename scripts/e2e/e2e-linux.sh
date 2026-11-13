@@ -7,6 +7,11 @@ install_record="$output/installed-app.json"
 if [[ -f "$install_record" ]]; then
   executable=/opt/taskly/RivetHost
   installed_package=taskly
+elif [[ -x /opt/taskly/RivetHost ]] && dpkg -s taskly >/dev/null 2>&1; then
+  # The package suite's install-lifecycle left the deb installed (its
+  # uninstall runs in cleanup below) but the record file did not survive.
+  executable=/opt/taskly/RivetHost
+  installed_package=taskly
 else
   executable="$(find "$repo/dist" -path '*/taskly-linux-*/RivetHost' -type f -print -quit)"
   installed_package=""
