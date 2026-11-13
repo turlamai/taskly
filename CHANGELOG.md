@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and manifest validation to `raco rivet sign-manifest`; the wrapper keeps
   only Taskly's artifact matrix and release identity. The emitted manifest
   payload is unchanged apart from `published_at`.
+- `scripts/update-keys.sh` now delegates to `raco rivet update-keys`, which
+  owns key generation, the 0600 private-key file, and every DER/SPKI/raw
+  encoding the Racket and Swift verifiers embed.
 
 ## [0.2.12] - 2026-11-13
 
