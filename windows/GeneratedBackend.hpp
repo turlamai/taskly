@@ -19,7 +19,7 @@ namespace rivet_app {
 inline constexpr char kModuleName[] = "backend";
 inline constexpr char kEntryName[] = "start";
 inline constexpr char kDisplayName[] = "Taskly";
-inline constexpr char kVersion[] = "0.2.11";
+inline constexpr char kVersion[] = "0.2.12";
 inline constexpr std::int64_t kBuild = 1;
 inline constexpr char kIdentifier[] = "app.taskly.Taskly";
 inline constexpr char kReleaseChannel[] = "stable";
@@ -28,6 +28,11 @@ struct QuickAddParse {
   std::string text;
   std::optional<std::string> due_date;
   std::optional<std::string> due_time;
+};
+
+struct Subtask {
+  std::string text;
+  bool done;
 };
 
 struct Task {
@@ -40,6 +45,10 @@ struct Task {
   std::optional<std::string> due_time;
   std::optional<std::string> notes;
   std::string created_at;
+  std::int64_t priority;
+  std::vector<std::string> tags;
+  std::vector<Subtask> subtasks;
+  std::optional<std::string> url;
 };
 
 struct ReminderDecision {
@@ -118,7 +127,10 @@ inline rivet::Value encode_Bool(bool v) { return rivet::Value(v); }
 inline rivet::Value encode_Int64(std::int64_t v) { return rivet::Value(v); }
 inline rivet::Value encode__Optional_Int64_(std::optional<std::int64_t> const& v) { return v ? encode_Int64(*v) : rivet::Value{}; }
 inline rivet::Value encode__Optional_String_(std::optional<std::string> const& v) { return v ? encode_String(*v) : rivet::Value{}; }
-inline rivet::Value encode_Task(Task const& v) { rivet::Value::List r; r.reserve(9); r.push_back(encode_Int64(v.id)); r.push_back(encode_Int64(v.list_id)); r.push_back(encode__Optional_String_(v.list_name)); r.push_back(encode_String(v.text)); r.push_back(encode_Bool(v.completed)); r.push_back(encode__Optional_String_(v.due_date)); r.push_back(encode__Optional_String_(v.due_time)); r.push_back(encode__Optional_String_(v.notes)); r.push_back(encode_String(v.created_at)); return rivet::Value(std::move(r)); }
+inline rivet::Value encode__List_String_(std::vector<std::string> const& xs) { rivet::Value::List r; r.reserve(xs.size()); for (auto const& x : xs) r.push_back(encode_String(x)); return rivet::Value(std::move(r)); }
+inline rivet::Value encode_Subtask(Subtask const& v) { rivet::Value::List r; r.reserve(2); r.push_back(encode_String(v.text)); r.push_back(encode_Bool(v.done)); return rivet::Value(std::move(r)); }
+inline rivet::Value encode__List_Subtask_(std::vector<Subtask> const& xs) { rivet::Value::List r; r.reserve(xs.size()); for (auto const& x : xs) r.push_back(encode_Subtask(x)); return rivet::Value(std::move(r)); }
+inline rivet::Value encode_Task(Task const& v) { rivet::Value::List r; r.reserve(13); r.push_back(encode_Int64(v.id)); r.push_back(encode_Int64(v.list_id)); r.push_back(encode__Optional_String_(v.list_name)); r.push_back(encode_String(v.text)); r.push_back(encode_Bool(v.completed)); r.push_back(encode__Optional_String_(v.due_date)); r.push_back(encode__Optional_String_(v.due_time)); r.push_back(encode__Optional_String_(v.notes)); r.push_back(encode_String(v.created_at)); r.push_back(encode_Int64(v.priority)); r.push_back(encode__List_String_(v.tags)); r.push_back(encode__List_Subtask_(v.subtasks)); r.push_back(encode__Optional_String_(v.url)); return rivet::Value(std::move(r)); }
 inline rivet::Value encode_UpdateCheck(UpdateCheck const& v) { rivet::Value::List r; r.reserve(8); r.push_back(encode_String(v.status)); r.push_back(encode__Optional_String_(v.error)); r.push_back(encode_String(v.current_version)); r.push_back(encode__Optional_String_(v.available_version)); r.push_back(encode__Optional_Int64_(v.build)); r.push_back(encode__Optional_String_(v.published_at)); r.push_back(encode__Optional_String_(v.installer)); r.push_back(encode__Optional_Int64_(v.size_bytes)); return rivet::Value(std::move(r)); }
 inline rivet::Value encode_Void() { return rivet::Value{}; }
 inline rivet::Value encode_TodoList(TodoList const& v) { rivet::Value::List r; r.reserve(5); r.push_back(encode_Int64(v.id)); r.push_back(encode_String(v.name)); r.push_back(encode__Optional_String_(v.icon)); r.push_back(encode__Optional_Int64_(v.color)); r.push_back(encode_Int64(v.pending_count)); return rivet::Value(std::move(r)); }
@@ -139,7 +151,10 @@ inline bool decode_Bool(rivet::Value const& v) { if (auto p = std::get_if<bool>(
 inline std::int64_t decode_Int64(rivet::Value const& v) { if (auto p = std::get_if<std::int64_t>(&v.data)) return *p; throw std::runtime_error("Rivet result type mismatch: Int64"); }
 inline std::optional<std::int64_t> decode__Optional_Int64_(rivet::Value const& v) { if (std::holds_alternative<std::monostate>(v.data)) return std::nullopt; return decode_Int64(v); }
 inline std::optional<std::string> decode__Optional_String_(rivet::Value const& v) { if (std::holds_alternative<std::monostate>(v.data)) return std::nullopt; return decode_String(v); }
-inline Task decode_Task(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p || p->size() != 9) throw std::runtime_error("Rivet result type mismatch: Task"); return Task{decode_Int64((*p)[0]), decode_Int64((*p)[1]), decode__Optional_String_((*p)[2]), decode_String((*p)[3]), decode_Bool((*p)[4]), decode__Optional_String_((*p)[5]), decode__Optional_String_((*p)[6]), decode__Optional_String_((*p)[7]), decode_String((*p)[8])}; }
+inline std::vector<std::string> decode__List_String_(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p) throw std::runtime_error("Rivet result type mismatch: (List String)"); std::vector<std::string> r; r.reserve(p->size()); for (auto const& x : *p) r.push_back(decode_String(x)); return r; }
+inline Subtask decode_Subtask(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p || p->size() != 2) throw std::runtime_error("Rivet result type mismatch: Subtask"); return Subtask{decode_String((*p)[0]), decode_Bool((*p)[1])}; }
+inline std::vector<Subtask> decode__List_Subtask_(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p) throw std::runtime_error("Rivet result type mismatch: (List Subtask)"); std::vector<Subtask> r; r.reserve(p->size()); for (auto const& x : *p) r.push_back(decode_Subtask(x)); return r; }
+inline Task decode_Task(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p || p->size() != 13) throw std::runtime_error("Rivet result type mismatch: Task"); return Task{decode_Int64((*p)[0]), decode_Int64((*p)[1]), decode__Optional_String_((*p)[2]), decode_String((*p)[3]), decode_Bool((*p)[4]), decode__Optional_String_((*p)[5]), decode__Optional_String_((*p)[6]), decode__Optional_String_((*p)[7]), decode_String((*p)[8]), decode_Int64((*p)[9]), decode__List_String_((*p)[10]), decode__List_Subtask_((*p)[11]), decode__Optional_String_((*p)[12])}; }
 inline UpdateCheck decode_UpdateCheck(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p || p->size() != 8) throw std::runtime_error("Rivet result type mismatch: UpdateCheck"); return UpdateCheck{decode_String((*p)[0]), decode__Optional_String_((*p)[1]), decode_String((*p)[2]), decode__Optional_String_((*p)[3]), decode__Optional_Int64_((*p)[4]), decode__Optional_String_((*p)[5]), decode__Optional_String_((*p)[6]), decode__Optional_Int64_((*p)[7])}; }
 inline void decode_Void(rivet::Value const& v) { if (!std::holds_alternative<std::monostate>(v.data)) throw std::runtime_error("Rivet result type mismatch: Void"); }
 inline TodoList decode_TodoList(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p || p->size() != 5) throw std::runtime_error("Rivet result type mismatch: TodoList"); return TodoList{decode_Int64((*p)[0]), decode_String((*p)[1]), decode__Optional_String_((*p)[2]), decode__Optional_Int64_((*p)[3]), decode_Int64((*p)[4])}; }

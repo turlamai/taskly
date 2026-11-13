@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require db
+         json
          racket/file
          racket/list
          racket/path
@@ -30,7 +31,7 @@
          db-count-today
          db-count-planned)
 
-(define database-version 4)
+(define database-version 5)
 (struct taskly-db (connection path) #:transparent)
 
 (define (maybe-sql value)
@@ -56,7 +57,7 @@
   (query-exec conn
               "CREATE TABLE lists (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, icon TEXT, color INTEGER, created_at TEXT NOT NULL)")
   (query-exec conn
-              "CREATE TABLE tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, list_id INTEGER, text TEXT NOT NULL, due_date TEXT, due_time TEXT, completed INTEGER DEFAULT 0, created_at TEXT NOT NULL, notes TEXT, FOREIGN KEY (list_id) REFERENCES lists (id))")
+              "CREATE TABLE tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, list_id INTEGER, text TEXT NOT NULL, due_date TEXT, due_time TEXT, completed INTEGER DEFAULT 0, created_at TEXT NOT NULL, notes TEXT, priority INTEGER DEFAULT 0, tags TEXT, subtasks TEXT, url TEXT, FOREIGN KEY (list_id) REFERENCES lists (id))")
   (create-indexes! conn)
   (query-exec conn
               "INSERT INTO lists (name, icon, color, created_at) VALUES (?, ?, ?, ?)"
@@ -76,7 +77,12 @@
           (ensure-column! conn "lists" "color" "INTEGER"))
         (when (< old-version 4)
           (ensure-column! conn "tasks" "due_time" "TEXT")
-          (ensure-column! conn "tasks" "notes" "TEXT"))])))
+          (ensure-column! conn "tasks" "notes" "TEXT"))
+        (when (< old-version 5)
+          (ensure-column! conn "tasks" "priority" "INTEGER DEFAULT 0")
+          (ensure-column! conn "tasks" "tags" "TEXT")
+          (ensure-column! conn "tasks" "subtasks" "TEXT")
+          (ensure-column! conn "tasks" "url" "TEXT"))])))
   ;; Keep parity with the native implementations: this pragma is written
   ;; outside the migration transaction.
   (query-exec conn (format "PRAGMA user_version = ~a" database-version))
@@ -166,7 +172,42 @@
   existed?)
 
 (define task-select
-  "SELECT t.id, t.list_id, t.text, t.due_date, t.due_time, t.completed, t.created_at, t.notes, l.name AS list_name FROM tasks t LEFT JOIN lists l ON t.list_id = l.id")
+  "SELECT t.id, t.list_id, t.text, t.due_date, t.due_time, t.completed, t.created_at, t.notes, l.name AS list_name, t.priority, t.tags, t.subtasks, t.url FROM tasks t LEFT JOIN lists l ON t.list_id = l.id")
+
+;; JSON columns (v5): tags is a JSON string array, subtasks a JSON array of
+;; {text, done} objects. NULL or unparseable payloads read as empty; a NULL
+;; priority reads as 0.
+(define (json-column->value raw)
+  (and (string? raw)
+       (with-handlers ([exn:fail? (lambda (_) #f)])
+         (read-json (open-input-string raw)))))
+
+(define (sql->tags raw)
+  (define parsed (json-column->value raw))
+  (if (list? parsed)
+      (for/list ([item parsed] #:when (string? item)) item)
+      (list)))
+
+(define (sql->subtasks raw)
+  (define parsed (json-column->value raw))
+  (if (list? parsed)
+      (for/list ([item parsed]
+                 #:when (hash? item)
+                 #:when (string? (hash-ref item 'text #f)))
+        (subtask (hash-ref item 'text)
+                 (and (boolean? (hash-ref item 'done #f))
+                      (hash-ref item 'done #f))))
+      (list)))
+
+(define (tags->sql tags)
+  (maybe-sql (and (pair? tags) (jsexpr->string tags))))
+
+(define (subtasks->sql subtasks)
+  (maybe-sql
+   (and (pair? subtasks)
+        (jsexpr->string
+         (for/list ([item subtasks])
+           (hash 'text (subtask-text item) 'done (subtask-done item)))))))
 
 (define (row->task row)
   (task-item (vector-ref row 0)
@@ -177,7 +218,11 @@
              (= 1 (vector-ref row 5))
              (vector-ref row 6)
              (maybe-value (vector-ref row 7))
-             (maybe-value (vector-ref row 8))))
+             (maybe-value (vector-ref row 8))
+             (if (integer? (vector-ref row 9)) (vector-ref row 9) 0)
+             (sql->tags (vector-ref row 10))
+             (sql->subtasks (vector-ref row 11))
+             (maybe-value (vector-ref row 12))))
 
 (define (query-tasks db suffix . params)
   (map row->task
@@ -223,14 +268,18 @@
 (define (db-add-task! db task)
   (define conn (taskly-db-connection db))
   (query-exec conn
-              "INSERT INTO tasks (list_id, text, due_date, due_time, completed, created_at, notes) VALUES (?, ?, ?, ?, ?, ?, ?)"
+              "INSERT INTO tasks (list_id, text, due_date, due_time, completed, created_at, notes, priority, tags, subtasks, url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
               (task-item-list-id task)
               (task-item-text task)
               (maybe-sql (task-item-due-date task))
               (maybe-sql (task-item-due-time task))
               (if (task-item-completed task) 1 0)
               (task-item-created-at task)
-              (maybe-sql (task-item-notes task)))
+              (maybe-sql (task-item-notes task))
+              (or (task-item-priority task) 0)
+              (tags->sql (task-item-tags task))
+              (subtasks->sql (task-item-subtasks task))
+              (maybe-sql (task-item-url task)))
   (query-value conn "SELECT last_insert_rowid()"))
 
 (define (db-update-task! db task)
@@ -238,13 +287,17 @@
   (define existed? (and (db-task-by-id db (task-item-id task)) #t))
   (when existed?
     (query-exec conn
-                "UPDATE tasks SET list_id = ?, text = ?, due_date = ?, due_time = ?, completed = ?, notes = ? WHERE id = ?"
+                "UPDATE tasks SET list_id = ?, text = ?, due_date = ?, due_time = ?, completed = ?, notes = ?, priority = ?, tags = ?, subtasks = ?, url = ? WHERE id = ?"
                 (task-item-list-id task)
                 (task-item-text task)
                 (maybe-sql (task-item-due-date task))
                 (maybe-sql (task-item-due-time task))
                 (if (task-item-completed task) 1 0)
                 (maybe-sql (task-item-notes task))
+                (or (task-item-priority task) 0)
+                (tags->sql (task-item-tags task))
+                (subtasks->sql (task-item-subtasks task))
+                (maybe-sql (task-item-url task))
                 (task-item-id task)))
   existed?)
 

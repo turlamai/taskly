@@ -78,6 +78,27 @@ struct TaskPaneView: View {
 
             Spacer(minLength: 12)
 
+            // Row tag-chip filter (§5): a clear affordance stays in the
+            // header while the filter narrows the view.
+            if model.tagFilter != nil {
+                Button {
+                    model.clearTagFilter()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                        Text(model.t("detailClearFilter"))
+                            .font(.system(size: 12))
+                    }
+                    .foregroundStyle(model.theme.secondaryText)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(model.theme.badgeBackground, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("clear-tag-filter")
+            }
+
             // Search lives in the header toolbar, left of the completed
             // toggle (PRODUCT-SPEC §2).
             if model.isConnected {
@@ -194,8 +215,11 @@ struct TaskPaneView: View {
         Group {
             if model.tasks.isEmpty {
                 emptyState(
-                    icon: "checkmark.circle", opacity: 0.3,
-                    text: model.t("taskListEmptyFirstRun"))
+                    icon: model.tagFilter == nil ? "checkmark.circle" : "tag",
+                    opacity: 0.3,
+                    text: model.tagFilter == nil
+                        ? model.t("taskListEmptyFirstRun")
+                        : model.t("tagFilterEmpty"))
             } else {
                 ScrollView {
                     LazyVStack(spacing: 2) {

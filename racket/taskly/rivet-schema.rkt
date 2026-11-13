@@ -24,6 +24,10 @@
    [color : (Optional Int64)]
    [pending-count : Int64]))
 
+(define-record Subtask
+  ([text : String]
+   [done : Bool]))
+
 (define-record Task
   ([id : Int64]
    [list-id : Int64]
@@ -33,7 +37,11 @@
    [due-date : (Optional String)]
    [due-time : (Optional String)]
    [notes : (Optional String)]
-   [created-at : String]))
+   [created-at : String]
+   [priority : Int64]
+   [tags : (List String)]
+   [subtasks : (List Subtask)]
+   [url : (Optional String)]))
 
 (define-record Snapshot
   ([counts : SmartCounts]
@@ -94,6 +102,12 @@
 (define (optional->false value)
   (if (void? value) #f value))
 
+(define (subtask->dto item)
+  (Subtask (subtask-text item) (subtask-done item)))
+
+(define (dto->subtask dto)
+  (subtask (record-ref dto 'text) (record-ref dto 'done)))
+
 (define (task->dto task)
   (Task (task-item-id task)
         (task-item-list-id task)
@@ -103,7 +117,11 @@
         (nullable (task-item-due-date task))
         (nullable (task-item-due-time task))
         (nullable (task-item-notes task))
-        (task-item-created-at task)))
+        (task-item-created-at task)
+        (or (task-item-priority task) 0)
+        (or (task-item-tags task) (list))
+        (map subtask->dto (or (task-item-subtasks task) (list)))
+        (nullable (task-item-url task))))
 
 (define (dto->task dto)
   (task-item (record-ref dto 'id)
@@ -114,7 +132,11 @@
              (record-ref dto 'completed)
              (record-ref dto 'created-at)
              (optional->false (record-ref dto 'notes))
-             (optional->false (record-ref dto 'list-name))))
+             (optional->false (record-ref dto 'list-name))
+             (record-ref dto 'priority)
+             (record-ref dto 'tags)
+             (map dto->subtask (record-ref dto 'subtasks))
+             (optional->false (record-ref dto 'url))))
 
 (define (list->dto item)
   (TodoList (todo-list-id item)

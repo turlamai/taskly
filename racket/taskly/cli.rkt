@@ -350,6 +350,10 @@
                 #f
                 (local-timestamp)
                 (flag flags 'notes)
+                #f
+                0
+                '()
+                '()
                 #f)))
   (define t (db-task-by-id db new-id))
   (cond
@@ -391,7 +395,11 @@
    db
    (task-item id list-id text due-date due-time
               (task-item-completed t) (task-item-created-at t) notes
-              (task-item-list-name t)))
+              (task-item-list-name t)
+              ;; CLI update has no flags for the v5 detail fields yet; the
+              ;; stored values pass through untouched.
+              (task-item-priority t) (task-item-tags t)
+              (task-item-subtasks t) (task-item-url t)))
   (define updated (db-task-by-id db id))
   (cond
     [(flag flags 'json) (emit-json (task-json updated))]

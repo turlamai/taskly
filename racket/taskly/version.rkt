@@ -16,7 +16,7 @@
          platform-symbol
          architecture-symbol)
 
-(define app-version "0.2.11")
+(define app-version "0.2.12")
 (define app-build 1)
 (define app-identifier "app.taskly.Taskly")
 (define app-channel 'stable)

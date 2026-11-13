@@ -296,7 +296,10 @@ be written here before it can be accepted; none is declared for these rows.
 ## 10. Validation
 
 Task text non-empty ≤1000 chars; list name non-empty ≤100; date year
-1900–2100; (search keyword ≤200 — CLI layer). Error messages from i18n.
+1900–2100; (search keyword ≤200 — CLI layer). Priority is an integer 0–3
+(0 none · 1 low · 2 medium · 3 high); tags are strings, each non-empty
+≤100 chars; subtask text non-empty ≤500 chars; URL ≤2048 chars when
+present (blank → absent). Error messages from i18n.
 
 ## 11. i18n
 

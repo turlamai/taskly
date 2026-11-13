@@ -72,11 +72,11 @@
      (check-equal? (resolve-database-path #f loaded-config)
                    (path->complete-path (build-path temp-root "custom.db")))
 
-     ;; SQLite v4 and the product editing slice.
+     ;; SQLite v5 and the product editing slice.
      (define db-path (build-path temp-root "slice.db"))
      (define service (open-taskly-service db-path))
      (define db (taskly-service-db service))
-     (check-equal? (query-value (taskly-db-connection db) "PRAGMA user_version") 4)
+     (check-equal? (query-value (taskly-db-connection db) "PRAGMA user_version") 5)
      (define initial-lists (service-lists service))
      (check-equal? (length initial-lists) 1)
      (define default-list (car initial-lists))
@@ -122,6 +122,39 @@
      (check-equal? (task-item-notes moved) "note")
      (check-true (task-item-completed moved))
      (check-equal? (task-item-created-at moved) (task-item-created-at second))
+
+     ;; v5 detail fields: validated on write and round-tripped through the
+     ;; JSON columns (trimmed, persisted, re-read).
+     (define detailed
+       (service-update-task!
+        service
+        (struct-copy task-item moved
+                     [priority 3]
+                     [tags (list " family ")]
+                     [subtasks (list (subtask " buy milk " #f)
+                                     (subtask "call back" #t))]
+                     [url "https://example.com/moved"])))
+     (check-equal? (task-item-priority detailed) 3)
+     (check-equal? (task-item-tags detailed) (list "family"))
+     (check-equal? (task-item-subtasks detailed)
+                   (list (subtask "buy milk" #f) (subtask "call back" #t)))
+     (check-equal? (task-item-url detailed) "https://example.com/moved")
+     (define re-read (service-task service (task-item-id moved)))
+     (check-equal? (task-item-priority re-read) 3)
+     (check-equal? (task-item-tags re-read) (list "family"))
+     (check-equal? (task-item-subtasks re-read)
+                   (list (subtask "buy milk" #f) (subtask "call back" #t)))
+     (check-equal? (task-item-url re-read) "https://example.com/moved")
+     (check-exn exn:fail:taskly?
+                (lambda ()
+                  (service-update-task!
+                   service
+                   (struct-copy task-item moved [priority 9]))))
+     (check-exn exn:fail:taskly?
+                (lambda ()
+                  (service-update-task!
+                   service
+                   (struct-copy task-item moved [tags (list "")]))))
 
      ;; Deleting a list still cascades tasks that remain in it.
      (define doomed (service-add-task! service "delete me" #:list-id (todo-list-id renamed-list)))

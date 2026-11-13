@@ -85,7 +85,8 @@
   (define selected-list-id (or list-id (default-list-id service)))
   (require-list service selected-list-id)
   (define task
-    (task-item 0 selected-list-id clean-text due-date due-time #f (local-timestamp) notes #f))
+    (task-item 0 selected-list-id clean-text due-date due-time #f (local-timestamp) notes #f
+               0 (list) (list) #f))
   (define id (db-add-task! (taskly-service-db service) task))
   (service-task service id))
 
@@ -108,7 +109,11 @@
                  [due-date (task-item-due-date replacement)]
                  [due-time (task-item-due-time replacement)]
                  [completed (task-item-completed replacement)]
-                 [notes (task-item-notes replacement)]))
+                 [notes (task-item-notes replacement)]
+                 [priority (validate-task-priority! (task-item-priority replacement))]
+                 [tags (validate-task-tags! (task-item-tags replacement))]
+                 [subtasks (validate-task-subtasks! (task-item-subtasks replacement))]
+                 [url (validate-task-url! (task-item-url replacement))]))
   (db-update-task! (taskly-service-db service) updated)
   (service-task service (task-item-id updated)))
 

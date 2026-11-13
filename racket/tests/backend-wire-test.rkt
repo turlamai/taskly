@@ -153,7 +153,7 @@
    ;; Snapshot wire shape: [counts lists tasks], counts [today planned all
    ;; completed] (all counts incomplete tasks), lists [id name icon color
    ;; pending-count], tasks [id list-id list-name text completed due-date
-   ;; due-time notes created-at].
+   ;; due-time notes created-at priority tags subtasks url].
    (check-equal? (length snap0) 3)
    (check-equal? (list-ref snap0 0) (list 0 0 0 0))
    (check-equal? (list-ref snap0 1)
@@ -163,7 +163,7 @@
    (define-values (task-a-wire _add-a-err)
      (call-rpc 'add_task "write wire test" (void) (void) (void) (void)))
    (check-false _add-a-err)
-   (check-equal? (length task-a-wire) 9)
+   (check-equal? (length task-a-wire) 13)
    (check-equal? (list-ref task-a-wire 0) 1)
    (check-equal? (list-ref task-a-wire 1) 1)
    (check-equal? (list-ref task-a-wire 2) "工作")
@@ -172,6 +172,10 @@
    (check-equal? (list-ref task-a-wire 5) (void))
    (check-equal? (list-ref task-a-wire 7) (void))
    (check-true (string? (list-ref task-a-wire 8)) "created-at travels")
+   (check-equal? (list-ref task-a-wire 9) 0)
+   (check-equal? (list-ref task-a-wire 10) '())
+   (check-equal? (list-ref task-a-wire 11) '())
+   (check-equal? (list-ref task-a-wire 12) (void))
    ;; Every mutation publishes the changed event with a wire snapshot.
    (check-equal? (length last-events) 1)
    (check-equal? (car (car last-events)) "changed")
@@ -182,7 +186,8 @@
    (check-false _add-b-err)
    (check-equal? task-b-wire
                  (list 2 1 "工作" "with due" #f "2099-01-01" "09:30"
-                       "some notes" (list-ref task-b-wire 8)))
+                       "some notes" (list-ref task-b-wire 8)
+                       0 '() '() (void)))
 
    (define-values (snap-all _ls-err) (call-rpc 'load_snapshot "all" (void) #f))
    (check-equal? (list-ref snap-all 0) (list 0 1 2 0)
@@ -210,6 +215,25 @@
    (check-equal? (list-ref upd-wire 3) "edited over the wire")
    (check-equal? (list-ref upd-wire 5) "2099-01-01")
    (check-equal? (list-ref upd-wire 7) "some notes")
+
+   ;; v5 detail fields travel over the wire (priority, tags, subtask
+   ;; [text done] pairs, url) and validation rejects out-of-range values.
+   (define wire-subtasks (list (list "buy milk" #f) (list "call back" #t)))
+   (define detailed
+     (list-set (list-set (list-set (list-set task-b-wire 9 2)
+                                   10 (list "work" " week "))
+                         11 wire-subtasks)
+               12 "https://example.com/okr"))
+   (define-values (detailed-wire _ud-err) (call-rpc 'update_task detailed))
+   (check-false _ud-err)
+   (check-equal? (list-ref detailed-wire 9) 2)
+   (check-equal? (list-ref detailed-wire 10) (list "work" "week"))
+   (check-equal? (list-ref detailed-wire 11) wire-subtasks)
+   (check-equal? (list-ref detailed-wire 12) "https://example.com/okr")
+   (define-values (_bp-val bad-prio-err)
+     (call-rpc 'update_task (list-set task-b-wire 9 7)))
+   (check-true (and (string? bad-prio-err)
+                    (string-contains? bad-prio-err "Priority must be an integer from 0 to 3.")))
 
    (define-values (renamed-wire _rt-err)
      (call-rpc 'update_task_text 2 "renamed over wire"))
