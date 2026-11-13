@@ -2182,6 +2182,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   date_box.PlaceholderText(L"yyyy-MM-dd");
   date_box.Text(stored->due_date.has_value() ? wide(*stored->due_date)
                                              : L"");
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      date_box, L"detail-date-" + std::to_wstring(id));
   date_box.KeyDown([weak](auto const&,
                           mx::Input::KeyRoutedEventArgs const& args) {
     if (args.Key() == Windows::System::VirtualKey::Enter) {
@@ -2208,6 +2210,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   time_box.Width(80);
   time_box.PlaceholderText(L"HH:mm");
   time_box.Text(stored->due_time.has_value() ? wide(*stored->due_time) : L"");
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      time_box, L"detail-time-" + std::to_wstring(id));
   time_box.KeyDown([weak](auto const&,
                           mx::Input::KeyRoutedEventArgs const& args) {
     if (args.Key() == Windows::System::VirtualKey::Enter) {
@@ -2317,6 +2321,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   notes.Height(80);
   notes.TextWrapping(mx::TextWrapping::Wrap);
   notes.Text(stored->notes.has_value() ? wide(*stored->notes) : L"");
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      notes, L"detail-notes-" + std::to_wstring(id));
   notes.LostFocus([weak](auto const&, auto const&) {
     if (auto window = weak.get()) window->DetailAutosave(7);
   });
