@@ -1452,7 +1452,7 @@ mxc::Grid MainWindow::MakeTaskRow(rivet_app::Task const& task,
       info, t("contextMenuDetails"));
   info.Click([weak = get_weak(), id = task.id,
               anchor = info](auto const&, auto const&) {
-    if (auto window = weak.get()) window->OpenTaskDetail(id, anchor);
+    if (auto window = weak.get()) window->OpenTaskDetail(id);
   });
   row.PointerEntered([info](auto const&, auto const&) { info.Opacity(1.0); });
   row.PointerExited([info, expanded_here](auto const&, auto const&) {
@@ -2088,7 +2088,7 @@ void MainWindow::ResetInlineTaskEditor() {
 // scheduling semantics, so the field is absent by declared scope.
 // ---------------------------------------------------------------------------
 
-void MainWindow::OpenTaskDetail(std::int64_t id, mxc::Button anchor) {
+void MainWindow::OpenTaskDetail(std::int64_t id) {
   if (detail_task_id_ == id && detail_flyout_ != nullptr) {
     CloseTaskDetail();
     return;
@@ -2098,7 +2098,6 @@ void MainWindow::OpenTaskDetail(std::int64_t id, mxc::Button anchor) {
   if (stored == nullptr) return;
 
   detail_task_id_ = id;
-  detail_anchor_ = anchor;
   detail_tags_.clear();
   for (auto const& tag : stored->tags) detail_tags_.push_back(wide(tag));
   detail_subtasks_ = stored->subtasks;
@@ -2409,16 +2408,41 @@ void MainWindow::OpenTaskDetail(std::int64_t id, mxc::Button anchor) {
 
   auto flyout = mxc::Flyout{};
   flyout.Content(root);
-  auto const should_show = anchor.XamlRoot() != nullptr;
   flyout.Closed([weak](auto const&, auto const&) {
     if (auto window = weak.get()) window->OnDetailFlyoutClosed();
   });
   detail_flyout_ = flyout;
   DetailRebuildTags();
   DetailRebuildSubtasks();
-  if (should_show) {
+  // Anchor the layer to the task list itself, not to a row: changed-event
+  // rebuilds replace row elements, and a flyout whose placement target is
+  // destroyed closes on its own. The list is stable, so the layer survives
+  // rebuilds; only its offset is recomputed from the row's position.
+  auto const anchor = TaskList();
+  if (anchor.XamlRoot() != nullptr) {
+    double x = 16;
+    double y = 16;
+    for (auto const& item : anchor.Items()) {
+      if (auto row = item.try_as<mxc::Grid>()) {
+        if (!row.Tag()) continue;
+        if (winrt::unbox_value<std::int64_t>(row.Tag()) != id) continue;
+        auto const point = row.TransformToVisual(anchor).TransformPoint({0, 0});
+        x = point.X + row.ActualWidth() - 348 - 16;
+        y = point.Y;
+        break;
+      }
+    }
+    auto const list_width = anchor.ActualWidth();
+    auto const list_height = anchor.ActualHeight();
+    if (x < 8) x = 8;
+    if (x + 348 > list_width - 8) x = list_width - 348 - 8;
+    if (y + 420 > list_height - 8) y = list_height - 420 - 8;
+    if (y < 8) y = 8;
+    mxc::FlyoutShowOptions options{};
+    options.Position(winrt::Windows::Foundation::Point{
+        static_cast<float>(x), static_cast<float>(y)});
     flyout.XamlRoot(anchor.XamlRoot());
-    flyout.ShowAt(anchor);
+    flyout.ShowAt(anchor, options);
     if (detail_title_ != nullptr) {
       detail_title_.Focus(mx::FocusState::Programmatic);
       detail_title_.SelectAll();
@@ -2467,7 +2491,6 @@ void MainWindow::OnDetailFlyoutClosed() {
       }
     }
   }
-  detail_anchor_ = nullptr;
   detail_flyout_ = nullptr;
   detail_completed_ = nullptr;
   detail_title_ = nullptr;

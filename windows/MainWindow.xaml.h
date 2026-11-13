@@ -166,8 +166,7 @@ private:
   void ResetInlineTaskEditor();
   // Anchored task-detail layer (DESIGN-TOKENS §Anchored, PRODUCT-SPEC §5b):
   // one Flyout anchored to the row's info button with per-field autosave.
-  void OpenTaskDetail(std::int64_t id,
-                      winrt::Microsoft::UI::Xaml::Controls::Button anchor);
+  void OpenTaskDetail(std::int64_t id);
   void CloseTaskDetail();
   void OnDetailFlyoutClosed();
   rivet_app::Task DetailTaskFromControls() const;
@@ -304,7 +303,6 @@ private:
   // tree; a pending text edit saves once more on close (never discarded).
   std::int64_t detail_task_id_{-1};
   std::wstring tag_filter_;
-  winrt::Microsoft::UI::Xaml::Controls::Button detail_anchor_{nullptr};
   winrt::Microsoft::UI::Xaml::Controls::Flyout detail_flyout_{nullptr};
   winrt::Microsoft::UI::Xaml::Controls::CheckBox detail_completed_{nullptr};
   winrt::Microsoft::UI::Xaml::Controls::TextBox detail_title_{nullptr};
