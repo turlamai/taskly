@@ -2500,7 +2500,8 @@ rivet_app::Task MainWindow::DetailTaskFromControls() const {
   rivet_app::Task updated = stored != nullptr ? *stored : rivet_app::Task{};
   updated.id = detail_task_id_;
   updated.text = winrt::to_string(detail_title_.Text());
-  updated.completed = detail_completed_.IsChecked().value_or(false);
+  auto const checked = detail_completed_.IsChecked();
+  updated.completed = checked != nullptr && checked.Value();
   auto const date = winrt::to_string(detail_date_.Text());
   updated.due_date =
       date.empty() ? std::nullopt : std::optional<std::string>(date);
@@ -2680,44 +2681,44 @@ void MainWindow::DetailRebuildSubtasks() {
 
 void MainWindow::DetailShowError(int field, std::string const& message) {
   detail_error_field_ = field;
-  wchar_t const* field_name = L"";
+  std::wstring field_name;
   mxc::StackPanel target{nullptr};
   switch (field) {
-    case 0: field_name = t("detailCompleted").c_str(); break;
+    case 0: field_name = t("detailCompleted"); break;
     case 1:
-      field_name = t("fieldTitle").c_str();
+      field_name = t("fieldTitle");
       target = detail_title_box_;
       break;
     case 2:
-      field_name = t("fieldDate").c_str();
+      field_name = t("fieldDate");
       target = detail_date_box_;
       break;
     case 3:
-      field_name = t("fieldTime").c_str();
+      field_name = t("fieldTime");
       target = detail_time_box_;
       break;
     case 4:
-      field_name = t("fieldPriority").c_str();
+      field_name = t("fieldPriority");
       target = detail_priority_box_;
       break;
     case 5:
-      field_name = t("fieldTags").c_str();
+      field_name = t("fieldTags");
       target = detail_tags_box_;
       break;
     case 6:
-      field_name = t("fieldSubtasks").c_str();
+      field_name = t("fieldSubtasks");
       target = detail_subtasks_box_;
       break;
     case 7:
-      field_name = t("fieldNotes").c_str();
+      field_name = t("fieldNotes");
       target = detail_notes_box_;
       break;
     case 8:
-      field_name = t("fieldUrl").c_str();
+      field_name = t("fieldUrl");
       target = detail_url_box_;
       break;
     case 9:
-      field_name = t("fieldList").c_str();
+      field_name = t("fieldList");
       target = detail_list_box_;
       break;
     default: break;
@@ -2729,7 +2730,7 @@ void MainWindow::DetailShowError(int field, std::string const& message) {
     if (target != nullptr) {
       target.Children().Append(detail_error_);
     }
-    detail_error_.Text(std::wstring(field_name) + L": " + wide(message));
+    detail_error_.Text(field_name + L": " + wide(message));
     detail_error_.Visibility(mx::Visibility::Visible);
   } else {
     SetError(message);
@@ -2744,9 +2745,8 @@ void MainWindow::DetailClearError() {
 
 bool MainWindow::TaskMatchesTagFilter(rivet_app::Task const& task) const {
   if (tag_filter_.empty()) return true;
-  auto const wide_tag = wide(tag_filter_);
   return std::any_of(task.tags.begin(), task.tags.end(),
-                     [&](std::string const& tag) { return wide(tag) == wide_tag; });
+                     [&](std::string const& tag) { return wide(tag) == tag_filter_; });
 }
 
 void MainWindow::ToggleTagFilter(std::wstring const& tag) {
