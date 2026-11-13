@@ -94,6 +94,23 @@ function Select-RowByTitle {
     return $true
 }
 
+function Invoke-RealDoubleClick {
+    param($Element)
+    $rect = $Element.Current.BoundingRectangle
+    if ($rect.IsEmpty) { return $false }
+    $x = [int]($rect.X + [Math]::Min($rect.Width / 2, 120))
+    $y = [int]($rect.Y + $rect.Height / 2)
+    [System.Windows.Forms.Cursor]::Position =
+        [System.Drawing.Point]::new($x, $y)
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, int e);' -Name TasklyMouse -Namespace TasklyNative -ErrorAction SilentlyContinue | Out-Null
+    [TasklyNative.TasklyMouse]::mouse_event(0x0002, 0, 0, 0, 0)
+    [TasklyNative.TasklyMouse]::mouse_event(0x0004, 0, 0, 0, 0)
+    Start-Sleep -Milliseconds 120
+    [TasklyNative.TasklyMouse]::mouse_event(0x0002, 0, 0, 0, 0)
+    [TasklyNative.TasklyMouse]::mouse_event(0x0004, 0, 0, 0, 0)
+    return $true
+}
+
 function Capture-Screen {
     param([string]$Path)
     $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
@@ -352,10 +369,15 @@ try {
     # §5: the inline quick editor is entered by selecting the row and
     # pressing Enter. It must expand in place — a modal PromptAsync text box
     # is not acceptable because it cannot edit notes/date/time.
+    # §5: double-clicking the row opens the inline editor (the Windows
+    # equivalent of the title click other hosts use). A real pointer
+    # double-click is used because selecting the item and synthesizing
+    # Enter races the ListView's own rebuild.
     [void](Wait-Until 'task row for inline entry' {
-        Select-RowByTitle $window 'Autosaved detail title'
+        $titleElement = Find-ByName $window 'Autosaved detail title'
+        if ($null -eq $titleElement) { return $false }
+        Invoke-RealDoubleClick $titleElement
     })
-    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
     $inlineTitle = Wait-Until 'inline task title editor' {
         Find-ById $window 'inline-task-title-2'
     }
@@ -372,9 +394,10 @@ try {
         return $false
     })
     [void](Wait-Until 'task row for inline entry after cancel' {
-        Select-RowByTitle $window 'Autosaved detail title'
+        $titleElement = Find-ByName $window 'Autosaved detail title'
+        if ($null -eq $titleElement) { return $false }
+        Invoke-RealDoubleClick $titleElement
     })
-    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
     $inlineTitle = Wait-Until 'inline task title editor after cancel' {
         Find-ById $window 'inline-task-title-2'
     }
