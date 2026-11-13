@@ -520,6 +520,8 @@ struct AppState {
   // Anchored task-detail layer (§5b) and the row tag-chip filter (§5).
   std::int64_t open_detail_id{-1};
   TaskDetail* open_detail{nullptr};
+  // Overlay host the detail panel is placed in (window-coordinate layout).
+  GtkWidget* detail_layer_host{nullptr};
   std::string tag_filter;
   GtkButton* tag_clear_button{nullptr};
 
@@ -2479,7 +2481,8 @@ enum class DetailField { Completed, Title, Date, Time, Priority, Tags, Subtasks,
 
 struct TaskDetail {
   std::int64_t task_id{0};
-  GtkWidget* popover{nullptr};
+  GtkWidget* panel{nullptr};
+  GtkWidget* layer_host{nullptr};
   GtkCheckButton* completed{nullptr};
   GtkEntry* title{nullptr};
   GtkEntry* date{nullptr};
@@ -2678,17 +2681,15 @@ void detail_close() {
   if (detail == nullptr) return;
   g_state.open_detail = nullptr;
   g_state.open_detail_id = -1;
-  if (detail->popover != nullptr) {
-    auto* popover = detail->popover;
-    if (gtk_widget_get_parent(popover) != nullptr) {
-      // Popdown fires the "closed" handler; it re-enters detail_close and
-      // no-ops because the state is already cleared.
-      gtk_popover_popdown(GTK_POPOVER(popover));
+  if (detail->panel != nullptr) {
+    auto* panel = detail->panel;
+    if (gtk_widget_get_parent(panel) != nullptr) {
+      gtk_fixed_remove(GTK_FIXED(detail->layer_host), panel);
     }
     // Dropping the data runs the destroy notify, which performs the final
     // save (closing never discards) and frees the state.
-    g_object_set_data(G_OBJECT(popover), "taskly-detail", nullptr);
-    gtk_widget_unparent(popover);  // Dispose the detached widget.
+    g_object_set_data(G_OBJECT(panel), "taskly-detail", nullptr);
+    gtk_widget_unparent(panel);  // Dispose the panel.
   }
 }
 
@@ -2952,6 +2953,27 @@ GtkWidget* detail_date_popover_button(TaskDetail* detail) {
   return button;
 }
 
+void detail_position_panel(TaskDetail* detail, GtkWidget* anchor) {
+  if (detail == nullptr || detail->panel == nullptr ||
+      detail->layer_host == nullptr || anchor == nullptr) {
+    return;
+  }
+  graphene_rect_t row_bounds;
+  if (!gtk_widget_compute_bounds(anchor, detail->layer_host, &row_bounds)) {
+    return;
+  }
+  int const host_width = gtk_widget_get_width(detail->layer_host);
+  int const host_height = gtk_widget_get_height(detail->layer_host);
+  int place_x = static_cast<int>(row_bounds.origin.x +
+                                 row_bounds.size.width) - 348 - 16;
+  if (place_x < 8) place_x = 8;
+  if (place_x + 348 > host_width - 8) place_x = host_width - 348 - 8;
+  int place_y = static_cast<int>(row_bounds.origin.y);
+  if (place_y + 360 > host_height - 8) place_y = host_height - 360 - 8;
+  if (place_y < 8) place_y = 8;
+  gtk_fixed_move(GTK_FIXED(detail->layer_host), detail->panel, place_x,
+                 place_y);
+}
 void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   // ⓘ on an open layer closes it again (aria-expanded tracked by state).
   if (g_state.open_detail_id == id && g_state.open_detail != nullptr) {
@@ -2970,14 +2992,16 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
     detail->list_ids.push_back(list.id);
   }
 
-  auto* popover = gtk_popover_new();
-  detail->popover = popover;
-  // Autohide is off: an ATK-invoked click leaves no pointer
-  // inside the popover and GTK dismissed the layer instantly.
-  // Outside-click and Esc close it explicitly below.
-  gtk_popover_set_autohide(GTK_POPOVER(popover), FALSE);
-  gtk_widget_add_css_class(popover, "detail-surface");
-  gtk_widget_set_size_request(popover, 348, -1);
+  // The layer is an in-window overlay panel rather than a GtkPopover: on
+  // current GTK stacks a popover opened from an ATK activation is dismissed
+  // by GTK itself before it can be used, and an overlay panel also keeps
+  // every field in the main accessibility tree (which is what the
+  // acceptance trace reads). Dismissal is explicit below (Esc / outside
+  // press / the Done action / close-on-leave).
+  auto* panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  detail->panel = panel;
+  gtk_widget_add_css_class(panel, "detail-surface");
+  gtk_widget_set_size_request(panel, 348, -1);
 
   auto* body = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
   gtk_widget_set_margin_top(body, 4);
@@ -3308,13 +3332,20 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   gtk_box_append(GTK_BOX(body), scroll);
   gtk_box_append(GTK_BOX(body), GTK_WIDGET(detail->error));
   gtk_box_append(GTK_BOX(body), actions);
-  gtk_popover_set_child(GTK_POPOVER(popover), body);
+  gtk_box_append(GTK_BOX(panel), body);
+  // Anchor placement: right edge of the row, vertically clamped inside the
+  // list viewport (DESIGN-TOKENS §Anchored task detail layer).
+  detail->layer_host = g_state.detail_layer_host;
+  gtk_fixed_put(GTK_FIXED(detail->layer_host), panel, 0, 0);
+  detail_position_panel(detail, anchor);
+  gtk_widget_set_visible(panel, TRUE);
+  gtk_widget_grab_focus(GTK_WIDGET(detail->title));
   gtk_widget_set_parent(popover, anchor);
   detail_rebuild_tags(detail);
   detail_rebuild_subtasks(detail);
 
   g_object_set_data_full(
-      G_OBJECT(popover), "taskly-detail", detail,
+      G_OBJECT(panel), "taskly-detail", detail,
       +[](gpointer data) {
         auto* detail = static_cast<TaskDetail*>(data);
         // The layer is leaving the hierarchy (row rebuilt or explicit
@@ -3353,26 +3384,6 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
         *detail->alive = false;
         delete detail;
       });
-  g_signal_connect(popover, "closed",
-                   G_CALLBACK(+[](GtkPopover*, gpointer user_data) {
-                     auto* detail = detail_for(user_data);
-                     if (detail != nullptr) detail_close();
-                   }),
-                   detail);
-  // Pop up on the next idle turn: an AT-SPI/ATK activation still has its
-  // button-release in flight, and an immediate popup trips GtkPopover's
-  // autohide (the synthetic pointer is outside the popover), closing the
-  // layer the moment it appears. Deferring past that event settles it.
-  g_idle_add(
-      +[](gpointer data) -> gboolean {
-        auto* detail = static_cast<TaskDetail*>(data);
-        if (*detail->alive && detail->popover != nullptr) {
-          gtk_popover_popup(GTK_POPOVER(detail->popover));
-          gtk_widget_grab_focus(GTK_WIDGET(detail->title));
-        }
-        return G_SOURCE_REMOVE;
-      },
-      detail);
   g_state.open_detail = detail;
   g_state.open_detail_id = id;
 }
@@ -4083,9 +4094,7 @@ void rebuild_task_list() {
             g_state.open_detail->task_id) != 0) {
       detail_close();
     } else {
-      detail_floating = TRUE;
-      g_object_ref(g_state.open_detail->popover);
-      gtk_widget_unparent(g_state.open_detail->popover);
+      detail_floating = TRUE;  // re-position below, panel stays put
     }
   }
 
@@ -4238,7 +4247,8 @@ void rebuild_task_list() {
     g_state.open_editor_id = -1;
   }
 
-  // Re-anchor the detached detail layer to the fresh row's ⓘ button.
+  // Re-position the detail panel beside the fresh row (the panel itself
+  // lives in the overlay and survived the rebuild).
   if (detail_floating && g_state.open_detail != nullptr) {
     for (GtkWidget* child = gtk_widget_get_first_child(GTK_WIDGET(
              g_state.task_list));
@@ -4250,15 +4260,8 @@ void rebuild_task_list() {
       if (row_id != g_state.open_detail_id) continue;
       auto* anchor = static_cast<GtkWidget*>(
           g_object_get_data(G_OBJECT(child), "task-info-button"));
-      if (anchor != nullptr) {
-        gtk_widget_set_parent(g_state.open_detail->popover, anchor);
-        gtk_popover_popup(GTK_POPOVER(g_state.open_detail->popover));
-      }
+      detail_position_panel(g_state.open_detail, anchor);
       break;
-    }
-    g_object_unref(g_state.open_detail->popover);
-    if (gtk_widget_get_parent(g_state.open_detail->popover) == nullptr) {
-      detail_close();  // The row vanished — nowhere to anchor.
     }
   }
 }
@@ -5628,6 +5631,17 @@ void on_activate(GtkApplication* app, gpointer) {
   // list's bottom edge).
   auto* list_overlay = gtk_overlay_new();
   gtk_overlay_set_child(GTK_OVERLAY(list_overlay), list_stack);
+  // Detail layer host: an overlay-sized fixed canvas so the anchored panel
+  // can sit beside any row (children stay in the main accessibility tree).
+  auto* detail_host = gtk_fixed_new();
+  gtk_widget_set_hexpand(detail_host, TRUE);
+  gtk_widget_set_vexpand(detail_host, TRUE);
+  gtk_widget_set_halign(detail_host, GTK_ALIGN_FILL);
+  gtk_widget_set_valign(detail_host, GTK_ALIGN_FILL);
+  // Only the panel inside it receives input; the canvas itself must not
+  // swallow clicks meant for the list underneath.
+  gtk_widget_set_can_target(detail_host, FALSE);
+  gtk_overlay_add_overlay(GTK_OVERLAY(list_overlay), detail_host);
   auto* banner_revealer = gtk_revealer_new();
   gtk_revealer_set_transition_type(GTK_REVEALER(banner_revealer),
                                    GTK_REVEALER_TRANSITION_TYPE_CROSSFADE);
@@ -5685,6 +5699,7 @@ void on_activate(GtkApplication* app, gpointer) {
   g_state.empty_text = GTK_LABEL(empty_text);
   g_state.sidebar_toggle = GTK_BUTTON(sidebar_toggle);
   g_state.banner_box = GTK_BOX(banner_box);
+  g_state.detail_layer_host = detail_host;
   g_state.status_text = GTK_LABEL(status_text);
 
   add_window_action(GTK_APPLICATION_WINDOW(window), "task-due-today",
@@ -5809,11 +5824,11 @@ void on_activate(GtkApplication* app, gpointer) {
       outside_press, "pressed",
       G_CALLBACK(+[](GtkGestureClick*, gint, gdouble x, gdouble y, gpointer) {
         if (g_state.open_detail == nullptr ||
-            g_state.open_detail->popover == nullptr) {
+            g_state.open_detail->panel == nullptr) {
           return;
         }
         graphene_rect_t bounds;
-        if (gtk_widget_compute_bounds(g_state.open_detail->popover,
+        if (gtk_widget_compute_bounds(g_state.open_detail->panel,
                                       GTK_WIDGET(g_state.window), &bounds) &&
             x >= bounds.origin.x &&
             x <= bounds.origin.x + bounds.size.width &&
