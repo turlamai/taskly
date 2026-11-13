@@ -2953,10 +2953,6 @@ GtkWidget* detail_date_popover_button(TaskDetail* detail) {
 }
 
 void open_task_detail(std::int64_t id, GtkWidget* anchor) {
-  g_printerr("detail-open: id=%lld open_id=%lld open=%p\n",
-             static_cast<long long>(id),
-             static_cast<long long>(g_state.open_detail_id),
-             static_cast<void*>(g_state.open_detail));
   // ⓘ on an open layer closes it again (aria-expanded tracked by state).
   if (g_state.open_detail_id == id && g_state.open_detail != nullptr) {
     detail_close();
@@ -2964,7 +2960,6 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   }
   detail_close();
   auto* stored = find_by_id(g_state.tasks, id);
-  g_printerr("detail-open: stored=%s\n", stored != nullptr ? "yes" : "no");
   if (stored == nullptr) return;
 
   auto* detail = new TaskDetail();
@@ -2977,7 +2972,10 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
 
   auto* popover = gtk_popover_new();
   detail->popover = popover;
-  gtk_popover_set_autohide(GTK_POPOVER(popover), TRUE);
+  // Autohide is off: an ATK-invoked click leaves no pointer
+  // inside the popover and GTK dismissed the layer instantly.
+  // Outside-click and Esc close it explicitly below.
+  gtk_popover_set_autohide(GTK_POPOVER(popover), FALSE);
   gtk_widget_add_css_class(popover, "detail-surface");
   gtk_widget_set_size_request(popover, 348, -1);
 
@@ -3311,11 +3309,7 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   gtk_box_append(GTK_BOX(body), GTK_WIDGET(detail->error));
   gtk_box_append(GTK_BOX(body), actions);
   gtk_popover_set_child(GTK_POPOVER(popover), body);
-  g_printerr("detail-open: set_child ok\n");
   gtk_widget_set_parent(popover, anchor);
-  g_printerr("detail-open: parent=%p mapped=%d\n",
-             static_cast<void*>(gtk_widget_get_parent(popover)),
-             gtk_widget_get_mapped(anchor));
   detail_rebuild_tags(detail);
   detail_rebuild_subtasks(detail);
 
@@ -3361,7 +3355,6 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
       });
   g_signal_connect(popover, "closed",
                    G_CALLBACK(+[](GtkPopover*, gpointer user_data) {
-                     g_printerr("detail-open: closed signal\n");
                      auto* detail = detail_for(user_data);
                      if (detail != nullptr) detail_close();
                    }),
@@ -4993,9 +4986,15 @@ void on_search_stopped(GtkSearchEntry* entry, gpointer) {
 // the Things escape ladder.
 gboolean on_window_key_pressed(GtkEventControllerKey*, guint keyval,
                                guint, GdkModifierType, gpointer) {
-  // While the task-detail layer is open, Esc and Return belong to it; the
-  // autohide popover closes on Esc by itself.
-  if (g_state.open_detail != nullptr) return FALSE;
+  // While the task-detail layer is open, Esc belongs to it (autohide is
+  // off); other keys keep flowing to the focused control.
+  if (g_state.open_detail != nullptr) {
+    if (keyval == GDK_KEY_Escape) {
+      detail_close();
+      return TRUE;
+    }
+    return FALSE;
+  }
   if (keyval != GDK_KEY_Escape) return FALSE;
   if (g_state.open_editor_id >= 0) {
     collapse_open_editor();
@@ -5799,6 +5798,35 @@ void on_activate(GtkApplication* app, gpointer) {
                    nullptr);
 
   // Esc ladder: editor → search → nothing.
+  // Detail layer outside-click close (autohide is off). A capture-phase
+  // press that lands outside the popover's bounds dismisses it; presses
+  // inside stay with the layer's own controls.
+  auto* outside_press = gtk_gesture_click_new();
+  gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(outside_press), 0);
+  gtk_event_controller_set_propagation_phase(
+      GTK_EVENT_CONTROLLER(outside_press), GTK_PHASE_CAPTURE);
+  g_signal_connect(
+      outside_press, "pressed",
+      G_CALLBACK(+[](GtkGestureClick*, gint, gdouble x, gdouble y, gpointer) {
+        if (g_state.open_detail == nullptr ||
+            g_state.open_detail->popover == nullptr) {
+          return;
+        }
+        graphene_rect_t bounds;
+        if (gtk_widget_compute_bounds(g_state.open_detail->popover,
+                                      GTK_WIDGET(g_state.window), &bounds) &&
+            x >= bounds.origin.x &&
+            x <= bounds.origin.x + bounds.size.width &&
+            y >= bounds.origin.y &&
+            y <= bounds.origin.y + bounds.size.height) {
+          return;  // Inside the layer.
+        }
+        detail_close();
+      }),
+      nullptr);
+  gtk_widget_add_controller(GTK_WIDGET(window),
+                            GTK_EVENT_CONTROLLER(outside_press));
+
   auto* window_keys = gtk_event_controller_key_new();
   // GtkText may consume Escape during its own bubble handling. An open
   // editor's cancel operation must win before the child processes the key;
