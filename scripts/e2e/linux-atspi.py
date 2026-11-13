@@ -2,6 +2,7 @@
 import argparse
 import datetime
 import json
+import os
 import sqlite3
 import subprocess
 import time
@@ -65,7 +66,8 @@ def wait_for(description, probe, timeout=60.0):
             return value
         time.sleep(0.05)
     # Timeout diagnostics: the visible control inventory is what a distant
-    # runner needs; a bare timeout name alone is not actionable.
+    # runner needs; a bare timeout name alone is not actionable. The full
+    # inventory also lands in TASKLY_TIMEOUT_DUMP when set.
     inventory = []
     try:
         application = find_application()
@@ -73,10 +75,16 @@ def wait_for(description, probe, timeout=60.0):
         for node in walk(frame):
             node_name = name(node)
             if node_name:
-                inventory.append(f"{role(node)}[{node_name[:60]}]")
+                inventory.append(f"{role(node)}[{node_name[:80]}]")
     except Exception:
         pass
-    suffix = f"; visible controls={inventory[:60]}" if inventory else ""
+    dump_path = os.environ.get("TASKLY_TIMEOUT_DUMP")
+    if dump_path and inventory:
+        try:
+            Path(dump_path).write_text("\n".join(inventory), encoding="utf-8")
+        except Exception:
+            pass
+    suffix = f"; visible controls={inventory[:25]}" if inventory else ""
     raise AssertionError(f"timed out waiting for {description}{suffix}")
 
 
