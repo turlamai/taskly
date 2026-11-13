@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   encoding the Racket and Swift verifiers embed.
 
 ### Fixed
+- An AppImage download reserves a unique staging name without leaving a
+  pre-created empty file beside the running image; a failed verification no
+  longer strands that file (the managed downloader cleans only its own
+  `.partial`).
 - The AppImage in-place swap test never ran: it gated on
   `(system-type 'os)` being `'linux`, but Racket reports `'unix` on Linux,
   and its manifest advertised a tar.gz artifact while asking selection for
