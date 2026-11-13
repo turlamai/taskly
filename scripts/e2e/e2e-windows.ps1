@@ -292,14 +292,51 @@ try {
         throw 'Windows task list must support Ctrl/Shift multi-selection'
     }
 
-    # Task details must expand in place. A modal PromptAsync text box is not
-    # acceptable here because it cannot edit notes/date/time and breaks the
-    # Reminders-style Return/Esc flow.
-    $taskInfo = Wait-Until 'inline task details button' {
+    # §5b: the info button opens the anchored task-detail layer with
+    # per-field autosave. A title change persists without further action,
+    # and Done closes the layer without discarding.
+    $taskInfo = Wait-Until 'task details button' {
         Find-ById $window 'task-info-2'
     }
     $taskInfo.GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $detailTitle = Wait-Until 'task detail layer title field' {
+        Find-ById $window 'detail-title-2'
+    }
+    $detailTitle.GetCurrentPattern(
+        [System.Windows.Automation.ValuePattern]::Pattern).SetValue(
+        'Autosaved detail title')
+    $detailTitle.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    [void](Wait-Until 'detail layer autosaved the title to the stored row' {
+        if ($null -ne (Find-ByName $window 'Autosaved detail title')) {
+            return $true
+        }
+        return $false
+    })
+    $detailDone = Wait-Until 'task detail Done action' {
+        Find-ById $window 'detail-done-2'
+    }
+    $detailDone.GetCurrentPattern(
+        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    [void](Wait-Until 'task detail layer closed without discarding' {
+        if ($null -eq (Find-ById $window 'detail-title-2') -and
+            $null -ne (Find-ByName $window 'Autosaved detail title')) {
+            return $true
+        }
+        return $false
+    })
+
+    # §5: the inline quick editor is entered by selecting the row and
+    # pressing Enter. It must expand in place — a modal PromptAsync text box
+    # is not acceptable because it cannot edit notes/date/time.
+    $taskRow = Wait-Until 'task row for inline entry' {
+        Find-ById $window 'task-row-2'
+    }
+    $taskRow.GetCurrentPattern(
+        [System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $taskRow.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
     $inlineTitle = Wait-Until 'inline task title editor' {
         Find-ById $window 'inline-task-title-2'
     }
@@ -315,11 +352,13 @@ try {
             $null -ne (Find-ByName $window $plainTask)) { return $true }
         return $false
     })
-    $taskInfo = Wait-Until 'reopen inline task details after cancel' {
-        Find-ById $window 'task-info-2'
+    $taskRow = Wait-Until 'task row for inline entry after cancel' {
+        Find-ById $window 'task-row-2'
     }
-    $taskInfo.GetCurrentPattern(
-        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $taskRow.GetCurrentPattern(
+        [System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $taskRow.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
     $inlineTitle = Wait-Until 'inline task title editor after cancel' {
         Find-ById $window 'inline-task-title-2'
     }

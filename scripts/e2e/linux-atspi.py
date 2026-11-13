@@ -424,16 +424,9 @@ def main():
             "first task selected",
             lambda: select_single_named_child(window, "First-run persistence task"),
         )
-        details = wait_for(
-            "first task details button",
-            lambda: next(
-                reversed(
-                    [node for node in walk(task_row) if role(node) in ("push button", "button")]
-                ),
-                None,
-            ),
-        )
-        press(details)
+        # §5: Enter on the selected row opens the inline quick editor; the
+        # row's ⓘ button now opens the anchored task-detail layer instead.
+        send_keyboard_key("Return")
         editor = wait_for(
             "focused first task editor",
             lambda: find_editable_value(window, "First-run persistence task"),
@@ -597,9 +590,46 @@ def main():
         ),
     )
     press(details)
+    # §5b: ⓘ opens the anchored task-detail layer with per-field autosave.
+    # A title change persists on Return without any further action, and the
+    # Done action closes the layer without discarding.
+    detail_title = wait_for(
+        "task detail layer title field",
+        lambda: find_editable_value(window, "64-bit task A"),
+    )
+    wait_for(
+        "task detail layer native keyboard focus",
+        lambda: has_focus(
+            find_editable_value(find_live_window(), "64-bit task A")
+        ),
+        timeout=10.0,
+    )
+    detail_title.queryEditableText().setTextContents("Autosaved detail A")
+    send_keyboard_key("Return")
+    wait_for(
+        "detail layer autosaved the title to the stored row",
+        lambda: contains_text(window, "Autosaved detail A"),
+        timeout=10.0,
+    )
+    done = wait_for(
+        "task detail Done action",
+        lambda: find_named(window, "Done", "push button"),
+    )
+    press(done)
+    wait_for(
+        "task detail layer closed without discarding",
+        lambda: find_editable_value(window, "Autosaved detail A") is None
+        and contains_text(window, "Autosaved detail A"),
+    )
+    # §5: the inline quick editor opens through the row's Enter key.
+    task_row = wait_for(
+        "row selected for inline editing",
+        lambda: select_single_named_child(window, "Autosaved detail A"),
+    )
+    send_keyboard_key("Return")
     editor = wait_for(
         "keyboard-opened task editor",
-        lambda: find_editable_value(window, "64-bit task A"),
+        lambda: find_editable_value(window, "Autosaved detail A"),
     )
     wait_for(
         "visible task editor Save action",
@@ -616,7 +646,7 @@ def main():
     try:
         wait_for(
             "task editor native keyboard focus",
-            lambda: has_focus(find_editable_value(find_live_window(), "64-bit task A")),
+            lambda: has_focus(find_editable_value(find_live_window(), "Autosaved detail A")),
             timeout=10.0,
         )
     except AssertionError:
@@ -631,7 +661,7 @@ def main():
     window = wait_for("live Taskly frame", lambda: find_frame(application))
     editor = wait_for(
         "live keyboard-opened editor",
-        lambda: find_editable_value(window, "64-bit task A"),
+        lambda: find_editable_value(window, "Autosaved detail A"),
     )
     editor.queryEditableText().setTextContents("Cancelled inline draft")
     # Send a native Escape key to the focused GTK text widget.
@@ -644,7 +674,7 @@ def main():
     wait_for(
         "Escape cancelled the focused task draft",
         lambda: find_editable_value(window, "Cancelled inline draft") is None
-        and contains_text(window, "64-bit task A"),
+        and contains_text(window, "Autosaved detail A"),
     )
 
     # Re-enter through the desktop registry after the editor collapses.
@@ -661,11 +691,12 @@ def main():
         json.dumps(snapshot(window), ensure_ascii=False, indent=2), encoding="utf-8"
     )
     wait_for(
-        "second task Details action",
-        lambda: select_and_press_unedited_named_row_button(
-            window, "64-bit task B"
-        ),
+        "second task row selected for explicit Save",
+        lambda: select_single_named_child(window, "64-bit task B"),
     )
+    # §5: Enter opens the inline quick editor; the row's ⓘ button opens the
+    # anchored task-detail layer instead (covered above on task A).
+    send_keyboard_key("Return")
     editor = wait_for(
         "second task editor opened for explicit Save",
         lambda: find_editable_value(window, "64-bit task B"),
@@ -700,9 +731,12 @@ def main():
                     "press:batch-schedule-tomorrow",
                     "press:batch-delete",
                     "press:undo",
-                    "press:selected-row-details",
+                    "press:selected-row-info",
+                    "key:detail-title-autosave-return",
+                    "press:detail-done",
+                    "key:row-enter-inline-editor",
                     "key:escape-cancel-draft",
-                    "press:second-row-details",
+                    "key:second-row-enter-inline-editor",
                     "press:visible-save",
                     "set:quick-add",
                     "press:quick-add-submit",
@@ -714,7 +748,8 @@ def main():
                     "batch scheduling clears hidden due times for both tasks",
                     "six-second staged deletion hides both tasks without deleting them",
                     "undo restores the original task IDs and metadata",
-                    "task editor exposes accessible calendar, Save and Cancel actions; Escape cancels its draft",
+                    "the anchored detail layer autosaved a title change without further action and Done closed it without discarding",
+                    "the inline editor exposes accessible calendar, Save and Cancel actions; Escape cancels its draft",
                     "visible Save persists the complete task draft and closes only after acknowledgement",
                     "RPC-created task appeared after the quick-add field cleared",
                     "quick-add preserved the selected 64-bit list ownership",
