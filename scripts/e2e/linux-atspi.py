@@ -260,19 +260,32 @@ def select_single_named_child(root, expected):
 
 
 def select_and_focus_row(root, expected):
-    """Select the row and pull real keyboard focus onto it.
+    """Select the row, then double-click it at its AT-SPI-reported extent.
 
-    AT-SPI selection does not move GTK keyboard focus; the Enter-based row
-    activation needs the focused row, so grab focus through the component
-    interface before the caller synthesizes the key.
+    Double-click is the reliable row-activation path: AT-SPI selection does
+    not move GTK keyboard focus (so a synthetic Return would land nowhere),
+    and the component grabFocus is a no-op on current GTK stacks. A real
+    pointer double-click through xdotool fires GtkListBox's row-activated
+    signal — the §5 inline-editor entry point.
     """
     row = select_single_named_child(root, expected)
     if row is None:
         return None
     try:
-        row.queryComponent().grabFocus()
+        extent = row.queryComponent().getExtent(pyatspi.DESKTOP_COORDS)
+        try:
+            ex, ey, ew, eh = extent.x, extent.y, extent.width, extent.height
+        except AttributeError:
+            ex, ey, ew, eh = extent
+        center_x = ex + ew // 2
+        center_y = ey + eh // 2
+        subprocess.run(
+            ["xdotool", "mousemove", str(center_x), str(center_y),
+             "click", "--repeat", "2", "--delay", "120", "1"],
+            check=True, timeout=5,
+        )
     except Exception:
-        pass
+        return None
     return row
 
 
@@ -475,9 +488,8 @@ def main():
             "first task selected",
             lambda: select_and_focus_row(window, "First-run persistence task"),
         )
-        # §5: Enter on the focused row opens the inline quick editor; the
+        # §5: double-clicking the row opens the inline quick editor; the
         # row's ⓘ button now opens the anchored task-detail layer instead.
-        send_keyboard_key("Return")
         editor = wait_for(
             "focused first task editor",
             lambda: find_editable_value(window, "First-run persistence task"),
@@ -672,12 +684,11 @@ def main():
         lambda: find_editable_value(window, "Autosaved detail A") is None
         and contains_text(window, "Autosaved detail A"),
     )
-    # §5: the inline quick editor opens through the row's Enter key.
+    # §5: the inline quick editor opens through the row's double-click.
     task_row = wait_for(
         "row selected for inline editing",
-        lambda: select_single_named_child(window, "Autosaved detail A"),
+        lambda: select_and_focus_row(window, "Autosaved detail A"),
     )
-    send_keyboard_key("Return")
     editor = wait_for(
         "keyboard-opened task editor",
         lambda: find_editable_value(window, "Autosaved detail A"),
@@ -745,9 +756,8 @@ def main():
         "second task row selected for explicit Save",
         lambda: select_and_focus_row(window, "64-bit task B"),
     )
-    # §5: Enter opens the inline quick editor; the row's ⓘ button opens the
-    # anchored task-detail layer instead (covered above on task A).
-    send_keyboard_key("Return")
+    # §5: double-click opens the inline quick editor; the row's ⓘ button
+    # opens the anchored task-detail layer instead (covered above on task A).
     editor = wait_for(
         "second task editor opened for explicit Save",
         lambda: find_editable_value(window, "64-bit task B"),
