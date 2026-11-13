@@ -3366,12 +3366,22 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
                      if (detail != nullptr) detail_close();
                    }),
                    detail);
-  gtk_popover_popup(GTK_POPOVER(popover));
-  g_printerr("detail-open: popup visible=%d\n",
-             gtk_widget_get_visible(GTK_WIDGET(popover)));
+  // Pop up on the next idle turn: an AT-SPI/ATK activation still has its
+  // button-release in flight, and an immediate popup trips GtkPopover's
+  // autohide (the synthetic pointer is outside the popover), closing the
+  // layer the moment it appears. Deferring past that event settles it.
+  g_idle_add(
+      +[](gpointer data) -> gboolean {
+        auto* detail = static_cast<TaskDetail*>(data);
+        if (*detail->alive && detail->popover != nullptr) {
+          gtk_popover_popup(GTK_POPOVER(detail->popover));
+          gtk_widget_grab_focus(GTK_WIDGET(detail->title));
+        }
+        return G_SOURCE_REMOVE;
+      },
+      detail);
   g_state.open_detail = detail;
   g_state.open_detail_id = id;
-  gtk_widget_grab_focus(GTK_WIDGET(detail->title));
 }
 
 // Expand (or collapse) the in-place editor underneath the row. When
