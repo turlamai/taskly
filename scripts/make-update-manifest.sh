@@ -14,11 +14,10 @@
 #   <key-path>  Ed25519 private key PEM (default: $UPDATE_KEY_PATH, then
 #               ~/.taskly/update-signing-key.pem)
 #
-# Emits <dist-dir>/update-manifest.json — a single self-contained signed
-# wrapper (schema + base64 payload + signature block): the family format
-# every rivet/distribution client verifies, hosts included. Requires racket
-# with rivet linked (the release publish job installs the pinned checkout)
-# and OpenSSL 3 for the PEM → DER key conversion.
+# The signing, artifact hashing, manifest validation, and feed format live
+# in `raco rivet sign-manifest`; this wrapper owns only Taskly's artifact
+# matrix and release identity. The feed is the family format every
+# rivet/distribution client verifies, hosts included.
 set -euo pipefail
 
 TAG="${1:?usage: make-update-manifest.sh <tag> <dist-dir> [key-path]}"
@@ -26,29 +25,22 @@ DIST="${2:?usage: make-update-manifest.sh <tag> <dist-dir> [key-path]}"
 KEY="${3:-${UPDATE_KEY_PATH:-$HOME/.taskly/update-signing-key.pem}}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DIST="$(cd "$DIST" && pwd)"
+cd "$ROOT"
+
 VERSION="${TAG#v}"
 [[ "$VERSION" == "$(tr -d '[:space:]' < "$ROOT/VERSION")" ]] || {
-  echo "error: tag $TAG does not match VERSION '$(cat "$ROOT/VERSION")'" >&2; exit 1; }
-
-# The backend updater owns the pinned key id. Derive it here rather than
-# duplicating a literal that can drift during key rotation.
-KEY_ID="$(sed -n 's/^(define update-key-id "\([^"]*\)".*/\1/p' "$ROOT/racket/taskly/updater.rkt")"
-[[ "$KEY_ID" =~ ^[A-Za-z0-9._-]+$ ]] || {
-  echo "error: could not read a valid update-key-id from racket/taskly/updater.rkt" >&2
+  echo "error: tag $TAG does not match VERSION '$(cat "$ROOT/VERSION")'" >&2
   exit 1
 }
 
-for artifact in "$DIST/taskly-$VERSION-macos-arm64.zip" \
-                "$DIST/taskly-$VERSION-macos-x64.zip" \
-                "$DIST/taskly-$VERSION-windows-x64.zip" \
-                "$DIST/taskly-$VERSION-windows-x64.msi" \
-                "$DIST/taskly-$VERSION-linux-x64.tar.gz" \
-                "$DIST/taskly-$VERSION-linux-arm64.tar.gz" \
-                "$DIST/taskly-$VERSION-linux-x86_64.AppImage" \
-                "$DIST/taskly-$VERSION-linux-aarch64.AppImage"; do
-  [[ -f "$artifact" ]] || { echo "error: missing $artifact" >&2; exit 1; }
-done
-[[ -f "$KEY" ]] || { echo "error: missing signing key $KEY (see scripts/update-keys.sh)" >&2; exit 1; }
+APPLICATION_ID="$(sed -nE 's/.*\(identifier \. "([^"]+)"\).*/\1/p' "$ROOT/rivet.rktd" | head -n1)"
+BUILD="$(sed -nE 's/.*\(build \. ([0-9]+)\).*/\1/p' "$ROOT/rivet.rktd" | head -n1)"
+KEY_ID="$(sed -n 's/^(define update-key-id "\([^"]*\)".*/\1/p' "$ROOT/racket/taskly/updater.rkt")"
+[[ -n "$APPLICATION_ID" && -n "$BUILD" && "$KEY_ID" =~ ^[A-Za-z0-9._-]+$ ]] || {
+  echo "error: could not read the release identity or update-key-id" >&2
+  exit 1
+}
 
 BASE_URL="${RELEASE_ASSET_BASE_URL:-https://github.com/turlamai/taskly/releases/download/$TAG}"
 
@@ -69,90 +61,33 @@ fi
   echo "       or set OPENSSL_BIN=/path/to/openssl)" >&2
   exit 1
 }
-
-SCRIPT="$(mktemp /tmp/taskly-manifest-XXXXXX.rkt)"
-KEY_DER="$(mktemp /tmp/taskly-key-XXXXXX.der)"
-trap 'rm -f "$SCRIPT" "$KEY_DER"' EXIT
+[[ -f "$KEY" ]] || {
+  echo "error: missing signing key $KEY (see scripts/update-keys.sh)" >&2
+  exit 1
+}
 
 # rivet's signer reads DER (OneAsymmetricKey); convert the PEM once here.
+KEY_DER="$(mktemp /tmp/taskly-key-XXXXXX.der)"
+trap 'rm -f "$KEY_DER"' EXIT
 "$OPENSSL_BIN" pkey -in "$KEY" -outform DER -out "$KEY_DER"
 
-cat > "$SCRIPT" <<RKT
-#lang racket/base
-(require rivet/distribution
-         racket/date
-         racket/file
-         racket/format)
-(define version "$VERSION")
-(define base-url "$BASE_URL")
-(define dist (path->complete-path "$DIST"))
-(define key-path (path->complete-path "$KEY_DER"))
-(define key-id "$KEY_ID")
-(define build (hash-ref (file->value (build-path (path->complete-path "$ROOT") "rivet.rktd")) 'build))
+raco rivet sign-manifest \
+  --application-id "$APPLICATION_ID" \
+  --version "$VERSION" \
+  --build "$BUILD" \
+  --channel stable \
+  --base-url "$BASE_URL" \
+  --key-id "$KEY_ID" \
+  --private-key "$KEY_DER" \
+  --output "$DIST/update-manifest.json" \
+  --artifact "macos:arm64:zip:$DIST/taskly-$VERSION-macos-arm64.zip" \
+  --artifact "macos:x64:zip:$DIST/taskly-$VERSION-macos-x64.zip" \
+  --artifact "windows:x64:zip:$DIST/taskly-$VERSION-windows-x64.zip" \
+  --artifact "windows:x64:msi:$DIST/taskly-$VERSION-windows-x64.msi" \
+  --artifact "linux:x64:targz:$DIST/taskly-$VERSION-linux-x64.tar.gz" \
+  --artifact "linux:x64:appimage:$DIST/taskly-$VERSION-linux-x86_64.AppImage" \
+  --artifact "linux:arm64:targz:$DIST/taskly-$VERSION-linux-arm64.tar.gz" \
+  --artifact "linux:arm64:appimage:$DIST/taskly-$VERSION-linux-aarch64.AppImage" \
+  --rollback-allowed
 
-(define (artifact platform architecture file installer)
-  (define path (build-path dist file))
-  (unless (file-exists? path)
-    (error 'make-update-manifest "missing installer: ~a" path))
-  ;; rivet #271: trailing component field (#f = the plain app artifact).
-  (update-artifact platform architecture
-                   (string-append base-url "/" file)
-                   (sha256-file/hex path)
-                   (file-size path)
-                   installer
-                   '()
-                   #f))
-
-(define manifest
-  (update-manifest "app.taskly.Taskly"
-                   version
-                   build
-                   'stable
-                   ;; published-at: RFC 3339, second precision, UTC
-                   (let ([d (seconds->date (current-seconds) #f)])
-                     (format "~a-~a-~aT~a:~a:~aZ"
-                             (date-year d)
-                             (~r (date-month d) #:min-width 2 #:pad-string "0")
-                             (~r (date-day d) #:min-width 2 #:pad-string "0")
-                             (~r (date-hour d) #:min-width 2 #:pad-string "0")
-                             (~r (date-minute d) #:min-width 2 #:pad-string "0")
-                             (~r (date-second d) #:min-width 2 #:pad-string "0")))
-                   "0.0.0"
-                   #f
-                   #t
-                   100
-                   (list (artifact 'macos 'arm64
-                                   (format "taskly-~a-macos-arm64.zip" version) 'zip)
-                         (artifact 'macos 'x64
-                                   (format "taskly-~a-macos-x64.zip" version) 'zip)
-                         (artifact 'windows 'x64
-                                   (format "taskly-~a-windows-x64.zip" version) 'zip)
-                         (artifact 'windows 'x64
-                                   (format "taskly-~a-windows-x64.msi" version) 'msi)
-                         (artifact 'linux 'x64
-                                   (format "taskly-~a-linux-x64.tar.gz" version) 'targz)
-                         (artifact 'linux 'x64
-                                   (format "taskly-~a-linux-x86_64.AppImage" version) 'appimage)
-                         (artifact 'linux 'arm64
-                                   (format "taskly-~a-linux-arm64.tar.gz" version) 'targz)
-                         (artifact 'linux 'arm64
-                                   (format "taskly-~a-linux-aarch64.AppImage" version) 'appimage))))
-
-;; write-signed-manifest validates the struct against the manifest schema
-;; before signing, so a malformed manifest fails the release instead of
-;; shipping something every client would reject.
-(call-with-output-file (build-path dist "update-manifest.json")
-  #:exists 'truncate/replace
-  (lambda (out)
-    (write-signed-manifest manifest
-                           (read-ed25519-private-key key-path)
-                           key-id
-                           out)
-    (newline out)))
-(printf "manifest: ~a (8 artifacts, key-id ~a)\\n"
-        (build-path dist "update-manifest.json") key-id)
-RKT
-
-# rivet must be installed for the signer; the release publish job links a
-# checkout at the release pin.
-racket "$SCRIPT"
+echo "manifest: $DIST/update-manifest.json (8 artifacts, key-id $KEY_ID)"
