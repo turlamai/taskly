@@ -423,7 +423,11 @@
                        (cons "taskly-9.9.9-linux-x86_64.AppImage"
                              new-image-bytes))))
     (parameterize ([current-taskly-home home])
-      (write-config! (hash-set (read-config) "install-flavor" "appimage"))
+      ;; read-config hands back a mutable hash; hash-set would reject it on
+      ;; the AppImage-only path (the case never ran before this migration).
+      (define flavor-config (read-config))
+      (hash-set! flavor-config "install-flavor" "appimage")
+      (write-config! flavor-config)
       (define had-appimage (getenv "APPIMAGE"))
       (putenv "APPIMAGE" (path->string running-image))
       (reset-update-state!)
