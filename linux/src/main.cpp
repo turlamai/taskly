@@ -2646,14 +2646,16 @@ void detail_close() {
   g_state.open_detail = nullptr;
   g_state.open_detail_id = -1;
   if (detail->popover != nullptr) {
-    if (gtk_widget_get_parent(detail->popover) != nullptr) {
+    auto* popover = detail->popover;
+    if (gtk_widget_get_parent(popover) != nullptr) {
       // Popdown fires the "closed" handler; it re-enters detail_close and
       // no-ops because the state is already cleared.
-      gtk_popover_popdown(GTK_POPOVER(detail->popover));
+      gtk_popover_popdown(GTK_POPOVER(popover));
     }
     // Dropping the data runs the destroy notify, which performs the final
     // save (closing never discards) and frees the state.
-    g_object_set_data(G_OBJECT(detail->popover), "taskly-detail", nullptr);
+    g_object_set_data(G_OBJECT(popover), "taskly-detail", nullptr);
+    gtk_widget_unparent(popover);  // Dispose the detached widget.
   }
 }
 
@@ -3733,6 +3735,7 @@ GtkWidget* make_task_row(rivet_app::Task const& task) {
   gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), box);
   g_object_set_data(G_OBJECT(row), "task-id",
                     GSIZE_TO_POINTER(static_cast<gsize>(task.id)));
+  g_object_set_data(G_OBJECT(row), "task-info-button", details);
   attach_row_gestures(row, false);
   return row;
 }
@@ -3946,13 +3949,21 @@ void rebuild_task_list() {
   g_state.pending_task_rebuild = false;
   refresh_pane_header();
 
-  // The detail layer closes when its task leaves the current view (§5b):
-  // a row rebuild that no longer carries it (removed, completed-filtered,
-  // or excluded by the tag filter) dismisses the layer.
-  if (g_state.open_detail_id >= 0) {
-    auto* kept = find_by_id(g_state.tasks, g_state.open_detail_id);
-    if (kept == nullptr || !task_matches_tag_filter(*kept)) {
+  // The detail layer survives row rebuilds by detaching from the old row's
+  // ⓘ button and re-anchoring to the fresh row; it closes when its task
+  // leaves the current view (removed, completed out of view, or excluded
+  // by the tag filter) — §5b close-on-leave.
+  gboolean detail_floating = FALSE;
+  if (g_state.open_detail != nullptr) {
+    auto* kept = find_by_id(g_state.tasks, g_state.open_detail->task_id);
+    if (kept == nullptr || !task_matches_tag_filter(*kept) ||
+        g_state.suppressed_delete_ids.count(
+            g_state.open_detail->task_id) != 0) {
       detail_close();
+    } else {
+      detail_floating = TRUE;
+      g_object_ref(g_state.open_detail->popover);
+      gtk_widget_unparent(g_state.open_detail->popover);
     }
   }
 
@@ -4103,6 +4114,30 @@ void rebuild_task_list() {
   if (editor_carry &&
       find_by_id(g_state.tasks, g_state.open_editor_id) == nullptr) {
     g_state.open_editor_id = -1;
+  }
+
+  // Re-anchor the detached detail layer to the fresh row's ⓘ button.
+  if (detail_floating && g_state.open_detail != nullptr) {
+    for (GtkWidget* child = gtk_widget_get_first_child(GTK_WIDGET(
+             g_state.task_list));
+         child != nullptr;
+         child = gtk_widget_get_next_sibling(child)) {
+      if (!GTK_IS_LIST_BOX_ROW(child)) continue;
+      auto const row_id = static_cast<std::int64_t>(GPOINTER_TO_SIZE(
+          g_object_get_data(G_OBJECT(child), "task-id")));
+      if (row_id != g_state.open_detail_id) continue;
+      auto* anchor = static_cast<GtkWidget*>(
+          g_object_get_data(G_OBJECT(child), "task-info-button"));
+      if (anchor != nullptr) {
+        gtk_widget_set_parent(g_state.open_detail->popover, anchor);
+        gtk_popover_popup(GTK_POPOVER(g_state.open_detail->popover));
+      }
+      break;
+    }
+    g_object_unref(g_state.open_detail->popover);
+    if (gtk_widget_get_parent(g_state.open_detail->popover) == nullptr) {
+      detail_close();  // The row vanished — nowhere to anchor.
+    }
   }
 }
 
