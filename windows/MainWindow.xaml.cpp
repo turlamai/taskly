@@ -2228,8 +2228,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id, mxc::Button anchor) {
   detail_priority_box_ = make_field(t("fieldPriority"));
   auto priority = mxc::ComboBox{};
   priority.MinWidth(140);
-  for (wchar_t const* key :
-       {L"prioNone", L"prioLow", L"prioMedium", L"prioHigh"}) {
+  for (char const* key :
+       {"prioNone", "prioLow", "prioMedium", "prioHigh"}) {
     auto item = mxc::ComboBoxItem{};
     item.Content(winrt::box_value(t(key)));
     priority.Items().Append(item);
@@ -2257,7 +2257,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id, mxc::Button anchor) {
       args.Handled(true);
       if (auto window = weak.get()) {
         if (window->detail_tag_add_ != nullptr) {
-          auto value = trim_wide(window->detail_tag_add_.Text());
+          auto value =
+              trim_wide(std::wstring(window->detail_tag_add_.Text()));
           window->detail_tag_add_.Text(L"");
           if (!value.empty()) {
             bool const exists =
@@ -2293,7 +2294,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id, mxc::Button anchor) {
       args.Handled(true);
       if (auto window = weak.get()) {
         if (window->detail_subtask_add_ != nullptr) {
-          auto value = trim_wide(window->detail_subtask_add_.Text());
+          auto value =
+              trim_wide(std::wstring(window->detail_subtask_add_.Text()));
           window->detail_subtask_add_.Text(L"");
           if (!value.empty()) {
             window->detail_subtasks_.push_back(
@@ -2725,7 +2727,8 @@ void MainWindow::DetailShowError(int field, std::string const& message) {
   }
   if (detail_error_ != nullptr) {
     if (auto parent = detail_error_.Parent().try_as<mxc::StackPanel>()) {
-      parent.Children().Remove(detail_error_);
+      auto const index = parent.Children().IndexOf(detail_error_);
+      if (index) parent.Children().RemoveAt(index.Value());
     }
     if (target != nullptr) {
       target.Children().Append(detail_error_);
