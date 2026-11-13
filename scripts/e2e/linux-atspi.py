@@ -320,7 +320,21 @@ def open_detail_layer(root, row_title, attempts=6):
             if find_editable_named(live, "Title") is not None:
                 return live
             time.sleep(0.1)
-    raise AssertionError(f"could not open the detail layer for {row_title!r}")
+    # Diagnostics for the distant runner: which row/buttons the attempt saw.
+    live = find_frame(find_application())
+    probe_row = select_single_named_child(live, row_title)
+    observed = []
+    if probe_row is not None:
+        observed = [
+            f"{role(node)}[{name(node)}]"
+            for node in walk(probe_row)
+            if role(node) in BUTTON_ROLES
+        ]
+    raise AssertionError(
+        f"could not open the detail layer for {row_title!r}; "
+        f"row={'found' if probe_row is not None else 'missing'} "
+        f"buttons={observed}"
+    )
 
 
 DETAIL_TOGGLE_NAMES = ("\u24d8", "Details", "\u8be6\u60c5")
