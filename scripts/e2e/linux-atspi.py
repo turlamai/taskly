@@ -519,6 +519,10 @@ def main():
         press(add_date)
         # Esc closes the layer (autohide popover; closing never discards).
         send_keyboard_key("Escape")
+        window = wait_for(
+            "live frame after the detail layer closed",
+            lambda: find_frame(find_application()),
+        )
         wait_for(
             "first task save acknowledgement",
             lambda: find_editable_value(window, "First-run persistence task") is None
@@ -699,6 +703,10 @@ def main():
     send_keyboard_key("Return")
     # Esc closes the layer (autohide popover; closing never discards).
     send_keyboard_key("Escape")
+    window = wait_for(
+        "live frame after the URL autosave closed the layer",
+        lambda: find_frame(find_application()),
+    )
     wait_for(
         "URL autosave closed the layer",
         lambda: find_editable_named(window, "URL") is None,
@@ -722,6 +730,10 @@ def main():
     )
     # Esc closes the layer (autohide popover; closing never discards).
     send_keyboard_key("Escape")
+    window = wait_for(
+        "live frame after the URL verification closed the layer",
+        lambda: find_frame(find_application()),
+    )
     wait_for(
         "detail layer closed after URL verification",
         lambda: find_editable_named(window, "URL") is None,
@@ -755,6 +767,10 @@ def main():
     notes_view.queryEditableText().setTextContents("Detail-layer notes B")
     # Esc closes the layer (autohide popover; closing never discards).
     send_keyboard_key("Escape")
+    window = wait_for(
+        "live frame after the notes autosave closed the layer",
+        lambda: find_frame(find_application()),
+    )
     wait_for(
         "notes autosave closed the layer",
         lambda: find_editable_named(window, "Notes") is None,
@@ -778,6 +794,10 @@ def main():
     )
     # Esc closes the layer (autohide popover; closing never discards).
     send_keyboard_key("Escape")
+    window = wait_for(
+        "live frame after the notes verification closed the layer",
+        lambda: find_frame(find_application()),
+    )
     wait_for(
         "detail layer closed after notes verification",
         lambda: find_editable_named(window, "Notes") is None,
