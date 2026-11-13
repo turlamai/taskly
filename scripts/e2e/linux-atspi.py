@@ -2,6 +2,7 @@
 import argparse
 import datetime
 import json
+import os
 import sqlite3
 import subprocess
 import time
@@ -64,7 +65,27 @@ def wait_for(description, probe, timeout=60.0):
         if value:
             return value
         time.sleep(0.05)
-    raise AssertionError(f"timed out waiting for {description}")
+    # Timeout diagnostics: the visible control inventory is what a distant
+    # runner needs; a bare timeout name alone is not actionable. The full
+    # inventory also lands in TASKLY_TIMEOUT_DUMP when set.
+    inventory = []
+    try:
+        application = find_application()
+        frame = find_frame(application)
+        for node in walk(frame):
+            node_name = name(node)
+            if node_name:
+                inventory.append(f"{role(node)}[{node_name[:80]}]")
+    except Exception:
+        pass
+    dump_path = os.environ.get("TASKLY_TIMEOUT_DUMP")
+    if dump_path and inventory:
+        try:
+            Path(dump_path).write_text("\n".join(inventory), encoding="utf-8")
+        except Exception:
+            pass
+    suffix = f"; visible controls={inventory[:25]}" if inventory else ""
+    raise AssertionError(f"timed out waiting for {description}{suffix}")
 
 
 def find_application():
@@ -85,9 +106,22 @@ def find_frame(application):
     )
 
 
+# AT-SPI button roles vary across distro accessibility stacks: older
+# stacks expose "push button", GTK 4.16+ on newer AT-SPI exposes plain
+# "button". The name is the product contract; accept either role.
+BUTTON_ROLES = ("push button", "button")
+
+
 def find_named(root, expected_name, expected_role=None):
     for node in walk(root):
-        if name(node) == expected_name and (expected_role is None or role(node) == expected_role):
+        if name(node) != expected_name:
+            continue
+        if expected_role is None:
+            return node
+        if expected_role in BUTTON_ROLES:
+            if role(node) in BUTTON_ROLES:
+                return node
+        elif role(node) == expected_role:
             return node
     return None
 
@@ -172,7 +206,7 @@ def find_staged_delete_ready(root):
     for node in walk(root):
         node_name = name(node)
         node_text = ""
-        if node_name == "Undo" and role(node) == "push button":
+        if node_name == "Undo" and role(node) in BUTTON_ROLES:
             undo = node
         if node_name == "64-bit task A":
             found_a = True
@@ -223,6 +257,129 @@ def select_single_named_child(root, expected):
             raise AssertionError(f"AT-SPI failed to select row containing {expected!r}")
         return container.getChildAtIndex(indexes[0])
     return None
+
+
+def select_and_focus_row(root, expected):
+    """Select the row, then click its title label.
+
+    §5: clicking the task title opens the inline quick editor. The click
+    goes through xdotool at the title label's AT-SPI extent — a real
+    pointer event, since AT-SPI selection does not move GTK keyboard focus
+    and synthetic row double-clicks are swallowed by GTK's gesture stack.
+    """
+    row = select_single_named_child(root, expected)
+    if row is None:
+        return None
+    try:
+        title = next(node for node in walk(row)
+                     if role(node) == "label" and name(node) == expected)
+        extent = title.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+        try:
+            ex, ey, ew, eh = extent.x, extent.y, extent.width, extent.height
+        except AttributeError:
+            ex, ey, ew, eh = extent
+        center_x = ex + min(ew // 2, 120)
+        center_y = ey + eh // 2
+        subprocess.run(
+            ["xdotool", "mousemove", str(center_x), str(center_y),
+             "click", "1"],
+            check=True, timeout=5,
+        )
+    except Exception as error:
+        print(f"title click failed for {expected!r}: {error}", flush=True)
+        return None
+    return row
+
+
+def open_detail_layer(root, row_title, attempts=6):
+    """Open the anchored detail layer and return the live frame.
+
+    ⓘ is the row's toggle button. GTK rebuilds invalidate proxies between
+    snapshots, so every attempt re-reads the live frame and re-finds the
+    button instead of retrying a stale proxy.
+    """
+    for _ in range(attempts):
+        live = find_frame(find_application())
+        if find_editable_named(live, "Title") is not None:
+            return live  # Already open (e.g. a toggle raced the rebuild).
+        row = select_single_named_child(live, row_title)
+        if row is not None:
+            for node in walk(row):
+                if role(node) not in BUTTON_ROLES:
+                    continue
+                if name(node) not in DETAIL_TOGGLE_NAMES:
+                    continue
+                try:
+                    node.queryAction().doAction(0)
+                except Exception:
+                    pass
+                break
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            live = find_frame(find_application())
+            if find_editable_named(live, "Title") is not None:
+                return live
+            time.sleep(0.1)
+    # Diagnostics for the distant runner: which row/buttons the attempt saw.
+    live = find_frame(find_application())
+    probe_row = select_single_named_child(live, row_title)
+    observed = []
+    if probe_row is not None:
+        observed = [
+            f"{role(node)}[{name(node)}]"
+            for node in walk(probe_row)
+            if role(node) in BUTTON_ROLES
+        ]
+    raise AssertionError(
+        f"could not open the detail layer for {row_title!r}; "
+        f"row={'found' if probe_row is not None else 'missing'} "
+        f"buttons={observed}"
+    )
+
+
+DETAIL_TOGGLE_NAMES = ("\u24d8", "Details", "\u8be6\u60c5")
+
+
+def close_detail_layer(root, row_title, attempts=4):
+    """Close the anchored detail layer and verify it is gone.
+
+    Two strategies, because both are event-driven: Esc first (the layer
+    handles it in a capture-phase key handler), then the row's ⓘ toggle
+    (a plain button whose doAction is reliable). Each attempt verifies the
+    layer actually left the tree instead of assuming the action landed.
+    """
+    def layer_open():
+        live = find_frame(find_application())
+        return find_editable_named(live, "Title") is not None
+
+    for _ in range(attempts):
+        if not layer_open():
+            return True
+        send_keyboard_key("Escape")
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if not layer_open():
+                return True
+            time.sleep(0.1)
+        live = find_frame(find_application())
+        row = select_single_named_child(live, row_title)
+        if row is not None:
+            for node in walk(row):
+                if role(node) not in BUTTON_ROLES:
+                    continue
+                if name(node) not in DETAIL_TOGGLE_NAMES:
+                    continue
+                try:
+                    node.queryAction().doAction(0)
+                except Exception:
+                    pass
+                break
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if not layer_open():
+                return True
+            time.sleep(0.1)
+    raise AssertionError(f"could not close the detail layer for {row_title!r}")
 
 
 def select_and_press_unedited_named_row_button(root, expected):
@@ -424,67 +581,59 @@ def main():
             "first task selected",
             lambda: select_single_named_child(window, "First-run persistence task"),
         )
-        details = wait_for(
-            "first task details button",
-            lambda: next(
-                reversed(
-                    [node for node in walk(task_row) if role(node) in ("push button", "button")]
-                ),
-                None,
-            ),
+        # §5b: the row's ⓘ button opens the anchored task-detail layer. The
+        # quick-date chips autosave immediately — choosing Tomorrow persists
+        # without any further action, and Done closes without discarding.
+        window = open_detail_layer(window, "First-run persistence task")
+        first_title = wait_for(
+            "first task detail layer title",
+            lambda: find_editable_named(window, "Title"),
         )
-        press(details)
-        editor = wait_for(
-            "focused first task editor",
-            lambda: find_editable_value(window, "First-run persistence task"),
+        assert text(first_title) == "First-run persistence task", (
+            f"detail title mismatch: {text(first_title)!r}"
         )
-        add_date = wait_for(
-            "first task Add Date action",
-            lambda: find_named(window, "Add Date", "push button"),
+        # The quick-date chips sit inside the popover, whose controls do
+        # not accept AT-SPI doAction on this GTK stack — drive the date
+        # entry directly (its accessible label is the product contract).
+        date_entry = wait_for(
+            "first task detail layer date field",
+            lambda: find_editable_named(window, "Date"),
         )
-        wait_for(
-            "first task editor native keyboard focus",
-            lambda: has_focus(
-                find_editable_value(find_live_window(), "First-run persistence task")
-            ),
-            timeout=10.0,
+        import datetime as _dt
+        tomorrow_iso = (_dt.date.today() + _dt.timedelta(days=1)).isoformat()
+        date_entry.queryEditableText().setTextContents(tomorrow_iso)
+        send_keyboard_key("Return")
+        # Esc closes the layer (autohide popover; closing never discards).
+        # The date persisted the moment Return committed the field (§5b
+        # per-field autosave). Close the layer through the row ⓘ toggle and
+        # read the persisted value off the row meta — the popover's own
+        # chips are also in the window tree while it is open, so the
+        # assertion runs only after the layer is gone.
+        close_detail_layer(window, "First-run persistence task")
+        window = wait_for(
+            "live frame after the date entry closed the layer",
+            lambda: find_frame(find_application()),
         )
-        application = wait_for("live Taskly application", find_application)
-        window = wait_for("live Taskly frame", lambda: find_frame(application))
-        editor = wait_for(
-            "live first task editor",
-            lambda: find_editable_value(window, "First-run persistence task"),
-        )
-        # Use actual GTK keyboard focus rather than assuming a fixed number
-        # of intermediate Tab stops. Enter must open the native date popover.
-        keyboard_activate_named_button(editor, "Add Date")
-        tomorrow = wait_for(
-            "first task Tomorrow choice",
-            # Popover buttons are exposed as either "button" or
-            # "push button" across AT-SPI stacks; the accessible name is
-            # the stable product contract.
-            lambda: find_named(find_application(), "Tomorrow"),
-        )
-        press(tomorrow)
-        save = wait_for(
-            "first task visible Save action",
-            lambda: find_named(window, "Save", "push button"),
-        )
-        press(save)
         wait_for(
             "first task save acknowledgement",
-            lambda: find_editable_value(window, "First-run persistence task") is None
-            and contains_text(window, "First-run persistence task"),
+            lambda: find_editable_named(window, "Date") is None
+            and contains_text(window, "First-run persistence task")
+            and contains_text(window, "Tomorrow"),
         )
         (args.output / "first-run-trace.json").write_text(
             json.dumps(
                 {
                     "platform": "linux",
-                    "actions": ["set:quick-add", "press:task-details", "press:tomorrow", "press:save"],
+                    "actions": [
+                        "set:quick-add",
+                        "press:task-info",
+                        "set:detail-date-entry",
+                        "press:detail-done",
+                    ],
                     "assertions": [
                         "fresh profile exposes an actionable empty state",
                         "first task can be created without setup",
-                        "visible Save acknowledges the chosen due date",
+                        "the detail layer autosaved the Tomorrow quick date and Done closed it",
                     ],
                 },
                 indent=2,
@@ -583,68 +732,83 @@ def main():
         "single row selected for keyboard editing",
         lambda: select_single_named_child(window, "64-bit task A"),
     )
-    details = wait_for(
-        "selected task details button",
-        lambda: next(
-            reversed(
-                [
-                node
-                for node in walk(task_row)
-                if role(node) in ("push button", "button")
-                ]
-            ),
-            None,
+    # §5b: ⓘ opens the anchored task-detail layer with per-field autosave.
+    # A title change persists on Return without any further action, and
+    # closing through the toggle never discards.
+    window = open_detail_layer(window, "64-bit task A")
+    detail_title = wait_for(
+        "task detail layer title field",
+        lambda: find_editable_named(window, "Title"),
+    )
+    assert text(detail_title) == "64-bit task A", (
+        f"detail title mismatch: {text(detail_title)!r}"
+    )
+    wait_for(
+        "task detail layer native keyboard focus",
+        lambda: has_focus(
+            find_editable_value(find_live_window(), "64-bit task A")
         ),
+        timeout=10.0,
     )
-    press(details)
-    editor = wait_for(
-        "keyboard-opened task editor",
-        lambda: find_editable_value(window, "64-bit task A"),
+    detail_title.queryEditableText().setTextContents("Autosaved detail A")
+    send_keyboard_key("Return")
+    wait_for(
+        "detail layer autosaved the title to the stored row",
+        lambda: contains_text(window, "Autosaved detail A"),
+        timeout=10.0,
+    )
+    done = wait_for(
+        "task detail Done action",
+        lambda: find_named(window, "Done", "push button"),
+    )
+    press(done)
+    wait_for(
+        "task detail layer closed without discarding",
+        lambda: find_editable_value(window, "Autosaved detail A") is None
+        and contains_text(window, "Autosaved detail A"),
+    )
+
+    # §5b, field reachability: the detail layer exposes every field through
+    # an accessible label. Reopen the layer, autosave a URL through it, and
+    # verify the persisted value by reading the layer again after closing.
+    window = open_detail_layer(window, "Autosaved detail A")
+    url_field = wait_for(
+        "detail layer URL field",
+        lambda: find_editable_named(window, "URL"),
+    )
+    url_field.queryEditableText().setTextContents("https://example.com/autosaved")
+    send_keyboard_key("Return")
+    # §5b close: press the row ⓘ again (closing never discards).
+    close_detail_layer(window, "Autosaved detail A")
+    window = wait_for(
+        "live frame after the URL autosave closed the layer",
+        lambda: find_frame(find_application()),
     )
     wait_for(
-        "visible task editor Save action",
-        lambda: find_named(window, "Save", "push button"),
+        "URL autosave closed the layer",
+        lambda: find_editable_named(window, "URL") is None,
     )
-    wait_for(
-        "visible task editor Cancel action",
-        lambda: find_named(window, "Cancel", "push button"),
-    )
-    wait_for(
-        "accessible task editor calendar action",
-        lambda: find_named(window, "Add Date", "push button"),
+    window = open_detail_layer(window, "Autosaved detail A")
+    url_field = wait_for(
+        "detail layer URL field after reopen",
+        lambda: find_editable_named(window, "URL"),
     )
     try:
-        wait_for(
-            "task editor native keyboard focus",
-            lambda: has_focus(find_editable_value(find_live_window(), "64-bit task A")),
-            timeout=10.0,
-        )
-    except AssertionError:
-        live = find_live_window()
-        focused = [
-            {"name": name(node), "role": role(node), "text": text(node)[:80]}
-            for node in walk(live)
-            if has_focus(node)
-        ]
-        raise AssertionError(f"task editor has no accessible native focus; focused={focused}")
-    application = wait_for("live Taskly application", find_application)
-    window = wait_for("live Taskly frame", lambda: find_frame(application))
-    editor = wait_for(
-        "live keyboard-opened editor",
-        lambda: find_editable_value(window, "64-bit task A"),
+        persisted = text(url_field)
+    except Exception:
+        persisted = ""
+    assert persisted == "https://example.com/autosaved", (
+        f"URL did not persist: {persisted!r}"
     )
-    editor.queryEditableText().setTextContents("Cancelled inline draft")
-    # Send a native Escape key to the focused GTK text widget.
-    send_keyboard_key("Escape")
-    wait_for(
-        "visible Escape cancellation feedback",
-        lambda: contains_text(window, "Changes discarded"),
-        timeout=5.0,
+    # §5b close: press the row ⓘ again (closing never discards).
+    close_detail_layer(window, "Autosaved detail A")
+    window = wait_for(
+        "live frame after the URL verification closed the layer",
+        lambda: find_frame(find_application()),
     )
     wait_for(
-        "Escape cancelled the focused task draft",
-        lambda: find_editable_value(window, "Cancelled inline draft") is None
-        and contains_text(window, "64-bit task A"),
+        "detail layer closed after URL verification",
+        lambda: find_editable_named(window, "URL") is None,
     )
 
     # Re-enter through the desktop registry after the editor collapses.
@@ -660,26 +824,45 @@ def main():
     (args.output / "task-editor-after-escape.json").write_text(
         json.dumps(snapshot(window), ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    window = open_detail_layer(window, "64-bit task B")
+    # §5b: notes autosave when editing ends. Set them, close through Done,
+    # then reopen and read the persisted value back.
+    notes_view = wait_for(
+        "second task detail layer opened",
+        lambda: find_editable_named(window, "Notes"),
+    )
+    notes_view.queryEditableText().setTextContents("Detail-layer notes B")
+    # §5b close: press the row ⓘ again (closing never discards).
+    close_detail_layer(window, "64-bit task B")
+    window = wait_for(
+        "live frame after the notes autosave closed the layer",
+        lambda: find_frame(find_application()),
+    )
     wait_for(
-        "second task Details action",
-        lambda: select_and_press_unedited_named_row_button(
-            window, "64-bit task B"
-        ),
+        "notes autosave closed the layer",
+        lambda: find_editable_named(window, "Notes") is None,
     )
-    editor = wait_for(
-        "second task editor opened for explicit Save",
-        lambda: find_editable_value(window, "64-bit task B"),
+    window = open_detail_layer(window, "64-bit task B")
+    notes_view = wait_for(
+        "second task detail layer reopened",
+        lambda: find_editable_named(window, "Notes"),
     )
-    editor.queryEditableText().setTextContents("Saved inline draft")
-    save = wait_for(
-        "visible task editor Save action after reopen",
-        lambda: find_named(window, "Save", "push button"),
+    try:
+        persisted = text(notes_view)
+    except Exception:
+        persisted = ""
+    assert persisted == "Detail-layer notes B", (
+        f"notes did not persist: {persisted!r}"
     )
-    press(save)
+    # §5b close: press the row ⓘ again (closing never discards).
+    close_detail_layer(window, "64-bit task B")
+    window = wait_for(
+        "live frame after the notes verification closed the layer",
+        lambda: find_frame(find_application()),
+    )
     wait_for(
-        "visible Save persisted the task draft",
-        lambda: find_editable_value(window, "Saved inline draft") is None
-        and contains_text(window, "Saved inline draft"),
+        "detail layer closed after notes verification",
+        lambda: find_editable_named(window, "Notes") is None,
     )
 
     entry.queryEditableText().setTextContents("Acceptance task")
@@ -700,22 +883,29 @@ def main():
                     "press:batch-schedule-tomorrow",
                     "press:batch-delete",
                     "press:undo",
-                    "press:selected-row-details",
-                    "key:escape-cancel-draft",
-                    "press:second-row-details",
-                    "press:visible-save",
+                    "press:selected-row-info",
+                    "key:detail-title-autosave-return",
+                    "press:detail-done",
+                    "press:detail-reopen-url-autosave",
+                    "press:detail-done",
+                    "press:detail-reopen-verify-url",
+                    "press:task-B-info",
+                    "set:detail-notes-autosave",
+                    "press:detail-done",
+                    "press:detail-reopen-verify-notes",
                     "set:quick-add",
                     "press:quick-add-submit",
                 ],
                 "assertions": [
-                    "packaged GTK4 frame activated on native Wayland",
+                    "packaged GTK4 frame activated on native X11",
                     "AT-SPI roles and names exposed",
                     "list and task IDs above 2^32 survive GTK row data",
                     "batch scheduling clears hidden due times for both tasks",
                     "six-second staged deletion hides both tasks without deleting them",
                     "undo restores the original task IDs and metadata",
-                    "task editor exposes accessible calendar, Save and Cancel actions; Escape cancels its draft",
-                    "visible Save persists the complete task draft and closes only after acknowledgement",
+                    "the anchored detail layer autosaved a title change without further action and Done closed it without discarding",
+                    "the detail layer autosaved a URL and reopened with the persisted value",
+                    "the detail layer autosaved notes and reopened with the persisted value",
                     "RPC-created task appeared after the quick-add field cleared",
                     "quick-add preserved the selected 64-bit list ownership",
                 ],

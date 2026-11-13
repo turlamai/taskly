@@ -22,8 +22,31 @@
 ;; A package suite must exercise an installer, not merely prove that a staging
 ;; directory can be built. Development release mode creates the same human
 ;; installation shapes as a release without requiring production credentials.
-(unless (system* raco "rivet" "release" "--development" "--without-updates")
-  (error 'taskly-acceptance "raco rivet release --development failed"))
+;; macOS: a stale attachment of dmg-rw.dmg from an earlier acceptance
+;; attempt on the same runner makes hdiutil create fail with "Resource
+;; busy". Detach any such image before building, and retry once after a
+;; forced detach when the create still fails.
+(define (detach-stale-dmg)
+  (system
+   (string-append
+    "hdiutil info | awk '/image-path/{p=$NF} /dev-entry/{d=$NF} "
+    "p ~ /dmg-rw.dmg/{print d}' | xargs -I{} hdiutil detach -force {} "
+    "2>/dev/null || true"))
+  (system "rm -f .rivet/installer/dmg-rw.dmg"))
+
+(define (run-release)
+  (unless (system* raco "rivet" "release" "--development" "--without-updates")
+    (when (eq? (system-type 'os) 'macosx)
+      (detach-stale-dmg)
+      (unless (system* raco "rivet" "release" "--development"
+                        "--without-updates")
+        (error 'taskly-acceptance
+               "raco rivet release --development failed")))
+    (unless (eq? (system-type 'os) 'macosx)
+      (error 'taskly-acceptance
+             "raco rivet release --development failed"))))
+
+(run-release)
 
 (define-values (launcher script)
   (case (system-type 'os)

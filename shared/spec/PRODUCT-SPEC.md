@@ -192,12 +192,12 @@ their `scripts/e2e/` drivers; this table is the pointer, not a second spec):
 
 | Scenario | Enforced by | Status |
 |---|---|---|
-| Quick edit → Escape | windows-native-ui (`Escape cancelled inline task draft`), linux-native-ui (Escape step) | windows+linux ✅ · macos gap |
+| Quick edit → Escape | windows-native-ui (`Escape cancelled inline task draft`) | windows ✅ · linux gap (GTK 4.22 AT-SPI exposes no external driver entry to the inline editor — no row action, unusable extents, failed grabFocus; the editor stays available to users via title click / double-click / Enter and is verified by interaction testing) · macos gap |
 | Quick edit → click away / Return | linux-native-ui (Return steps) | linux ✅ · windows/macos partial (editor traversal asserted, Return/click-away not traced) |
 | Quick edit → visible Save | linux-native-ui (`Save` asserts), windows (inline editor traversal) | linux ✅ · windows partial · macos gap |
 | Quick edit → save failure | — | gap: needs an injectable persistence failure |
 | Quick edit → visible Cancel | windows-native-ui (`inline-task-cancel`), linux-native-ui (`Cancel`) | ✅ |
-| Detail → field change / persist failure / close | — | gap: lands with the D13 host detail-layer slices |
+| Detail → field change / persist failure / close | macos-native-ui (detail autosave + Done), linux-native-ui (title autosave, URL and notes reopen-verified, Tomorrow quick date on first-run), windows-native-ui (detail autosave + Done) | field change + close ✅ · persist failure gap: needs an injectable persistence failure |
 | Delete → undo | macos-native-ui (`undo-delete`), linux-native-ui (staged delete + `Undo`) | macos+linux ✅ · windows partial (batch delete staged, undo trace not asserted) |
 | Delete → timeout | — | gap |
 | Search refresh | — | gap |

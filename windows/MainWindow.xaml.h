@@ -91,7 +91,9 @@ struct MainWindow : MainWindowT<MainWindow> {
   // because generated Connect() binds them through MainWindowT.
   void OnCancelUpdateDownload(
       winrt::Windows::Foundation::IInspectable const&,
-      Microsoft::UI::Xaml::RoutedEventArgs const&);
+      winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
+  void OnClearTagFilter(winrt::Windows::Foundation::IInspectable const&,
+                        winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
   void LoadAutoCheckUpdatesSetting();
 
   // PRODUCT-SPEC §8: the settings window (Ctrl+,). Single instance held
@@ -162,6 +164,21 @@ private:
   void CommitInlineTaskEditor();
   void CancelInlineTaskEditor();
   void ResetInlineTaskEditor();
+  // Anchored task-detail layer (DESIGN-TOKENS §Anchored, PRODUCT-SPEC §5b):
+  // one Flyout anchored to the row's info button with per-field autosave.
+  void OpenTaskDetail(std::int64_t id);
+  void CloseTaskDetail();
+  void OnDetailFlyoutClosed();
+  rivet_app::Task DetailTaskFromControls() const;
+  void DetailAutosave(int field);
+  void DetailRebuildTags();
+  void DetailRebuildSubtasks();
+  void DetailShowError(int field, std::string const& message);
+  void DetailClearError();
+  // Row tag-chip filter (§5): narrows the current view client-side.
+  bool TaskMatchesTagFilter(rivet_app::Task const& task) const;
+  void ToggleTagFilter(std::wstring const& tag);
+  void ClearTagFilter();
   void RefreshQuickAddPreview();
   void ApplyTitleBarTheme();
   void OnEffectiveThemeChanged();
@@ -281,6 +298,39 @@ private:
   winrt::Microsoft::UI::Xaml::Controls::Border inline_time_chip_{nullptr};
   void ApplyInlineDateChipState();
   void ApplyInlineTimeChipState();
+  // Anchored task-detail layer state (§5b). Exactly one layer at a time;
+  // detail_task_id_ is -1 when closed. The controls live in the flyout's
+  // tree; a pending text edit saves once more on close (never discarded).
+  std::int64_t detail_task_id_{-1};
+  std::wstring tag_filter_;
+  winrt::Microsoft::UI::Xaml::Controls::Flyout detail_flyout_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::CheckBox detail_completed_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::TextBox detail_title_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::TextBox detail_date_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::TextBox detail_time_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::ComboBox detail_priority_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_tags_panel_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::TextBox detail_tag_add_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_subtasks_panel_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::TextBox detail_subtask_add_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::TextBox detail_notes_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::TextBox detail_url_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::ComboBox detail_list_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::TextBlock detail_error_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_title_box_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_date_box_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_time_box_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_priority_box_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_tags_box_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_subtasks_box_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_notes_box_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_url_box_{nullptr};
+  winrt::Microsoft::UI::Xaml::Controls::StackPanel detail_list_box_{nullptr};
+  std::vector<std::wstring> detail_tags_;
+  std::vector<rivet_app::Subtask> detail_subtasks_;
+  std::vector<std::int64_t> detail_list_ids_;
+  bool detail_suppress_{false};
+  int detail_error_field_{0};
   std::wstring current_search_;
   ViewKind view_{ViewKind::All};
   std::int64_t view_list_id_{0};

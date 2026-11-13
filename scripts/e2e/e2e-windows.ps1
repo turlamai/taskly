@@ -72,6 +72,45 @@ function Find-ByName {
     $Root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
 }
 
+function Select-RowByTitle {
+    param($Root, [string]$Title)
+    $titleElement = Find-ByName $Root $Title
+    if ($null -eq $titleElement) { return $false }
+    $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+    $item = $titleElement
+    while ($null -ne $item -and
+           $item.Current.ControlType -ne
+               [System.Windows.Automation.ControlType]::ListItem) {
+        $item = $walker.GetParent($item)
+    }
+    if ($null -eq $item) { return $false }
+    try {
+        $item.GetCurrentPattern(
+            [System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    } catch {
+        return $false
+    }
+    $item.SetFocus()
+    return $true
+}
+
+function Invoke-RealDoubleClick {
+    param($Element)
+    $rect = $Element.Current.BoundingRectangle
+    if ($rect.IsEmpty) { return $false }
+    $x = [int]($rect.X + [Math]::Min($rect.Width / 2, 120))
+    $y = [int]($rect.Y + $rect.Height / 2)
+    [System.Windows.Forms.Cursor]::Position =
+        [System.Drawing.Point]::new($x, $y)
+    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, int e);' -Name TasklyMouse -Namespace TasklyNative -ErrorAction SilentlyContinue | Out-Null
+    [TasklyNative.TasklyMouse]::mouse_event(0x0002, 0, 0, 0, 0)
+    [TasklyNative.TasklyMouse]::mouse_event(0x0004, 0, 0, 0, 0)
+    Start-Sleep -Milliseconds 120
+    [TasklyNative.TasklyMouse]::mouse_event(0x0002, 0, 0, 0, 0)
+    [TasklyNative.TasklyMouse]::mouse_event(0x0004, 0, 0, 0, 0)
+    return $true
+}
+
 function Capture-Screen {
     param([string]$Path)
     $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
@@ -292,14 +331,53 @@ try {
         throw 'Windows task list must support Ctrl/Shift multi-selection'
     }
 
-    # Task details must expand in place. A modal PromptAsync text box is not
-    # acceptable here because it cannot edit notes/date/time and breaks the
-    # Reminders-style Return/Esc flow.
-    $taskInfo = Wait-Until 'inline task details button' {
+    # §5b: the info button opens the anchored task-detail layer with
+    # per-field autosave. A title change persists without further action,
+    # and Done closes the layer without discarding.
+    $taskInfo = Wait-Until 'task details button' {
         Find-ById $window 'task-info-2'
     }
     $taskInfo.GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $detailTitle = Wait-Until 'task detail layer title field' {
+        Find-ById $window 'detail-title-2'
+    }
+    $detailTitle.GetCurrentPattern(
+        [System.Windows.Automation.ValuePattern]::Pattern).SetValue(
+        'Autosaved detail title')
+    $detailTitle.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    [void](Wait-Until 'detail layer autosaved the title to the stored row' {
+        if ($null -ne (Find-ByName $window 'Autosaved detail title')) {
+            return $true
+        }
+        return $false
+    })
+    $detailDone = Wait-Until 'task detail Done action' {
+        Find-ById $window 'detail-done-2'
+    }
+    $detailDone.GetCurrentPattern(
+        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    [void](Wait-Until 'task detail layer closed without discarding' {
+        if ($null -eq (Find-ById $window 'detail-title-2') -and
+            $null -ne (Find-ByName $window 'Autosaved detail title')) {
+            return $true
+        }
+        return $false
+    })
+
+    # §5: the inline quick editor is entered by selecting the row and
+    # pressing Enter. It must expand in place — a modal PromptAsync text box
+    # is not acceptable because it cannot edit notes/date/time.
+    # §5: double-clicking the row opens the inline editor (the Windows
+    # equivalent of the title click other hosts use). A real pointer
+    # double-click is used because selecting the item and synthesizing
+    # Enter races the ListView's own rebuild.
+    [void](Wait-Until 'task row for inline entry' {
+        $titleElement = Find-ByName $window 'Autosaved detail title'
+        if ($null -eq $titleElement) { return $false }
+        Invoke-RealDoubleClick $titleElement
+    })
     $inlineTitle = Wait-Until 'inline task title editor' {
         Find-ById $window 'inline-task-title-2'
     }
@@ -312,14 +390,16 @@ try {
     [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
     [void](Wait-Until 'Escape cancelled inline task draft' {
         if ($null -eq (Find-ById $window 'inline-task-title-2') -and
-            $null -ne (Find-ByName $window $plainTask)) { return $true }
+            $null -ne (Find-ByName $window 'Autosaved detail title')) {
+            return $true
+        }
         return $false
     })
-    $taskInfo = Wait-Until 'reopen inline task details after cancel' {
-        Find-ById $window 'task-info-2'
-    }
-    $taskInfo.GetCurrentPattern(
-        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    [void](Wait-Until 'task row for inline entry after cancel' {
+        $titleElement = Find-ByName $window 'Autosaved detail title'
+        if ($null -eq $titleElement) { return $false }
+        Invoke-RealDoubleClick $titleElement
+    })
     $inlineTitle = Wait-Until 'inline task title editor after cancel' {
         Find-ById $window 'inline-task-title-2'
     }
@@ -414,21 +494,28 @@ try {
 
     # Reopen after the backend changed-event rebuild and verify every field
     # was read back from persistence, not merely retained in the visual tree.
-    $taskInfo = Wait-Until 'reopen inline task details' {
+    # §5/§5b split: ⓘ opens the detail layer, so the persisted values are
+    # read there; the inline editor is entered by double-clicking the row.
+    $taskInfo = Wait-Until 'reopen task details after inline save' {
         Find-ById $window 'task-info-2'
     }
     $taskInfo.GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-    $persistedNotes = Wait-Until 'persisted inline notes' {
-        Find-ById $window 'inline-task-notes-2'
+    $persistedTitle = Wait-Until 'persisted detail title field' {
+        Find-ById $window 'detail-title-2'
     }
-    $persistedDate = Wait-Until 'persisted inline date' {
-        Find-ById $window 'inline-task-date-2'
+    $persistedNotes = Wait-Until 'persisted detail notes field' {
+        Find-ById $window 'detail-notes-2'
     }
-    $persistedTime = Wait-Until 'persisted inline time' {
-        Find-ById $window 'inline-task-time-2'
+    $persistedDate = Wait-Until 'persisted detail date field' {
+        Find-ById $window 'detail-date-2'
     }
-    if ($persistedNotes.GetCurrentPattern(
+    $persistedTime = Wait-Until 'persisted detail time field' {
+        Find-ById $window 'detail-time-2'
+    }
+    if ($persistedTitle.GetCurrentPattern(
+            [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne $editedPlainTask -or
+        $persistedNotes.GetCurrentPattern(
             [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne $editedNotes -or
         $persistedDate.GetCurrentPattern(
             [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '2099-12-31' -or
@@ -436,21 +523,21 @@ try {
             [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '10:30') {
         throw 'inline task details were not persisted across the backend refresh'
     }
-    $persistedCancel = Wait-Until 'persisted editor cancel action' {
-        Find-ById $window 'inline-task-cancel-2'
+    $persistedDone = Wait-Until 'detail layer done action' {
+        Find-ById $window 'detail-done-2'
     }
-    $persistedCancel.GetCurrentPattern(
+    $persistedDone.GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-    [void](Wait-Until 'visible Cancel closed the unchanged editor' {
-        if ($null -eq (Find-ById $window 'inline-task-title-2')) { return $true }
+    [void](Wait-Until 'detail layer closed after verification' {
+        if ($null -eq (Find-ById $window 'detail-title-2')) { return $true }
         return $false
     })
 
-    $taskInfo = Wait-Until 'reopen for Return keyboard commit' {
-        Find-ById $window 'task-info-2'
-    }
-    $taskInfo.GetCurrentPattern(
-        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    [void](Wait-Until 'row for Return keyboard commit' {
+        $titleElement = Find-ByName $window $editedPlainTask
+        if ($null -eq $titleElement) { return $false }
+        Invoke-RealDoubleClick $titleElement
+    })
     $returnEditor = Wait-Until 'title editor for Return commit' {
         Find-ById $window 'inline-task-title-2'
     }
@@ -631,11 +718,12 @@ try {
     }
     $restartInfo.GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    # ⓘ opens the detail layer; the persisted date/time are read there.
     $restartDate = Wait-Until 'saved task date after restart' {
-        Find-ById $window 'inline-task-date-2'
+        Find-ById $window 'detail-date-2'
     }
     $restartTime = Wait-Until 'saved task time after restart' {
-        Find-ById $window 'inline-task-time-2'
+        Find-ById $window 'detail-time-2'
     }
     if ($restartDate.GetCurrentPattern(
             [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '2099-12-31' -or

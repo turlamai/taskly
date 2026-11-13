@@ -5,9 +5,11 @@ repo="$1"
 output="$2"
 mkdir -p "$output"
 
-deb="$(find "$repo/dist" -maxdepth 1 -name 'taskly-*-linux-amd64.deb' -type f -print -quit)"
-rpm="$(find "$repo/dist" -maxdepth 1 -name 'taskly-*-linux-x86_64.rpm' -type f -print -quit)"
-appimage="$(find "$repo/dist" -maxdepth 1 -name 'taskly-*-linux-x86_64.AppImage' -type f -print -quit)"
+# Architecture-agnostic: the same suite runs on x64 CI runners and on
+# aarch64 development machines (rivet names the artifacts per architecture).
+deb="$(find "$repo/dist" -maxdepth 1 -name 'taskly-*-linux-*.deb' -type f -print -quit)"
+rpm="$(find "$repo/dist" -maxdepth 1 -name 'taskly-*-linux-*.rpm' -type f -print -quit)"
+appimage="$(find "$repo/dist" -maxdepth 1 -name 'taskly-*-linux-*.AppImage' -type f -print -quit)"
 [[ -n "$deb" && -n "$rpm" && -n "$appimage" ]]
 
 installed=0

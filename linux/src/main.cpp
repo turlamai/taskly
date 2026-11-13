@@ -452,6 +452,9 @@ Palette const& system_palette();
 
 enum class ViewKind { Today, Planned, All, Completed, List };
 
+// Anchored task-detail layer state (§5b); defined after the editor section.
+struct TaskDetail;
+
 struct AppState {
   GtkWindow* window{nullptr};
   GtkBox* menubar_box{nullptr};
@@ -514,6 +517,13 @@ struct AppState {
   std::int64_t open_editor_id{-1};
   bool snapshot_rendered{false};
   bool pending_task_rebuild{false};
+  // Anchored task-detail layer (§5b) and the row tag-chip filter (§5).
+  std::int64_t open_detail_id{-1};
+  TaskDetail* open_detail{nullptr};
+  // Overlay host the detail panel is placed in (window-coordinate layout).
+  GtkWidget* detail_layer_host{nullptr};
+  std::string tag_filter;
+  GtkButton* tag_clear_button{nullptr};
 
   // Native reminder transport only. Eligibility, startup summarization,
   // per-database de-duplication and handoff acknowledgement live in the core.
@@ -737,6 +747,7 @@ std::string view_title() {
 
 // Pane subtitle (macOS M4 semantics): the Today view shows the full
 // localized date; other views show open/completed counts.
+bool task_matches_tag_filter(rivet_app::Task const& task);
 std::string view_subtitle() {
   if (g_state.view == ViewKind::Today) {
     auto const now = std::time(nullptr);
@@ -758,11 +769,16 @@ std::string view_subtitle() {
   std::int64_t open = 0;
   std::int64_t completed = 0;
   for (auto const& task : g_state.tasks) {
+    if (!task_matches_tag_filter(task)) continue;
     if (task.completed) {
       ++completed;
     } else {
       ++open;
     }
+  }
+  if (!g_state.tag_filter.empty()) {
+    return format_positional(tr("subtitleTagFilter"), g_state.tag_filter,
+                             std::to_string(open));
   }
   auto subtitle =
       format_positional(tr("subtitleOpenTasks"), std::to_string(open));
@@ -771,6 +787,31 @@ std::string view_subtitle() {
                                           std::to_string(completed));
   }
   return subtitle;
+}
+
+// §5: a row tag chip narrows the current view client-side to the tasks
+// carrying the tag — a subset of the loaded snapshot, never a new query.
+bool task_matches_tag_filter(rivet_app::Task const& task) {
+  if (g_state.tag_filter.empty()) return true;
+  return std::find(task.tags.begin(), task.tags.end(),
+                   g_state.tag_filter) != task.tags.end();
+}
+
+void toggle_tag_filter(std::string const& tag) {
+  if (g_state.tag_filter == tag) {
+    g_state.tag_filter.clear();
+  } else {
+    g_state.tag_filter = tag;
+  }
+  g_state.open_editor_id = -1;
+  reload_snapshot();
+}
+
+void clear_tag_filter() {
+  if (g_state.tag_filter.empty()) return;
+  g_state.tag_filter.clear();
+  g_state.open_editor_id = -1;
+  reload_snapshot();
 }
 
 // Signed ARGB int → #RRGGBB for CSS.
@@ -849,6 +890,13 @@ void apply_css(Palette const& p) {
   css += ".due-chip { font-size: 12px; }\n";
   css += ".due-today { color: " + std::string(p.accent) + "; }\n";
   css += ".due-overdue { color: " + std::string(p.overdue) + "; }\n";
+  css += ".prio-mark { color: " + std::string(p.overdue) + "; font-weight: 700; }\n";
+  css += "button.tag-chip { font-size: 12px; padding: 1px 8px; border-radius: 10px; background: " + std::string(p.selected) + "; border: none; box-shadow: none; color: " + std::string(p.secondary) + "; }\n";
+  css += "button.tag-chip:hover { background: " + std::string(p.hover) + "; }\n";
+  css += ".detail-error { color: " + std::string(p.overdue) + "; font-size: 12px; }\n";
+  css += ".detail-hint { color: " + std::string(p.muted) + "; font-size: 12px; }\n";
+  css += ".detail-caption { color: " + std::string(p.secondary) + "; font-size: 12px; font-weight: 600; }\n";
+  css += ".detail-surface { background: " + std::string(p.surface) + "; border-radius: 12px; padding: 4px; }\n";
   css += "listbox.task-row-list { background: " + std::string(p.background) + "; }\n";
   css += "listbox.task-row-list > row { min-height: 44px; padding: 9px 16px; background: " + std::string(p.background) + "; }\n";
   css += "listbox.task-row-list > row:hover { background: " + std::string(p.hover) + "; }\n";
@@ -1165,6 +1213,7 @@ void run_search(std::string const& keyword) {
               gtk_list_box_remove_all(g_state.task_list);
               for (auto const& task : results) {
                 if (g_state.suppressed_delete_ids.count(task.id)) continue;
+                if (!task_matches_tag_filter(task)) continue;
                 auto* row = make_task_row(task);
                 gtk_list_box_insert(g_state.task_list, row, -1);
                 if (selected_ids.find(task.id) != selected_ids.end()) {
@@ -2416,6 +2465,928 @@ void on_editor_quick_date_clicked(GtkButton* button, gpointer user_data) {
   if (popover != nullptr) gtk_popover_popdown(popover);
 }
 
+// ---------------------------------------------------------------------------
+// Anchored task-detail layer (DESIGN-TOKENS §Anchored task detail layer,
+// PRODUCT-SPEC §5b): a GtkPopover anchored to the row's ⓘ button carrying
+// the full field set. Persistence is per-field autosave — discrete controls
+// persist as they change, text fields persist on Return/focus-out plus once
+// more when the layer closes, so closing never discards. A failed save
+// anchors an actionable error to its field; the layer closes when its task
+// leaves the current view. Reminder offsets are staged for the A2 slice
+// (#131): they change §9 scheduling semantics, so the field is absent here
+// by declared scope.
+// ---------------------------------------------------------------------------
+
+enum class DetailField { Completed, Title, Date, Time, Priority, Tags, Subtasks, Notes, Url, List };
+
+struct TaskDetail {
+  std::int64_t task_id{0};
+  GtkWidget* panel{nullptr};
+  GtkWidget* layer_host{nullptr};
+  GtkCheckButton* completed{nullptr};
+  GtkEntry* title{nullptr};
+  GtkEntry* date{nullptr};
+  GtkEntry* time{nullptr};
+  GtkDropDown* priority{nullptr};
+  GtkBox* tags_box{nullptr};
+  GtkEntry* tag_add{nullptr};
+  GtkBox* subtasks_box{nullptr};
+  GtkEntry* subtask_add{nullptr};
+  GtkTextView* notes{nullptr};
+  GtkEntry* url{nullptr};
+  GtkDropDown* list{nullptr};
+  GtkWidget* title_box{nullptr};
+  GtkWidget* date_box{nullptr};
+  GtkWidget* time_box{nullptr};
+  GtkWidget* priority_box{nullptr};
+  GtkWidget* tags_box_outer{nullptr};
+  GtkWidget* subtasks_box_outer{nullptr};
+  GtkWidget* notes_box{nullptr};
+  GtkWidget* url_box{nullptr};
+  GtkWidget* list_box{nullptr};
+  GtkLabel* error{nullptr};
+  DetailField error_field{DetailField::Title};
+  bool suppress{false};
+  // Text fields autosave on a short debounce after each keystroke (§5b:
+  // every change persists as it is made); Return and focus-out flush at
+  // once, and the close path flushes anything still pending.
+  guint text_save_timer{0};
+  DetailField text_save_field{DetailField::Title};
+  std::vector<std::string> tags;
+  std::vector<rivet_app::Subtask> subtasks;
+  std::vector<std::int64_t> list_ids;
+  // Async callbacks may outlive the popover (row rebuilds destroy it); the
+  // token tells them when the detail is gone and UI updates must be skipped.
+  std::shared_ptr<bool> alive{std::make_shared<bool>(true)};
+};
+
+TaskDetail* detail_for(gpointer data) {
+  if (data == nullptr) return nullptr;
+  auto* detail = static_cast<TaskDetail*>(data);
+  if (!*detail->alive) return nullptr;
+  return detail;
+}
+
+void detail_show_error(TaskDetail* detail, DetailField field,
+                       std::string const& message) {
+  detail->error_field = field;
+  GtkWidget* anchor = nullptr;
+  switch (field) {
+    case DetailField::Title: anchor = detail->title_box; break;
+    case DetailField::Date: anchor = detail->date_box; break;
+    case DetailField::Time: anchor = detail->time_box; break;
+    case DetailField::Priority: anchor = detail->priority_box; break;
+    case DetailField::Tags: anchor = detail->tags_box_outer; break;
+    case DetailField::Subtasks: anchor = detail->subtasks_box_outer; break;
+    case DetailField::Notes: anchor = detail->notes_box; break;
+    case DetailField::Url: anchor = detail->url_box; break;
+    case DetailField::List: anchor = detail->list_box; break;
+    case DetailField::Completed: anchor = nullptr; break;
+  }
+  gtk_label_set_text(detail->error, message.c_str());
+  if (anchor != nullptr && gtk_widget_get_parent(GTK_WIDGET(detail->error)) !=
+                               anchor) {
+    if (gtk_widget_get_parent(GTK_WIDGET(detail->error)) != nullptr) {
+      gtk_box_remove(
+          GTK_BOX(gtk_widget_get_parent(GTK_WIDGET(detail->error))),
+          GTK_WIDGET(detail->error));
+    }
+    gtk_box_append(GTK_BOX(anchor), GTK_WIDGET(detail->error));
+  }
+}
+
+void detail_clear_error(TaskDetail* detail) {
+  gtk_label_set_text(detail->error, "");
+}
+
+// Debounced text autosave: one timer coalesces keystrokes; the field saved
+// is whichever was edited last.
+void detail_autosave(TaskDetail* detail, DetailField field);
+
+struct DetailTextSave {
+  TaskDetail* detail;
+  std::shared_ptr<bool> alive;
+};
+
+gboolean detail_text_save_flush(gpointer data) {
+  auto* job = static_cast<DetailTextSave*>(data);
+  if (*job->alive) {
+    job->detail->text_save_timer = 0;
+    detail_autosave(job->detail, job->detail->text_save_field);
+  }
+  delete job;
+  return FALSE;  // one-shot
+}
+
+void detail_queue_text_save(TaskDetail* detail, DetailField field) {
+  if (*detail->alive == false) return;
+  detail->text_save_field = field;
+  if (detail->text_save_timer == 0) {
+    auto* job = new DetailTextSave{detail, detail->alive};
+    detail->text_save_timer = g_timeout_add(300, detail_text_save_flush, job);
+  }
+}
+
+void detail_autosave(TaskDetail* detail, DetailField field) {
+  if (g_state.api == nullptr) return;
+  auto* stored = find_by_id(g_state.tasks, detail->task_id);
+  if (stored == nullptr) return;
+  rivet_app::Task updated = *stored;
+  updated.text = gtk_editable_get_text(GTK_EDITABLE(detail->title));
+  updated.completed =
+      gtk_check_button_get_active(detail->completed);
+  auto const date =
+      std::string(gtk_editable_get_text(GTK_EDITABLE(detail->date)));
+  updated.due_date =
+      date.empty() ? std::nullopt : std::optional<std::string>(date);
+  auto const time =
+      std::string(gtk_editable_get_text(GTK_EDITABLE(detail->time)));
+  updated.due_time = (date.empty() || time.empty())
+                         ? std::nullopt
+                         : std::optional<std::string>(time);
+  GtkTextBuffer* buffer = gtk_text_view_get_buffer(detail->notes);
+  GtkTextIter start;
+  GtkTextIter end;
+  gtk_text_buffer_get_bounds(buffer, &start, &end);
+  auto const notes = std::string(gtk_text_buffer_get_text(
+      buffer, &start, &end, FALSE));
+  updated.notes =
+      notes.empty() ? std::nullopt : std::optional<std::string>(notes);
+  updated.priority = static_cast<std::int64_t>(
+      gtk_drop_down_get_selected(detail->priority) < 0
+          ? 0
+          : gtk_drop_down_get_selected(detail->priority));
+  updated.tags = detail->tags;
+  updated.subtasks = detail->subtasks;
+  updated.url = std::nullopt;
+  auto const url =
+      std::string(gtk_editable_get_text(GTK_EDITABLE(detail->url)));
+  if (!url.empty()) updated.url = url;
+  auto const selected_list =
+      gtk_drop_down_get_selected(detail->list) >= 0 &&
+              static_cast<std::size_t>(
+                  gtk_drop_down_get_selected(detail->list)) <
+                  detail->list_ids.size()
+          ? detail->list_ids[static_cast<std::size_t>(
+              gtk_drop_down_get_selected(detail->list))]
+          : updated.list_id;
+  updated.list_id = selected_list;
+  auto const* selected_stored_list =
+      find_by_id(g_state.lists, selected_list);
+  updated.list_name = selected_stored_list != nullptr
+                          ? std::optional<std::string>(selected_stored_list->name)
+                          : std::nullopt;
+
+  auto alive = detail->alive;
+  g_state.api->update_task_async(
+      updated,
+      [alive, detail, field](rivet_app::Result<rivet_app::Task> result) {
+        dispatch_ui([alive, detail, field,
+                     result = std::move(result)]() mutable {
+          if (!*alive) return;  // The layer closed; the write still persisted.
+          if (!result.succeeded()) {
+            try {
+              std::rethrow_exception(result.error);
+            } catch (std::exception const& e) {
+              detail_show_error(detail, field, e.what());
+            } catch (...) {
+              detail_show_error(detail, field, "unknown backend failure");
+            }
+            return;
+          }
+          detail_clear_error(detail);
+        });
+      });
+}
+
+void detail_field_caption(GtkWidget* parent, char const* text_en,
+                          char const* text_zh) {
+  auto* caption = gtk_label_new(g_state.language == "en" ? text_en : text_zh);
+  gtk_label_set_xalign(GTK_LABEL(caption), 0.0f);
+  gtk_widget_add_css_class(caption, "detail-caption");
+  gtk_box_append(GTK_BOX(parent), caption);
+}
+
+GtkWidget* detail_field_box(GtkWidget* parent, char const* text_en,
+                            char const* text_zh, GtkWidget* field) {
+  auto* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+  detail_field_caption(box, text_en, text_zh);
+  gtk_box_append(GTK_BOX(box), field);
+  gtk_box_append(GTK_BOX(parent), box);
+  return box;
+}
+
+void detail_close() {
+  auto* detail = g_state.open_detail;
+  if (detail == nullptr) return;
+  g_state.open_detail = nullptr;
+  g_state.open_detail_id = -1;
+  if (detail->panel != nullptr) {
+    auto* panel = detail->panel;
+    if (gtk_widget_get_parent(panel) != nullptr) {
+      gtk_fixed_remove(GTK_FIXED(detail->layer_host), panel);
+    }
+    // Dropping the data runs the destroy notify, which performs the final
+    // save (closing never discards) and frees the state.
+    g_object_set_data(G_OBJECT(panel), "taskly-detail", nullptr);
+    gtk_widget_unparent(panel);  // Dispose the panel.
+  }
+}
+
+void detail_rebuild_tags(TaskDetail* detail) {
+  auto* child = gtk_widget_get_first_child(GTK_WIDGET(detail->tags_box));
+  while (child != nullptr) {
+    auto* next = gtk_widget_get_next_sibling(child);
+    gtk_box_remove(detail->tags_box, child);
+    child = next;
+  }
+  if (detail->tags.empty()) {
+    auto* hint = gtk_label_new(tr("detailNoTags").c_str());
+    gtk_label_set_xalign(GTK_LABEL(hint), 0.0f);
+    gtk_widget_add_css_class(hint, "detail-hint");
+    gtk_box_append(detail->tags_box, hint);
+    return;
+  }
+  auto* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+  for (auto const& tag : detail->tags) {
+    auto* chip = gtk_button_new_with_label(("#" + tag).c_str());
+    gtk_widget_add_css_class(chip, "flat");
+    gtk_widget_add_css_class(chip, "tag-chip");
+    g_object_set_data_full(
+        G_OBJECT(chip), "taskly-tag", g_strdup(tag.c_str()), g_free);
+    g_signal_connect_data(
+        chip, "clicked",
+        G_CALLBACK(+[](GtkButton* button, gpointer user_data) {
+          auto* detail = detail_for(user_data);
+          if (detail == nullptr) return;
+          auto const* tag =
+              static_cast<char const*>(g_object_get_data(
+                  G_OBJECT(button), "taskly-tag"));
+          if (tag == nullptr) return;
+          std::string const value{tag};
+          detail->tags.erase(
+              std::remove(detail->tags.begin(), detail->tags.end(), value),
+              detail->tags.end());
+          detail_rebuild_tags(detail);
+          detail_autosave(detail, DetailField::Tags);
+        }),
+        detail, nullptr, G_CONNECT_AFTER);
+    gtk_box_append(GTK_BOX(row), chip);
+  }
+  gtk_box_append(detail->tags_box, row);
+}
+
+void detail_on_tag_add_activate(GtkEntry*, gpointer user_data) {
+  auto* detail = detail_for(user_data);
+  if (detail == nullptr) return;
+  std::string value = gtk_editable_get_text(GTK_EDITABLE(detail->tag_add));
+  gtk_editable_set_text(GTK_EDITABLE(detail->tag_add), "");
+  value = std::string(
+      value.begin(),
+      std::find_if(value.begin(), value.end(),
+                   [](unsigned char c) { return std::isspace(c) == 0; })
+          == value.end()
+          ? value.end()
+          : std::find_if(value.rbegin(), value.rend(),
+                         [](unsigned char c) { return std::isspace(c) == 0; })
+                .base());
+  if (value.empty()) return;
+  if (std::find(detail->tags.begin(), detail->tags.end(), value) !=
+      detail->tags.end()) {
+    return;
+  }
+  detail->tags.push_back(value);
+  detail_rebuild_tags(detail);
+  detail_autosave(detail, DetailField::Tags);
+}
+
+void detail_rebuild_subtasks(TaskDetail* detail) {
+  auto* child = gtk_widget_get_first_child(GTK_WIDGET(detail->subtasks_box));
+  while (child != nullptr) {
+    auto* next = gtk_widget_get_next_sibling(child);
+    gtk_box_remove(detail->subtasks_box, child);
+    child = next;
+  }
+  if (detail->subtasks.empty()) {
+    auto* hint = gtk_label_new(tr("detailNoSubtasks").c_str());
+    gtk_label_set_xalign(GTK_LABEL(hint), 0.0f);
+    gtk_widget_add_css_class(hint, "detail-hint");
+    gtk_box_append(detail->subtasks_box, hint);
+    return;
+  }
+  for (std::size_t index = 0; index < detail->subtasks.size(); ++index) {
+    auto* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    auto* check = gtk_check_button_new();
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(check),
+                                detail->subtasks[index].done);
+    auto* text_label = GTK_LABEL(
+        gtk_label_new(detail->subtasks[index].text.c_str()));
+    gtk_label_set_xalign(text_label, 0.0f);
+    auto* text_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    gtk_box_append(GTK_BOX(text_box), check);
+    gtk_box_append(GTK_BOX(text_box), GTK_WIDGET(text_label));
+    gtk_widget_set_hexpand(text_box, TRUE);
+    gtk_box_append(GTK_BOX(row), GTK_WIDGET(text_box));
+    auto* remove = gtk_button_new_from_icon_name("x-symbolic");
+    gtk_widget_add_css_class(remove, "flat");
+    gtk_widget_set_tooltip_text(remove, tr("removeSubtask").c_str());
+    gtk_box_append(GTK_BOX(row), remove);
+    g_object_set_data(G_OBJECT(check), "detail-subtask-index",
+                      GSIZE_TO_POINTER(index));
+    g_object_set_data(G_OBJECT(remove), "detail-subtask-index",
+                      GSIZE_TO_POINTER(index));
+    g_signal_connect_data(
+        check, "toggled",
+        G_CALLBACK(+[](GtkCheckButton* button, gpointer user_data) {
+          auto* detail = detail_for(user_data);
+          if (detail == nullptr) return;
+          auto const index = static_cast<std::size_t>(GPOINTER_TO_SIZE(
+              g_object_get_data(G_OBJECT(button), "detail-subtask-index")));
+          if (index >= detail->subtasks.size()) return;
+          detail->subtasks[index].done =
+              gtk_check_button_get_active(button);
+          detail_autosave(detail, DetailField::Subtasks);
+        }),
+        detail, nullptr, G_CONNECT_AFTER);
+    g_signal_connect_data(
+        remove, "clicked",
+        G_CALLBACK(+[](GtkButton* button, gpointer user_data) {
+          auto* detail = detail_for(user_data);
+          if (detail == nullptr) return;
+          auto const index = static_cast<std::size_t>(GPOINTER_TO_SIZE(
+              g_object_get_data(G_OBJECT(button), "detail-subtask-index")));
+          if (index >= detail->subtasks.size()) return;
+          detail->subtasks.erase(detail->subtasks.begin() +
+                                 static_cast<long>(index));
+          detail_rebuild_subtasks(detail);
+          detail_autosave(detail, DetailField::Subtasks);
+        }),
+        detail, nullptr, G_CONNECT_AFTER);
+    gtk_box_append(detail->subtasks_box, row);
+  }
+}
+
+void detail_on_subtask_add_activate(GtkEntry*, gpointer user_data) {
+  auto* detail = detail_for(user_data);
+  if (detail == nullptr) return;
+  std::string const value =
+      std::string(gtk_editable_get_text(GTK_EDITABLE(detail->subtask_add)));
+  gtk_editable_set_text(GTK_EDITABLE(detail->subtask_add), "");
+  if (value.empty()) return;
+  detail->subtasks.push_back(rivet_app::Subtask{value, false});
+  detail_rebuild_subtasks(detail);
+  detail_autosave(detail, DetailField::Subtasks);
+}
+
+void detail_on_notes_focus_left(GtkEventControllerFocus*, gpointer user_data) {
+  auto* detail = detail_for(user_data);
+  if (detail == nullptr) return;
+  detail_autosave(detail, DetailField::Notes);
+}
+
+void detail_on_delete_clicked(GtkButton*, gpointer user_data) {
+  auto* detail = detail_for(user_data);
+  if (detail == nullptr) return;
+  auto const id = detail->task_id;
+  detail_close();
+  stage_delete_tasks({id});
+}
+
+void detail_on_date_quick_clicked(GtkButton* button, gpointer user_data) {
+  auto* detail = detail_for(user_data);
+  if (detail == nullptr) return;
+  auto const* value = static_cast<char const*>(
+      g_object_get_data(G_OBJECT(button), "taskly-date-value"));
+  if (value != nullptr) {
+    gtk_editable_set_text(GTK_EDITABLE(detail->date), value);
+    // A date-less task cannot retain a time (§5/§7); a set date keeps it.
+  }
+  auto* popover = static_cast<GtkPopover*>(
+      g_object_get_data(G_OBJECT(button), "taskly-date-popover"));
+  if (popover != nullptr) gtk_popover_popdown(popover);
+}
+
+void detail_on_calendar_day_selected(GtkCalendar* calendar,
+                                     gpointer user_data) {
+  auto* detail = detail_for(user_data);
+  if (detail == nullptr) return;
+  GDateTime* date = gtk_calendar_get_date(calendar);
+  gchar* iso = g_date_time_format(date, "%Y-%m-%d");
+  gtk_editable_set_text(GTK_EDITABLE(detail->date), iso);
+  g_free(iso);
+  g_date_time_unref(date);
+}
+
+GtkWidget* detail_date_popover_button(TaskDetail* detail) {
+  auto* button = gtk_button_new_from_icon_name("x-office-calendar-symbolic");
+  gtk_widget_add_css_class(button, "flat");
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(button), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("dialogSelectDate").c_str(), -1);
+  auto* flyout = gtk_popover_new();
+  auto* body = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  gtk_widget_set_margin_top(body, 8);
+  gtk_widget_set_margin_bottom(body, 8);
+  gtk_widget_set_margin_start(body, 8);
+  gtk_widget_set_margin_end(body, 8);
+  auto* quick = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+  struct QuickDate { char const* key; int offset_days; };
+  for (auto const& spec : {QuickDate{"navToday", 0},
+                           QuickDate{"dateTomorrow", 1},
+                           QuickDate{"dateThisWeekend", -1}}) {
+    auto* chip = gtk_button_new_with_label(tr(spec.key).c_str());
+    gtk_widget_add_css_class(chip, "flat");
+    g_object_set_data(G_OBJECT(chip), "taskly-quick-offset",
+                      GINT_TO_POINTER(spec.offset_days));
+    g_signal_connect_data(
+        chip, "clicked",
+        G_CALLBACK(+[](GtkButton* button, gpointer user_data) {
+          auto* detail = detail_for(user_data);
+          if (detail == nullptr) return;
+          auto const offset = GPOINTER_TO_INT(
+              g_object_get_data(G_OBJECT(button), "taskly-quick-offset"));
+          GDateTime* now = g_date_time_new_now_local();
+          GDateTime* target = nullptr;
+          if (offset == -1) {
+            // 本周末: today when Sat/Sun, otherwise the coming Saturday —
+            // Reminders' semantics, matching the inline editor.
+            auto const weekday = g_date_time_get_day_of_week(now);
+            int const to_saturday =
+                weekday == 6 || weekday == 7
+                    ? 0
+                    : (6 - weekday);
+            target = g_date_time_add_days(now, to_saturday);
+          } else {
+            target = g_date_time_add_days(now, offset);
+          }
+          gchar* iso = g_date_time_format(target, "%Y-%m-%d");
+          gtk_editable_set_text(GTK_EDITABLE(detail->date), iso);
+          g_free(iso);
+          g_date_time_unref(target);
+          g_date_time_unref(now);
+          detail_autosave(detail, DetailField::Date);
+          auto* popover = static_cast<GtkPopover*>(
+              g_object_get_data(G_OBJECT(button), "taskly-date-popover"));
+          if (popover != nullptr) gtk_popover_popdown(popover);
+        }),
+        detail, nullptr, G_CONNECT_AFTER);
+    gtk_box_append(GTK_BOX(quick), chip);
+  }
+  gtk_box_append(GTK_BOX(body), quick);
+  auto* calendar = gtk_calendar_new();
+  g_signal_connect(calendar, "day-selected",
+                   G_CALLBACK(detail_on_calendar_day_selected), detail);
+  gtk_box_append(GTK_BOX(body), calendar);
+  gtk_popover_set_child(GTK_POPOVER(flyout), body);
+  gtk_button_set_has_frame(GTK_BUTTON(button), FALSE);
+  gtk_widget_set_parent(flyout, button);
+  g_object_set_data(G_OBJECT(button), "taskly-date-popover", flyout);
+  g_signal_connect(
+      button, "clicked",
+      G_CALLBACK(+[](GtkButton* button, gpointer) {
+        if (auto* flyout = static_cast<GtkPopover*>(
+                g_object_get_data(G_OBJECT(button), "taskly-date-popover"))) {
+          gtk_popover_popup(flyout);
+        }
+      }),
+      nullptr);
+  return button;
+}
+
+void detail_position_panel(TaskDetail* detail, GtkWidget* anchor) {
+  if (detail == nullptr || detail->panel == nullptr ||
+      detail->layer_host == nullptr || anchor == nullptr) {
+    return;
+  }
+  graphene_rect_t row_bounds;
+  if (!gtk_widget_compute_bounds(anchor, detail->layer_host, &row_bounds)) {
+    return;
+  }
+  int const host_width = gtk_widget_get_width(detail->layer_host);
+  int const host_height = gtk_widget_get_height(detail->layer_host);
+  int place_x = static_cast<int>(row_bounds.origin.x +
+                                 row_bounds.size.width) - 348 - 16;
+  if (place_x < 8) place_x = 8;
+  if (place_x + 348 > host_width - 8) place_x = host_width - 348 - 8;
+  int place_y = static_cast<int>(row_bounds.origin.y);
+  if (place_y + 360 > host_height - 8) place_y = host_height - 360 - 8;
+  if (place_y < 8) place_y = 8;
+  gtk_fixed_move(GTK_FIXED(detail->layer_host), detail->panel, place_x,
+                 place_y);
+}
+void open_task_detail(std::int64_t id, GtkWidget* anchor) {
+  // ⓘ on an open layer closes it again (aria-expanded tracked by state).
+  if (g_state.open_detail_id == id && g_state.open_detail != nullptr) {
+    detail_close();
+    return;
+  }
+  detail_close();
+  auto* stored = find_by_id(g_state.tasks, id);
+  if (stored == nullptr) return;
+
+  auto* detail = new TaskDetail();
+  detail->task_id = id;
+  detail->tags = stored->tags;
+  detail->subtasks = stored->subtasks;
+  for (auto const& list : g_state.lists) {
+    detail->list_ids.push_back(list.id);
+  }
+
+  // The layer is an in-window overlay panel rather than a GtkPopover: on
+  // current GTK stacks a popover opened from an ATK activation is dismissed
+  // by GTK itself before it can be used, and an overlay panel also keeps
+  // every field in the main accessibility tree (which is what the
+  // acceptance trace reads). Dismissal is explicit below (Esc / outside
+  // press / the Done action / close-on-leave).
+  auto* panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  detail->panel = panel;
+  gtk_widget_add_css_class(panel, "detail-surface");
+  gtk_widget_set_size_request(panel, 348, -1);
+
+  auto* body = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+  gtk_widget_set_margin_top(body, 4);
+  gtk_widget_set_margin_bottom(body, 4);
+  gtk_widget_set_margin_start(body, 10);
+  gtk_widget_set_margin_end(body, 10);
+
+  // Header: title + close button.
+  auto* header = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  auto* header_label = gtk_label_new(tr("dialogTaskDetail").c_str());
+  gtk_label_set_xalign(GTK_LABEL(header_label), 0.0f);
+  gtk_widget_add_css_class(header_label, "pane-title");
+  gtk_label_set_xalign(GTK_LABEL(header_label), 0.0f);
+  gtk_widget_set_hexpand(header_label, TRUE);
+  gtk_box_append(GTK_BOX(header), header_label);
+  auto* close_button = gtk_button_new_from_icon_name("x-symbolic");
+  gtk_widget_add_css_class(close_button, "flat");
+  gtk_widget_set_tooltip_text(close_button, tr("closeDetail").c_str());
+  g_signal_connect_data(
+      close_button, "clicked",
+      G_CALLBACK(+[](GtkButton*, gpointer user_data) {
+        auto* detail = detail_for(user_data);
+        if (detail != nullptr) detail_close();
+      }),
+      detail, nullptr, G_CONNECT_AFTER);
+  gtk_box_append(GTK_BOX(header), close_button);
+  gtk_box_append(GTK_BOX(body), header);
+
+  // Scrollable field stack.
+  auto* scroll = gtk_scrolled_window_new();
+  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),
+                                 GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+  gtk_widget_set_size_request(scroll, -1, 380);
+  auto* fields = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+  gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), fields);
+
+  // Completed.
+  detail->completed = GTK_CHECK_BUTTON(gtk_check_button_new_with_label(
+      tr("detailCompleted").c_str()));
+  gtk_check_button_set_active(detail->completed, stored->completed);
+  g_signal_connect_data(
+      detail->completed, "toggled",
+      G_CALLBACK(+[](GtkCheckButton* check, gpointer user_data) {
+        auto* detail = detail_for(user_data);
+        if (detail == nullptr) return;
+        detail_autosave(detail, DetailField::Completed);
+      }),
+      detail, nullptr, G_CONNECT_AFTER);
+  gtk_box_append(GTK_BOX(fields), GTK_WIDGET(detail->completed));
+
+  // Title.
+  detail->title = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->title), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldTitle").c_str(), -1);
+  gtk_editable_set_text(GTK_EDITABLE(detail->title), stored->text.c_str());
+  gtk_widget_set_hexpand(GTK_WIDGET(detail->title), TRUE);
+  detail->title_box = detail_field_box(fields, "Title", "标题",
+                                       GTK_WIDGET(detail->title));
+  g_signal_connect(detail->title, "activate",
+                   G_CALLBACK(+[](GtkEntry*, gpointer user_data) {
+                     auto* detail = detail_for(user_data);
+                     if (detail != nullptr) {
+                       detail_autosave(detail, DetailField::Title);
+                     }
+                   }),
+                   detail);
+  g_signal_connect(detail->title, "changed",
+                   G_CALLBACK(+[](GtkEntry*, gpointer user_data) {
+                     detail_queue_text_save(
+                         static_cast<TaskDetail*>(user_data),
+                         DetailField::Title);
+                   }),
+                   detail);
+  {
+    auto* focus = gtk_event_controller_focus_new();
+    g_signal_connect(focus, "leave",
+                     G_CALLBACK(+[](GtkEventControllerFocus*, gpointer user_data) {
+                       auto* detail = detail_for(user_data);
+                       if (detail != nullptr) {
+                         detail_autosave(detail, DetailField::Title);
+                       }
+                     }),
+                     detail);
+    gtk_widget_add_controller(GTK_WIDGET(detail->title), focus);
+  }
+
+  // Date + time side by side.
+  auto* schedule = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+  auto* date_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+  detail_field_caption(date_column, "Date", "日期");
+  auto* date_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+  detail->date = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->date), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldDate").c_str(), -1);
+  gtk_entry_set_placeholder_text(detail->date, "yyyy-MM-dd");
+  gtk_editable_set_text(GTK_EDITABLE(detail->date),
+                        stored->due_date.has_value()
+                            ? stored->due_date->c_str()
+                            : "");
+  gtk_widget_set_hexpand(GTK_WIDGET(detail->date), TRUE);
+  gtk_box_append(GTK_BOX(date_row), GTK_WIDGET(detail->date));
+  gtk_box_append(GTK_BOX(date_row), detail_date_popover_button(detail));
+  gtk_box_append(GTK_BOX(date_column), date_row);
+  gtk_box_append(GTK_BOX(schedule), date_column);
+  detail->date_box = date_column;
+  auto* time_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+  detail_field_caption(time_column, "Time", "时间");
+  detail->time = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->time), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldTime").c_str(), -1);
+  gtk_entry_set_placeholder_text(detail->time, "HH:mm");
+  gtk_editable_set_text(GTK_EDITABLE(detail->time),
+                        stored->due_time.has_value()
+                            ? stored->due_time->c_str()
+                            : "");
+  gtk_widget_set_hexpand(GTK_WIDGET(detail->time), TRUE);
+  gtk_box_append(GTK_BOX(time_column), GTK_WIDGET(detail->time));
+  gtk_box_append(GTK_BOX(schedule), time_column);
+  detail->time_box = time_column;
+  gtk_box_append(GTK_BOX(fields), schedule);
+  auto on_schedule_changed = +[](GtkEntry*, gpointer user_data) {
+    detail_queue_text_save(static_cast<TaskDetail*>(user_data),
+                           DetailField::Date);
+  };
+  g_signal_connect(detail->date, "changed", G_CALLBACK(on_schedule_changed),
+                   detail);
+  g_signal_connect(detail->time, "changed",
+                   G_CALLBACK(+[](GtkEntry*, gpointer user_data) {
+                     detail_queue_text_save(
+                         static_cast<TaskDetail*>(user_data),
+                         DetailField::Time);
+                   }),
+                   detail);
+
+  // Priority segmented row (无 / 低 / 中 / 高).
+  auto* prio_string_list = gtk_string_list_new(nullptr);
+  gtk_string_list_append(GTK_STRING_LIST(prio_string_list), tr("prioNone").c_str());
+  gtk_string_list_append(GTK_STRING_LIST(prio_string_list), tr("prioLow").c_str());
+  gtk_string_list_append(GTK_STRING_LIST(prio_string_list), tr("prioMedium").c_str());
+  gtk_string_list_append(GTK_STRING_LIST(prio_string_list), tr("prioHigh").c_str());
+  detail->priority = GTK_DROP_DOWN(
+      gtk_drop_down_new(G_LIST_MODEL(prio_string_list), nullptr));
+  gtk_drop_down_set_selected(detail->priority,
+                             static_cast<guint>(
+                                 stored->priority < 0 ? 0 : stored->priority));
+  gtk_widget_set_hexpand(GTK_WIDGET(detail->priority), TRUE);
+  detail->priority_box = detail_field_box(fields, "Priority", "优先级",
+                                          GTK_WIDGET(detail->priority));
+  g_signal_connect_data(
+      detail->priority, "notify::selected",
+      G_CALLBACK(+[](GObject*, GParamSpec*, gpointer user_data) {
+        auto* detail = detail_for(user_data);
+        if (detail != nullptr) {
+          detail_autosave(detail, DetailField::Priority);
+        }
+      }),
+      detail, nullptr, G_CONNECT_AFTER);
+
+  // Tags.
+  auto* tags_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+  detail_field_caption(tags_column, "Tags", "标签");
+  detail->tags_box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 6));
+  gtk_box_append(GTK_BOX(tags_column), GTK_WIDGET(detail->tags_box));
+  detail->tag_add = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->tag_add), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldTags").c_str(), -1);
+  gtk_entry_set_placeholder_text(detail->tag_add,
+                                 tr("tagAddPlaceholder").c_str());
+  gtk_widget_set_hexpand(GTK_WIDGET(detail->tag_add), TRUE);
+  gtk_box_append(GTK_BOX(tags_column), GTK_WIDGET(detail->tag_add));
+  gtk_box_append(GTK_BOX(fields), tags_column);
+  detail->tags_box_outer = tags_column;
+  g_signal_connect(detail->tag_add, "activate",
+                   G_CALLBACK(detail_on_tag_add_activate), detail);
+
+  // Subtasks.
+  auto* subtasks_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+  detail_field_caption(subtasks_column, "Subtasks", "子任务");
+  detail->subtasks_box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 6));
+  gtk_box_append(GTK_BOX(subtasks_column), GTK_WIDGET(detail->subtasks_box));
+  detail->subtask_add = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->subtask_add), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldSubtasks").c_str(), -1);
+  gtk_entry_set_placeholder_text(detail->subtask_add,
+                                 tr("subtaskAddPlaceholder").c_str());
+  gtk_widget_set_hexpand(GTK_WIDGET(detail->subtask_add), TRUE);
+  gtk_box_append(GTK_BOX(subtasks_column), GTK_WIDGET(detail->subtask_add));
+  gtk_box_append(GTK_BOX(fields), subtasks_column);
+  detail->subtasks_box_outer = subtasks_column;
+  g_signal_connect(detail->subtask_add, "activate",
+                   G_CALLBACK(detail_on_subtask_add_activate), detail);
+
+  // Notes.
+  auto* notes_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+  detail_field_caption(notes_column, "Notes", "备注");
+  detail->notes = GTK_TEXT_VIEW(gtk_text_view_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->notes), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldNotes").c_str(), -1);
+  gtk_text_view_set_wrap_mode(detail->notes, GTK_WRAP_WORD_CHAR);
+  gtk_text_view_set_accepts_tab(detail->notes, FALSE);
+  gtk_widget_set_size_request(GTK_WIDGET(detail->notes), -1, 64);
+  gtk_text_buffer_set_text(gtk_text_view_get_buffer(detail->notes),
+                           stored->notes.has_value()
+                               ? stored->notes->c_str()
+                               : "",
+                           -1);
+  gtk_box_append(GTK_BOX(notes_column), GTK_WIDGET(detail->notes));
+  gtk_box_append(GTK_BOX(fields), notes_column);
+  detail->notes_box = notes_column;
+  {
+    auto* focus = gtk_event_controller_focus_new();
+    g_signal_connect(focus, "leave",
+                     G_CALLBACK(detail_on_notes_focus_left), detail);
+    gtk_widget_add_controller(GTK_WIDGET(detail->notes), focus);
+  }
+  g_signal_connect(gtk_text_view_get_buffer(detail->notes), "changed",
+                   G_CALLBACK(+[](GtkTextBuffer*, gpointer user_data) {
+                     detail_queue_text_save(
+                         static_cast<TaskDetail*>(user_data),
+                         DetailField::Notes);
+                   }),
+                   detail);
+
+  // URL.
+  detail->url = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->url), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldUrl").c_str(), -1);
+  gtk_entry_set_placeholder_text(detail->url, "https://");
+  gtk_editable_set_text(GTK_EDITABLE(detail->url),
+                        stored->url.has_value() ? stored->url->c_str() : "");
+  gtk_widget_set_hexpand(GTK_WIDGET(detail->url), TRUE);
+  detail->url_box = detail_field_box(fields, "URL", "链接",
+                                     GTK_WIDGET(detail->url));
+  g_signal_connect(detail->url, "activate",
+                   G_CALLBACK(+[](GtkEntry*, gpointer user_data) {
+                     auto* detail = detail_for(user_data);
+                     if (detail != nullptr) {
+                       detail_autosave(detail, DetailField::Url);
+                     }
+                   }),
+                   detail);
+  g_signal_connect(detail->url, "changed",
+                   G_CALLBACK(+[](GtkEntry*, gpointer user_data) {
+                     detail_queue_text_save(
+                         static_cast<TaskDetail*>(user_data),
+                         DetailField::Url);
+                   }),
+                   detail);
+  {
+    auto* focus = gtk_event_controller_focus_new();
+    g_signal_connect(focus, "leave",
+                     G_CALLBACK(+[](GtkEventControllerFocus*, gpointer user_data) {
+                       auto* detail = detail_for(user_data);
+                       if (detail != nullptr) {
+                         detail_autosave(detail, DetailField::Url);
+                       }
+                     }),
+                     detail);
+    gtk_widget_add_controller(GTK_WIDGET(detail->url), focus);
+  }
+
+  // List membership.
+  auto* list_string_list = gtk_string_list_new(nullptr);
+  auto selected_index = static_cast<guint>(0);
+  for (std::size_t i = 0; i < g_state.lists.size(); ++i) {
+    gtk_string_list_append(GTK_STRING_LIST(list_string_list),
+                           g_state.lists[i].name.c_str());
+    if (g_state.lists[i].id == stored->list_id) {
+      selected_index = static_cast<guint>(i);
+    }
+  }
+  detail->list = GTK_DROP_DOWN(
+      gtk_drop_down_new(G_LIST_MODEL(list_string_list), nullptr));
+  gtk_drop_down_set_selected(detail->list, selected_index);
+  gtk_widget_set_hexpand(GTK_WIDGET(detail->list), TRUE);
+  detail->list_box = detail_field_box(fields, "List", "所属清单",
+                                      GTK_WIDGET(detail->list));
+  g_signal_connect_data(
+      detail->list, "notify::selected",
+      G_CALLBACK(+[](GObject*, GParamSpec*, gpointer user_data) {
+        auto* detail = detail_for(user_data);
+        if (detail != nullptr) {
+          detail_autosave(detail, DetailField::List);
+        }
+      }),
+      detail, nullptr, G_CONNECT_AFTER);
+
+  // Field-anchored actionable error (§5b): one label reparented under the
+  // offending field on failure.
+  detail->error = GTK_LABEL(gtk_label_new(""));
+  gtk_widget_add_css_class(GTK_WIDGET(detail->error), "detail-error");
+  gtk_label_set_wrap(detail->error, TRUE);
+
+  // Action bar: 删除 · hint · 完成.
+  auto* actions = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+  auto* delete_button = gtk_button_new_with_label(tr("taskDelete").c_str());
+  gtk_widget_add_css_class(delete_button, "flat");
+  gtk_widget_set_tooltip_text(delete_button, tr("taskDelete").c_str());
+  g_signal_connect_data(delete_button, "clicked",
+                        G_CALLBACK(detail_on_delete_clicked), detail, nullptr,
+                        G_CONNECT_AFTER);
+  gtk_box_append(GTK_BOX(actions), delete_button);
+  auto* hint = gtk_label_new(tr("detailAutoSaved").c_str());
+  gtk_widget_add_css_class(hint, "detail-hint");
+  gtk_widget_set_hexpand(hint, TRUE);
+  gtk_label_set_xalign(GTK_LABEL(hint), 1.0f);
+  gtk_box_append(GTK_BOX(actions), hint);
+  auto* done = gtk_button_new_with_label(tr("detailClose").c_str());
+  g_signal_connect_data(
+      done, "clicked",
+      G_CALLBACK(+[](GtkButton*, gpointer user_data) {
+        auto* detail = detail_for(user_data);
+        if (detail != nullptr) detail_close();
+      }),
+      detail, nullptr, G_CONNECT_AFTER);
+  gtk_box_append(GTK_BOX(actions), done);
+
+  // Order matches the prototype: scrollable fields first, then the
+  // field-anchored error, then the action bar at the bottom.
+  gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), fields);
+  gtk_box_append(GTK_BOX(body), scroll);
+  gtk_box_append(GTK_BOX(body), GTK_WIDGET(detail->error));
+  gtk_box_append(GTK_BOX(body), actions);
+  gtk_box_append(GTK_BOX(panel), body);
+  // Anchor placement: right edge of the row, vertically clamped inside the
+  // list viewport (DESIGN-TOKENS §Anchored task detail layer).
+  detail->layer_host = g_state.detail_layer_host;
+  gtk_fixed_put(GTK_FIXED(detail->layer_host), panel, 0, 0);
+  detail_position_panel(detail, anchor);
+  gtk_widget_set_visible(panel, TRUE);
+  gtk_widget_grab_focus(GTK_WIDGET(detail->title));
+  detail_rebuild_tags(detail);
+  detail_rebuild_subtasks(detail);
+
+  g_object_set_data_full(
+      G_OBJECT(panel), "taskly-detail", detail,
+      +[](gpointer data) {
+        auto* detail = static_cast<TaskDetail*>(data);
+        // The layer is leaving the hierarchy (row rebuilt or explicit
+        // close): closing never discards, so a final save covers pending
+        // text edits before the state is freed.
+        if (*detail->alive && g_state.api != nullptr) {
+          if (detail->text_save_timer != 0) {
+            g_source_remove(detail->text_save_timer);
+            detail->text_save_timer = 0;
+          }
+          auto* stored = find_by_id(g_state.tasks, detail->task_id);
+          if (stored != nullptr) {
+            rivet_app::Task updated = *stored;
+            updated.text =
+                gtk_editable_get_text(GTK_EDITABLE(detail->title));
+            GtkTextBuffer* buffer = gtk_text_view_get_buffer(detail->notes);
+            GtkTextIter start;
+            GtkTextIter end;
+            gtk_text_buffer_get_bounds(buffer, &start, &end);
+            auto const notes = std::string(
+                gtk_text_buffer_get_text(buffer, &start, &end, FALSE));
+            updated.notes = notes.empty()
+                                ? std::nullopt
+                                : std::optional<std::string>(notes);
+            auto const url = std::string(
+                gtk_editable_get_text(GTK_EDITABLE(detail->url)));
+            updated.url =
+                url.empty() ? std::nullopt : std::optional<std::string>(url);
+            g_state.api->update_task_async(
+                updated, [](rivet_app::Result<rivet_app::Task> result) {
+                  on_result(std::move(result),
+                            [](rivet_app::Task const&) {});
+                });
+          }
+        }
+        *detail->alive = false;
+        delete detail;
+      });
+  g_state.open_detail = detail;
+  g_state.open_detail_id = id;
+}
+
 // Expand (or collapse) the in-place editor underneath the row. When
 // `restore` is given, the fields are seeded from saved in-progress text
 // instead of the stored task (see rebuild_task_list's editor carry-over).
@@ -2764,39 +3735,115 @@ GtkWidget* make_task_row(rivet_app::Task const& task) {
   if (task.completed) {
     gtk_widget_add_css_class(text, "task-done");
   }
+  // §5: clicking the task title opens the inline quick editor (the row's
+  // ⓘ button opens the anchored detail layer) — the same split as the
+  // macOS and Windows hosts. The click gesture is on the label itself so
+  // plain row clicks keep their selection semantics.
+  {
+    auto* title_gesture = gtk_gesture_click_new();
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(title_gesture),
+                                  GDK_BUTTON_PRIMARY);
+    g_signal_connect(
+        title_gesture, "released",
+        G_CALLBACK(+[](GtkGestureClick* gesture, gint, gdouble x, gdouble y,
+                       gpointer user_data) {
+          auto* label = GTK_WIDGET(gtk_event_controller_get_widget(
+              GTK_EVENT_CONTROLLER(gesture)));
+          auto* row = gtk_widget_get_ancestor(label, GTK_TYPE_LIST_BOX_ROW);
+          if (row == nullptr) return;
+          auto const data = g_object_get_data(G_OBJECT(row), "task-id");
+          if (data == nullptr) return;
+          (void)x;
+          (void)y;
+          open_task_editor(
+              static_cast<std::int64_t>(GPOINTER_TO_SIZE(data)), false);
+        }),
+        nullptr);
+    gtk_widget_add_controller(GTK_WIDGET(text),
+                              GTK_EVENT_CONTROLLER(title_gesture));
+  }
   gtk_box_append(GTK_BOX(content), text);
 
-  // Meta line: owning list in multi-list views + due chip + notes preview.
-  std::string meta;
-  // Search is global even when a named list is selected. Always show
-  // actual ownership so a result from 工作 is never mistaken for 生活.
-  if ((g_state.view != ViewKind::List || !g_state.current_search.empty()) &&
-      task.list_name.has_value()) {
-    meta = *task.list_name;
+  // Meta line (PRODUCT-SPEC §5): owning list in multi-list views, due chip,
+  // priority glyphs, subtask count and clickable tag chips; the notes
+  // preview sits beneath. Search is global even when a named list is
+  // selected — always show actual ownership so a result from 工作 is never
+  // mistaken for 生活.
+  bool const multi_list =
+      (g_state.view != ViewKind::List || !g_state.current_search.empty());
+  auto* meta_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  bool meta_has_content = false;
+  if (multi_list && task.list_name.has_value()) {
+    auto* meta_label = gtk_label_new(task.list_name->c_str());
+    gtk_label_set_xalign(GTK_LABEL(meta_label), 0.0f);
+    gtk_widget_add_css_class(meta_label, "meta-text");
+    gtk_box_append(GTK_BOX(meta_row), meta_label);
+    meta_has_content = true;
   }
   auto const due = due_chip_text(task);
   if (!due.empty()) {
-    if (!meta.empty()) meta += "  ·  ";
-    meta += due;
+    auto* due_label = gtk_label_new(due.c_str());
+    gtk_label_set_xalign(GTK_LABEL(due_label), 0.0f);
+    gtk_widget_add_css_class(due_label, "due-chip");
+    if (task.due_date.has_value()) {
+      gtk_widget_add_css_class(
+          due_label, due_color_class(*task.due_date, task.completed));
+    } else {
+      gtk_widget_add_css_class(due_label, "meta-text");
+    }
+    gtk_box_append(GTK_BOX(meta_row), due_label);
+    meta_has_content = true;
+  }
+  if (task.priority > 0) {
+    auto* prio = gtk_label_new(
+        std::string(static_cast<std::size_t>(task.priority), '!').c_str());
+    gtk_label_set_xalign(GTK_LABEL(prio), 0.0f);
+    gtk_widget_add_css_class(prio, "prio-mark");
+    gtk_box_append(GTK_BOX(meta_row), prio);
+    meta_has_content = true;
+  }
+  if (!task.subtasks.empty()) {
+    std::size_t done = 0;
+    for (auto const& subtask : task.subtasks) {
+      if (subtask.done) ++done;
+    }
+    auto* count_label = gtk_label_new(
+        format_positional(tr("subtitleSubtaskCount"), std::to_string(done),
+                          std::to_string(task.subtasks.size()))
+            .c_str());
+    gtk_label_set_xalign(GTK_LABEL(count_label), 0.0f);
+    gtk_widget_add_css_class(count_label, "meta-text");
+    gtk_box_append(GTK_BOX(meta_row), count_label);
+    meta_has_content = true;
+  }
+  for (auto const& tag : task.tags) {
+    auto* chip = gtk_button_new_with_label(("#" + tag).c_str());
+    gtk_widget_add_css_class(chip, "flat");
+    gtk_widget_add_css_class(chip, "tag-chip");
+    g_object_set_data_full(
+        G_OBJECT(chip), "taskly-tag", g_strdup(tag.c_str()), g_free);
+    g_signal_connect(
+        chip, "clicked",
+        G_CALLBACK(+[](GtkButton* button, gpointer) {
+          auto const* tag = static_cast<char const*>(
+              g_object_get_data(G_OBJECT(button), "taskly-tag"));
+          if (tag != nullptr) toggle_tag_filter(tag);
+        }),
+        nullptr);
+    gtk_box_append(GTK_BOX(meta_row), chip);
+    meta_has_content = true;
+  }
+  if (meta_has_content) {
+    gtk_box_append(GTK_BOX(content), meta_row);
   }
   if (task.notes.has_value() && !task.notes->empty()) {
     auto const first_line = task.notes->substr(0, task.notes->find('\n'));
     if (!first_line.empty()) {
-      if (!meta.empty()) meta += "  ·  ";
-      meta += first_line;
+      auto* notes_label = gtk_label_new(first_line.c_str());
+      gtk_label_set_xalign(GTK_LABEL(notes_label), 0.0f);
+      gtk_widget_add_css_class(notes_label, "meta-text");
+      gtk_box_append(GTK_BOX(content), notes_label);
     }
-  }
-  if (!meta.empty()) {
-    auto* meta_label = gtk_label_new(meta.c_str());
-    gtk_label_set_xalign(GTK_LABEL(meta_label), 0.0f);
-    gtk_widget_add_css_class(meta_label, "due-chip");
-    if (task.due_date.has_value()) {
-      gtk_widget_add_css_class(
-          meta_label, due_color_class(*task.due_date, task.completed));
-    } else {
-      gtk_widget_add_css_class(meta_label, "meta-text");
-    }
-    gtk_box_append(GTK_BOX(content), meta_label);
   }
   gtk_box_append(GTK_BOX(box), content);
 
@@ -2809,9 +3856,10 @@ GtkWidget* make_task_row(rivet_app::Task const& task) {
       tr("contextMenuDetails").c_str(), -1);
   g_signal_connect(
       details, "clicked",
-      G_CALLBACK(+[](GtkButton*, gpointer user_data) {
-        open_task_editor(
-            static_cast<std::int64_t>(GPOINTER_TO_SIZE(user_data)), false);
+      G_CALLBACK(+[](GtkButton* button, gpointer user_data) {
+        open_task_detail(
+            static_cast<std::int64_t>(GPOINTER_TO_SIZE(user_data)),
+            GTK_WIDGET(button));
       }),
       GSIZE_TO_POINTER(static_cast<gsize>(task.id)));
   gtk_box_append(GTK_BOX(box), details);
@@ -2819,6 +3867,7 @@ GtkWidget* make_task_row(rivet_app::Task const& task) {
   gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), box);
   g_object_set_data(G_OBJECT(row), "task-id",
                     GSIZE_TO_POINTER(static_cast<gsize>(task.id)));
+  g_object_set_data(G_OBJECT(row), "task-info-button", details);
   attach_row_gestures(row, false);
   return row;
 }
@@ -3022,11 +4071,31 @@ void rebuild_sidebar() {
 void refresh_pane_header() {
   gtk_label_set_text(g_state.pane_title, view_title().c_str());
   gtk_label_set_text(g_state.pane_subtitle, view_subtitle().c_str());
+  if (g_state.tag_clear_button != nullptr) {
+    gtk_widget_set_visible(GTK_WIDGET(g_state.tag_clear_button),
+                           !g_state.tag_filter.empty());
+  }
 }
 
 void rebuild_task_list() {
   g_state.pending_task_rebuild = false;
   refresh_pane_header();
+
+  // The detail layer survives row rebuilds by detaching from the old row's
+  // ⓘ button and re-anchoring to the fresh row; it closes when its task
+  // leaves the current view (removed, completed out of view, or excluded
+  // by the tag filter) — §5b close-on-leave.
+  gboolean detail_floating = FALSE;
+  if (g_state.open_detail != nullptr) {
+    auto* kept = find_by_id(g_state.tasks, g_state.open_detail->task_id);
+    if (kept == nullptr || !task_matches_tag_filter(*kept) ||
+        g_state.suppressed_delete_ids.count(
+            g_state.open_detail->task_id) != 0) {
+      detail_close();
+    } else {
+      detail_floating = TRUE;  // re-position below, panel stays put
+    }
+  }
 
   // Carry an open in-place editor across the rebuild: snapshot its
   // in-progress field values, then re-open it on the fresh row (the 2 s
@@ -3092,8 +4161,11 @@ void rebuild_task_list() {
                        g_state.api == nullptr ? "📂" : "✓");
     gtk_label_set_text(
         g_state.empty_text,
-        g_state.api == nullptr ? tr("taskListEmptyHint").c_str()
-                               : tr("taskListEmptyFirstRun").c_str());
+        g_state.api == nullptr
+            ? tr("taskListEmptyHint").c_str()
+            : (!g_state.tag_filter.empty() ? tr("tagFilterEmpty").c_str()
+                                           : tr("taskListEmptyFirstRun")
+                                                 .c_str()));
     gtk_entry_set_placeholder_text(
         g_state.quick_add,
         (g_state.api == nullptr ? tr("taskListInputHintNoDb")
@@ -3110,6 +4182,7 @@ void rebuild_task_list() {
 
   auto insert_row = [&](rivet_app::Task const& task) {
     if (g_state.suppressed_delete_ids.count(task.id)) return;
+    if (!task_matches_tag_filter(task)) return;
     auto* row = make_task_row(task);
     gtk_list_box_insert(g_state.task_list, row, -1);
     if (selected_task_ids.find(task.id) != selected_task_ids.end()) {
@@ -3171,6 +4244,24 @@ void rebuild_task_list() {
   if (editor_carry &&
       find_by_id(g_state.tasks, g_state.open_editor_id) == nullptr) {
     g_state.open_editor_id = -1;
+  }
+
+  // Re-position the detail panel beside the fresh row (the panel itself
+  // lives in the overlay and survived the rebuild).
+  if (detail_floating && g_state.open_detail != nullptr) {
+    for (GtkWidget* child = gtk_widget_get_first_child(GTK_WIDGET(
+             g_state.task_list));
+         child != nullptr;
+         child = gtk_widget_get_next_sibling(child)) {
+      if (!GTK_IS_LIST_BOX_ROW(child)) continue;
+      auto const row_id = static_cast<std::int64_t>(GPOINTER_TO_SIZE(
+          g_object_get_data(G_OBJECT(child), "task-id")));
+      if (row_id != g_state.open_detail_id) continue;
+      auto* anchor = static_cast<GtkWidget*>(
+          g_object_get_data(G_OBJECT(child), "task-info-button"));
+      detail_position_panel(g_state.open_detail, anchor);
+      break;
+    }
   }
 }
 
@@ -3897,6 +4988,15 @@ void on_search_stopped(GtkSearchEntry* entry, gpointer) {
 // the Things escape ladder.
 gboolean on_window_key_pressed(GtkEventControllerKey*, guint keyval,
                                guint, GdkModifierType, gpointer) {
+  // While the task-detail layer is open, Esc belongs to it (autohide is
+  // off); other keys keep flowing to the focused control.
+  if (g_state.open_detail != nullptr) {
+    if (keyval == GDK_KEY_Escape) {
+      detail_close();
+      return TRUE;
+    }
+    return FALSE;
+  }
   if (keyval != GDK_KEY_Escape) return FALSE;
   if (g_state.open_editor_id >= 0) {
     collapse_open_editor();
@@ -4270,6 +5370,20 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_widget_add_css_class(pane_subtitle, "pane-subtitle");
   gtk_box_append(GTK_BOX(title_box), pane_subtitle);
   gtk_box_append(GTK_BOX(header), title_box);
+  // §5 tag-chip filter: a clear affordance stays in the header while the
+  // filter narrows the view.
+  auto* tag_clear = gtk_button_new_from_icon_name("x-circle-symbolic");
+  gtk_widget_add_css_class(tag_clear, "flat");
+  gtk_widget_set_tooltip_text(tag_clear, tr("detailClearFilter").c_str());
+  gtk_widget_set_valign(tag_clear, GTK_ALIGN_CENTER);
+  gtk_widget_set_visible(tag_clear, FALSE);
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(tag_clear), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("detailClearFilter").c_str(), -1);
+  g_signal_connect(tag_clear, "clicked",
+                   G_CALLBACK(+[](GtkButton*, gpointer) { clear_tag_filter(); }),
+                   nullptr);
+  gtk_box_append(GTK_BOX(header), tag_clear);
   auto* search = gtk_search_entry_new();
   gtk_widget_set_valign(search, GTK_ALIGN_CENTER);
   gtk_widget_set_size_request(search, 200, 28);
@@ -4482,6 +5596,11 @@ void on_activate(GtkApplication* app, gpointer) {
   g_signal_connect(
       task_list, "row-activated",
       G_CALLBACK(+[](GtkListBox*, GtkListBoxRow* row, gpointer) {
+        if (g_state.open_detail != nullptr) {
+          // The detail layer owns Enter while open (its title field uses
+          // Return to commit); row activation must not tear it down.
+          return;
+        }
         auto const data = g_object_get_data(G_OBJECT(row), "task-id");
         if (data == nullptr) return;  // completed-section header
         auto const id = static_cast<std::int64_t>(GPOINTER_TO_SIZE(data));
@@ -4511,6 +5630,17 @@ void on_activate(GtkApplication* app, gpointer) {
   // list's bottom edge).
   auto* list_overlay = gtk_overlay_new();
   gtk_overlay_set_child(GTK_OVERLAY(list_overlay), list_stack);
+  // Detail layer host: an overlay-sized fixed canvas so the anchored panel
+  // can sit beside any row (children stay in the main accessibility tree).
+  auto* detail_host = gtk_fixed_new();
+  gtk_widget_set_hexpand(detail_host, TRUE);
+  gtk_widget_set_vexpand(detail_host, TRUE);
+  gtk_widget_set_halign(detail_host, GTK_ALIGN_FILL);
+  gtk_widget_set_valign(detail_host, GTK_ALIGN_FILL);
+  // Only the panel inside it receives input; the canvas itself must not
+  // swallow clicks meant for the list underneath.
+  gtk_widget_set_can_target(detail_host, FALSE);
+  gtk_overlay_add_overlay(GTK_OVERLAY(list_overlay), detail_host);
   auto* banner_revealer = gtk_revealer_new();
   gtk_revealer_set_transition_type(GTK_REVEALER(banner_revealer),
                                    GTK_REVEALER_TRANSITION_TYPE_CROSSFADE);
@@ -4550,6 +5680,7 @@ void on_activate(GtkApplication* app, gpointer) {
   g_state.new_list_button = GTK_BUTTON(new_list_button);
   g_state.pane_title = GTK_LABEL(pane_title);
   g_state.pane_subtitle = GTK_LABEL(pane_subtitle);
+  g_state.tag_clear_button = GTK_BUTTON(tag_clear);
   g_state.search_box = GTK_SEARCH_ENTRY(search);
   g_state.show_completed_toggle = GTK_TOGGLE_BUTTON(show_completed);
   g_state.quick_add = GTK_ENTRY(quick_add);
@@ -4567,6 +5698,7 @@ void on_activate(GtkApplication* app, gpointer) {
   g_state.empty_text = GTK_LABEL(empty_text);
   g_state.sidebar_toggle = GTK_BUTTON(sidebar_toggle);
   g_state.banner_box = GTK_BOX(banner_box);
+  g_state.detail_layer_host = detail_host;
   g_state.status_text = GTK_LABEL(status_text);
 
   add_window_action(GTK_APPLICATION_WINDOW(window), "task-due-today",
@@ -4680,6 +5812,35 @@ void on_activate(GtkApplication* app, gpointer) {
                    nullptr);
 
   // Esc ladder: editor → search → nothing.
+  // Detail layer outside-click close (autohide is off). A capture-phase
+  // press that lands outside the popover's bounds dismisses it; presses
+  // inside stay with the layer's own controls.
+  auto* outside_press = gtk_gesture_click_new();
+  gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(outside_press), 0);
+  gtk_event_controller_set_propagation_phase(
+      GTK_EVENT_CONTROLLER(outside_press), GTK_PHASE_CAPTURE);
+  g_signal_connect(
+      outside_press, "pressed",
+      G_CALLBACK(+[](GtkGestureClick*, gint, gdouble x, gdouble y, gpointer) {
+        if (g_state.open_detail == nullptr ||
+            g_state.open_detail->panel == nullptr) {
+          return;
+        }
+        graphene_rect_t bounds;
+        if (gtk_widget_compute_bounds(g_state.open_detail->panel,
+                                      GTK_WIDGET(g_state.window), &bounds) &&
+            x >= bounds.origin.x &&
+            x <= bounds.origin.x + bounds.size.width &&
+            y >= bounds.origin.y &&
+            y <= bounds.origin.y + bounds.size.height) {
+          return;  // Inside the layer.
+        }
+        detail_close();
+      }),
+      nullptr);
+  gtk_widget_add_controller(GTK_WIDGET(window),
+                            GTK_EVENT_CONTROLLER(outside_press));
+
   auto* window_keys = gtk_event_controller_key_new();
   // GtkText may consume Escape during its own bubble handling. An open
   // editor's cancel operation must win before the child processes the key;
