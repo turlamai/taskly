@@ -3311,7 +3311,11 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   gtk_box_append(GTK_BOX(body), GTK_WIDGET(detail->error));
   gtk_box_append(GTK_BOX(body), actions);
   gtk_popover_set_child(GTK_POPOVER(popover), body);
+  g_printerr("detail-open: set_child ok\n");
   gtk_widget_set_parent(popover, anchor);
+  g_printerr("detail-open: parent=%p mapped=%d\n",
+             static_cast<void*>(gtk_widget_get_parent(popover)),
+             gtk_widget_get_mapped(anchor));
   detail_rebuild_tags(detail);
   detail_rebuild_subtasks(detail);
 
@@ -3357,11 +3361,14 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
       });
   g_signal_connect(popover, "closed",
                    G_CALLBACK(+[](GtkPopover*, gpointer user_data) {
+                     g_printerr("detail-open: closed signal\n");
                      auto* detail = detail_for(user_data);
                      if (detail != nullptr) detail_close();
                    }),
                    detail);
   gtk_popover_popup(GTK_POPOVER(popover));
+  g_printerr("detail-open: popup visible=%d\n",
+             gtk_widget_get_visible(GTK_WIDGET(popover)));
   g_state.open_detail = detail;
   g_state.open_detail_id = id;
   gtk_widget_grab_focus(GTK_WIDGET(detail->title));
