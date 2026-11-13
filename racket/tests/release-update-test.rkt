@@ -445,8 +445,11 @@
                     (path->string running-image)
                     "the swap must replace the running image in place")
       (check-equal? (file->bytes running-image) new-image-bytes)
+      ;; 'bits answers an integer mask (#o755 = 493), not a symbol list.
       (check-true
-       (memq 'execute (file-or-directory-permissions running-image 'bits))
+       (not (zero? (bitwise-and
+                    #o100
+                    (file-or-directory-permissions running-image 'bits))))
        "the replaced image must stay executable")
       (check-equal? (database-sha home) db-sha)
       (check-true (task-survives? home))
