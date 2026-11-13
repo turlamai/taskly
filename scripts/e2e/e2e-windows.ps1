@@ -72,6 +72,28 @@ function Find-ByName {
     $Root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
 }
 
+function Select-RowByTitle {
+    param($Root, [string]$Title)
+    $titleElement = Find-ByName $Root $Title
+    if ($null -eq $titleElement) { return $false }
+    $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+    $item = $titleElement
+    while ($null -ne $item -and
+           $item.Current.ControlType -ne
+               [System.Windows.Automation.ControlType]::ListItem) {
+        $item = $walker.GetParent($item)
+    }
+    if ($null -eq $item) { return $false }
+    try {
+        $item.GetCurrentPattern(
+            [System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    } catch {
+        return $false
+    }
+    $item.SetFocus()
+    return $true
+}
+
 function Capture-Screen {
     param([string]$Path)
     $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
@@ -330,12 +352,9 @@ try {
     # §5: the inline quick editor is entered by selecting the row and
     # pressing Enter. It must expand in place — a modal PromptAsync text box
     # is not acceptable because it cannot edit notes/date/time.
-    $taskRow = Wait-Until 'task row for inline entry' {
-        Find-ById $window 'task-row-2'
-    }
-    $taskRow.GetCurrentPattern(
-        [System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
-    $taskRow.SetFocus()
+    [void](Wait-Until 'task row for inline entry' {
+        Select-RowByTitle $window 'Autosaved detail title'
+    })
     [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
     $inlineTitle = Wait-Until 'inline task title editor' {
         Find-ById $window 'inline-task-title-2'
@@ -352,12 +371,9 @@ try {
             $null -ne (Find-ByName $window $plainTask)) { return $true }
         return $false
     })
-    $taskRow = Wait-Until 'task row for inline entry after cancel' {
-        Find-ById $window 'task-row-2'
-    }
-    $taskRow.GetCurrentPattern(
-        [System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
-    $taskRow.SetFocus()
+    [void](Wait-Until 'task row for inline entry after cancel' {
+        Select-RowByTitle $window 'Autosaved detail title'
+    })
     [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
     $inlineTitle = Wait-Until 'inline task title editor after cancel' {
         Find-ById $window 'inline-task-title-2'
