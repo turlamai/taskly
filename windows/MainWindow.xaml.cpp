@@ -2438,7 +2438,7 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
     if (x + 348 > list_width - 8) x = list_width - 348 - 8;
     if (y + 420 > list_height - 8) y = list_height - 420 - 8;
     if (y < 8) y = 8;
-    mxc::FlyoutShowOptions options{};
+    mxc::Primitives::FlyoutShowOptions options{};
     options.Position(winrt::Windows::Foundation::Point{
         static_cast<float>(x), static_cast<float>(y)});
     flyout.XamlRoot(anchor.XamlRoot());
