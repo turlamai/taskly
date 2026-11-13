@@ -340,29 +340,47 @@ def open_detail_layer(root, row_title, attempts=6):
 DETAIL_TOGGLE_NAMES = ("\u24d8", "Details", "\u8be6\u60c5")
 
 
-def close_detail_layer(root, row_title):
-    """§5b: pressing the row's ⓘ button again closes the layer (the button
-    tracks aria-expanded). While the layer is open its popover is parented
-    under that same button, so the row exposes many controls — find the
-    toggle by name instead of assuming a single row button. A plain
-    button's doAction is reliable on every AT-SPI stack tested;
-    popover-internal controls and synthetic Escape are not.
+def close_detail_layer(root, row_title, attempts=4):
+    """Close the anchored detail layer and verify it is gone.
+
+    Two strategies, because both are event-driven: Esc first (the layer
+    handles it in a capture-phase key handler), then the row's ⓘ toggle
+    (a plain button whose doAction is reliable). Each attempt verifies the
+    layer actually left the tree instead of assuming the action landed.
     """
-    row = select_single_named_child(root, row_title)
-    if row is None:
-        raise AssertionError(f"row {row_title!r} not found while closing the layer")
-    for node in walk(row):
-        if role(node) not in BUTTON_ROLES:
-            continue
-        if name(node) not in DETAIL_TOGGLE_NAMES:
-            continue
-        try:
-            actions = node.queryAction()
-            if actions.nActions >= 1 and actions.doAction(0):
+    def layer_open():
+        live = find_frame(find_application())
+        return find_editable_named(live, "Title") is not None
+
+    for _ in range(attempts):
+        if not layer_open():
+            return True
+        send_keyboard_key("Escape")
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if not layer_open():
                 return True
-        except Exception:
-            continue
-    raise AssertionError(f"could not toggle the detail layer for {row_title!r}")
+            time.sleep(0.1)
+        live = find_frame(find_application())
+        row = select_single_named_child(live, row_title)
+        if row is not None:
+            for node in walk(row):
+                if role(node) not in BUTTON_ROLES:
+                    continue
+                if name(node) not in DETAIL_TOGGLE_NAMES:
+                    continue
+                try:
+                    node.queryAction().doAction(0)
+                except Exception:
+                    pass
+                break
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if not layer_open():
+                return True
+            time.sleep(0.1)
+    raise AssertionError(f"could not close the detail layer for {row_title!r}")
+
 
 def select_and_press_unedited_named_row_button(root, expected):
     """Select a direct task-list child and invoke its sole row action atomically.
