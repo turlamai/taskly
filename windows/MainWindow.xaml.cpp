@@ -5,6 +5,7 @@
 #endif
 #include "GeneratedBackend.hpp"
 
+#include <algorithm>
 #include <fstream>
 #include <functional>
 #include <iterator>
@@ -2442,8 +2443,15 @@ void MainWindow::OnDetailFlyoutClosed() {
                      updated.due_time != stored->due_time ||
                      updated.priority != stored->priority ||
                      updated.tags != stored->tags ||
-                     updated.subtasks != stored->subtasks ||
-                     updated.list_id != stored->list_id;
+                     updated.subtasks.size() != stored->subtasks.size() ||
+                     updated.list_id != stored->list_id ||
+                     !std::equal(
+                         updated.subtasks.begin(), updated.subtasks.end(),
+                         stored->subtasks.begin(),
+                         [](rivet_app::Subtask const& a,
+                            rivet_app::Subtask const& b) {
+                           return a.text == b.text && a.done == b.done;
+                         });
       if (trim_wide(wide(updated.text)).empty()) {
         updated.text = stored->text;
         changed = changed && updated.text != stored->text;
