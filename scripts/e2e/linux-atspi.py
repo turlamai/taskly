@@ -291,6 +291,16 @@ def select_and_focus_row(root, expected):
     return row
 
 
+def close_detail_layer(root, row_title):
+    """§5b: pressing the row's ⓘ button again closes the layer (the button
+    tracks aria-expanded). A plain button's doAction is reliable on every
+    AT-SPI stack tested; popover-internal controls and synthetic Escape are
+    not, so the close path stays on the row button.
+    """
+    if select_and_press_unedited_named_row_button(root, row_title) is None:
+        raise AssertionError(f"could not toggle the detail layer for {row_title!r}")
+    return True
+
 def select_and_press_unedited_named_row_button(root, expected):
     """Select a direct task-list child and invoke its sole row action atomically.
 
@@ -520,15 +530,19 @@ def main():
         send_keyboard_key("Return")
         # Esc closes the layer (autohide popover; closing never discards).
         # The date persisted the moment Return committed the field (§5b
-        # per-field autosave). The layer's dismissal is asserted later in
-        # this trace through task A's URL reopen path.
+        # per-field autosave). Close the layer through the row ⓘ toggle and
+        # read the persisted value off the row meta — the popover's own
+        # chips are also in the window tree while it is open, so the
+        # assertion runs only after the layer is gone.
+        close_detail_layer(window, "First-run persistence task")
         window = wait_for(
-            "live frame after the date entry",
+            "live frame after the date entry closed the layer",
             lambda: find_frame(find_application()),
         )
         wait_for(
             "first task save acknowledgement",
-            lambda: contains_text(window, "First-run persistence task")
+            lambda: find_editable_named(window, "Date") is None
+            and contains_text(window, "First-run persistence task")
             and contains_text(window, "Tomorrow"),
         )
         (args.output / "first-run-trace.json").write_text(
@@ -704,8 +718,8 @@ def main():
     )
     url_field.queryEditableText().setTextContents("https://example.com/autosaved")
     send_keyboard_key("Return")
-    # Esc closes the layer (autohide popover; closing never discards).
-    send_keyboard_key("Escape")
+    # §5b close: press the row ⓘ again (closing never discards).
+    close_detail_layer(window, "Autosaved detail A")
     window = wait_for(
         "live frame after the URL autosave closed the layer",
         lambda: find_frame(find_application()),
@@ -731,8 +745,8 @@ def main():
     assert persisted == "https://example.com/autosaved", (
         f"URL did not persist: {persisted!r}"
     )
-    # Esc closes the layer (autohide popover; closing never discards).
-    send_keyboard_key("Escape")
+    # §5b close: press the row ⓘ again (closing never discards).
+    close_detail_layer(window, "Autosaved detail A")
     window = wait_for(
         "live frame after the URL verification closed the layer",
         lambda: find_frame(find_application()),
@@ -768,8 +782,8 @@ def main():
         lambda: find_editable_named(window, "Notes"),
     )
     notes_view.queryEditableText().setTextContents("Detail-layer notes B")
-    # Esc closes the layer (autohide popover; closing never discards).
-    send_keyboard_key("Escape")
+    # §5b close: press the row ⓘ again (closing never discards).
+    close_detail_layer(window, "64-bit task B")
     window = wait_for(
         "live frame after the notes autosave closed the layer",
         lambda: find_frame(find_application()),
@@ -795,8 +809,8 @@ def main():
     assert persisted == "Detail-layer notes B", (
         f"notes did not persist: {persisted!r}"
     )
-    # Esc closes the layer (autohide popover; closing never discards).
-    send_keyboard_key("Escape")
+    # §5b close: press the row ⓘ again (closing never discards).
+    close_detail_layer(window, "64-bit task B")
     window = wait_for(
         "live frame after the notes verification closed the layer",
         lambda: find_frame(find_application()),
