@@ -259,6 +259,23 @@ def select_single_named_child(root, expected):
     return None
 
 
+def select_and_focus_row(root, expected):
+    """Select the row and pull real keyboard focus onto it.
+
+    AT-SPI selection does not move GTK keyboard focus; the Enter-based row
+    activation needs the focused row, so grab focus through the component
+    interface before the caller synthesizes the key.
+    """
+    row = select_single_named_child(root, expected)
+    if row is None:
+        return None
+    try:
+        row.queryComponent().grabFocus()
+    except Exception:
+        pass
+    return row
+
+
 def select_and_press_unedited_named_row_button(root, expected):
     """Select a direct task-list child and invoke its sole row action atomically.
 
@@ -456,9 +473,9 @@ def main():
         wait_for("first task created", lambda: contains_text(window, "First-run persistence task"))
         task_row = wait_for(
             "first task selected",
-            lambda: select_single_named_child(window, "First-run persistence task"),
+            lambda: select_and_focus_row(window, "First-run persistence task"),
         )
-        # §5: Enter on the selected row opens the inline quick editor; the
+        # §5: Enter on the focused row opens the inline quick editor; the
         # row's ⓘ button now opens the anchored task-detail layer instead.
         send_keyboard_key("Return")
         editor = wait_for(
@@ -726,7 +743,7 @@ def main():
     )
     wait_for(
         "second task row selected for explicit Save",
-        lambda: select_single_named_child(window, "64-bit task B"),
+        lambda: select_and_focus_row(window, "64-bit task B"),
     )
     # §5: Enter opens the inline quick editor; the row's ⓘ button opens the
     # anchored task-detail layer instead (covered above on task A).
