@@ -228,10 +228,15 @@
   ;; `path->string` after the image has already been replaced (taskly 0.2.6
   ;; audit).
   (define self (string->path self-string))
-  (values self
-          (make-temporary-file "taskly-update-~a.AppImage"
-                               #f
-                               (path-only self))))
+  ;; Reserve a unique name, then remove the file: a failed verification
+  ;; must not strand an empty staging file beside the running image
+  ;; (rivet's managed download cleans only its own .partial).
+  (define staged
+    (make-temporary-file "taskly-update-~a.AppImage"
+                         #f
+                         (path-only self)))
+  (delete-file staged)
+  (values self staged))
 
 (define (install-appimage! verified self)
   (unless (eq? (system-type 'os) 'windows)
