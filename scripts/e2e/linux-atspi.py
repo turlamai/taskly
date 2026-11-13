@@ -260,32 +260,33 @@ def select_single_named_child(root, expected):
 
 
 def select_and_focus_row(root, expected):
-    """Select the row, then double-click it at its AT-SPI-reported extent.
+    """Select the row, then click its title label.
 
-    Double-click is the reliable row-activation path: AT-SPI selection does
-    not move GTK keyboard focus (so a synthetic Return would land nowhere),
-    and the component grabFocus is a no-op on current GTK stacks. A real
-    pointer double-click through xdotool fires GtkListBox's row-activated
-    signal — the §5 inline-editor entry point.
+    §5: clicking the task title opens the inline quick editor. The click
+    goes through xdotool at the title label's AT-SPI extent — a real
+    pointer event, since AT-SPI selection does not move GTK keyboard focus
+    and synthetic row double-clicks are swallowed by GTK's gesture stack.
     """
     row = select_single_named_child(root, expected)
     if row is None:
         return None
     try:
-        extent = row.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+        title = next(node for node in walk(row)
+                     if role(node) == "label" and name(node) == expected)
+        extent = title.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
         try:
             ex, ey, ew, eh = extent.x, extent.y, extent.width, extent.height
         except AttributeError:
             ex, ey, ew, eh = extent
-        center_x = ex + ew // 2
+        center_x = ex + min(ew // 2, 120)
         center_y = ey + eh // 2
         subprocess.run(
             ["xdotool", "mousemove", str(center_x), str(center_y),
-             "click", "--repeat", "2", "--delay", "120", "1"],
+             "click", "1"],
             check=True, timeout=5,
         )
     except Exception as error:
-        print(f"row double-click failed for {expected!r}: {error}", flush=True)
+        print(f"title click failed for {expected!r}: {error}", flush=True)
         return None
     return row
 
@@ -489,7 +490,7 @@ def main():
             "first task selected",
             lambda: select_and_focus_row(window, "First-run persistence task"),
         )
-        # §5: double-clicking the row opens the inline quick editor; the
+        # §5: clicking the task title opens the inline quick editor; the
         # row's ⓘ button now opens the anchored task-detail layer instead.
         editor = wait_for(
             "focused first task editor",

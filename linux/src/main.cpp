@@ -3632,6 +3632,33 @@ GtkWidget* make_task_row(rivet_app::Task const& task) {
   if (task.completed) {
     gtk_widget_add_css_class(text, "task-done");
   }
+  // §5: clicking the task title opens the inline quick editor (the row's
+  // ⓘ button opens the anchored detail layer) — the same split as the
+  // macOS and Windows hosts. The click gesture is on the label itself so
+  // plain row clicks keep their selection semantics.
+  {
+    auto* title_gesture = gtk_gesture_click_new();
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(title_gesture),
+                                  GDK_BUTTON_PRIMARY);
+    g_signal_connect(
+        title_gesture, "released",
+        G_CALLBACK(+[](GtkGestureClick* gesture, gint, gdouble x, gdouble y,
+                       gpointer user_data) {
+          auto* label = GTK_WIDGET(gtk_event_controller_get_widget(
+              GTK_EVENT_CONTROLLER(gesture)));
+          auto* row = gtk_widget_get_ancestor(label, GTK_TYPE_LIST_BOX_ROW);
+          if (row == nullptr) return;
+          auto const data = g_object_get_data(G_OBJECT(row), "task-id");
+          if (data == nullptr) return;
+          (void)x;
+          (void)y;
+          open_task_editor(
+              static_cast<std::int64_t>(GPOINTER_TO_SIZE(data)), false);
+        }),
+        nullptr);
+    gtk_widget_add_controller(GTK_WIDGET(text),
+                              GTK_EVENT_CONTROLLER(title_gesture));
+  }
   gtk_box_append(GTK_BOX(content), text);
 
   // Meta line (PRODUCT-SPEC §5): owning list in multi-list views, due chip,
