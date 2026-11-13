@@ -262,12 +262,16 @@ import sys
 database = sqlite3.connect(sys.argv[1])
 tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
 rows = database.execute(
-    "SELECT id, list_id, text, due_date, due_time, completed, notes "
+    "SELECT id, list_id, text, due_date, due_time, completed, notes, url "
     "FROM tasks WHERE id IN (4294967302, 4294967303) ORDER BY id"
 ).fetchall()
+# The trace edits through the anchored detail layer (§5b): task A's title
+# and URL autosaved, task B's notes autosaved.
 assert rows == [
-    (4294967302, 4294967301, '64-bit task A', tomorrow, None, 0, 'metadata A'),
-    (4294967303, 4294967301, 'Saved inline draft', tomorrow, None, 0, 'metadata B'),
+    (4294967302, 4294967301, 'Autosaved detail A', tomorrow, None, 0,
+     'metadata A', 'https://example.com/autosaved'),
+    (4294967303, 4294967301, '64-bit task B', tomorrow, None, 0,
+     'Detail-layer notes B', None),
 ], rows
 created = database.execute(
     "SELECT list_id, completed FROM tasks WHERE text = 'Acceptance task'"
