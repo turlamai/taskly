@@ -293,8 +293,7 @@
 (define-rpc (start_download : Void)
   (with-handlers
       ([exn:fail? (lambda (e) (set-update-error! (exn-message e)))])
-    (define worker (update-worker-thread))
-    (if (and worker (thread-running? worker))
+    (if (download-running?)
         (cancel-download!)
         (start-download! (taskly-directory))))
   (void))

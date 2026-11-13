@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- The updater now runs on `rivet/distribution`'s managed `make-updater` state
+  machine: candidate selection, the download worker, the stall/total
+  watchdog, cancellation and the terminal state are shared family code.
+  Taskly supplies its key, feed, staging path and the AppImage in-place
+  swap. The `update_state` wire vocabulary is unchanged.
 - `scripts/make-update-manifest.sh` now delegates signing, artifact hashing,
   and manifest validation to `raco rivet sign-manifest`; the wrapper keeps
   only Taskly's artifact matrix and release identity. The emitted manifest
@@ -15,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/update-keys.sh` now delegates to `raco rivet update-keys`, which
   owns key generation, the 0600 private-key file, and every DER/SPKI/raw
   encoding the Racket and Swift verifiers embed.
+
+### Fixed
+- The AppImage in-place swap test never ran: it gated on
+  `(system-type 'os)` being `'linux`, but Racket reports `'unix` on Linux,
+  and its manifest advertised a tar.gz artifact while asking selection for
+  `appimage`. The suite now gates on the release platform symbol, carries a
+  real signed AppImage artifact, and runs on Linux CI.
 
 ## [0.2.12] - 2026-11-13
 

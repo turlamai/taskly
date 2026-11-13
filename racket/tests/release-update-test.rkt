@@ -3,14 +3,14 @@
 ;; Release-kind acceptance suite (#58 slice 1): the N→N+1 update lifecycle
 ;; with data preservation, driven end-to-end at the backend boundary every
 ;; host shares. Rivet's manifest fetch hard-requires HTTPS (the production
-;; feed is HTTPS-only), so the suite splits in two: perform-check! proves a
-;; plain-http feed can never yield a candidate, and the full lifecycle runs
-;; the identical verify→select→download pipeline over a loopback feed
-;; signed with a throwaway key. Host-side install arms (macOS zip swap,
-;; Windows cmd/MSI handoff) are exercised by the release pipeline on every
-;; tag; the backend-owned arm — the Linux AppImage in-place swap — runs
-;; here for real. The invariant under everything: ~/.taskly/tasks.db stays
-;; byte-identical and the seeded task survives.
+;; feed is HTTPS-only), so the suite injects a loopback fetch that still
+;; verifies the signed envelope — every step of the shipped pipeline runs,
+;; including the managed worker's download and the AppImage in-place swap.
+;; Host-side install arms (macOS zip swap, Windows cmd/MSI handoff) are
+;; exercised by the release pipeline on every tag; the backend-owned arm —
+;; the Linux AppImage swap — runs here for real. The invariant under
+;; everything: ~/.taskly/tasks.db stays byte-identical and the seeded task
+;; survives.
 
 (require crypto
          crypto/all
@@ -24,15 +24,21 @@
                   verify-signed-manifest
                   update-manifest
                   update-artifact
+                  update-artifact-url
+                  updater-config
+                  select-update
                   update-artifact-installer
                   update-candidate-manifest
                   update-candidate-artifact
                   update-candidate
-                  updater-config
-                  select-update
                   update-manifest-version
+                  download-update
                   sha256-file/hex)
+         ;; Transport injection for a loopback feed: the managed updater
+         ;; provides these parameters to tests only.
+         (submod (lib "rivet/distribution/managed-updater.rkt") test-support)
          racket/path
+         racket/string
          net/url
          "../taskly/config.rkt"
          "../taskly/db.rkt"
@@ -116,7 +122,7 @@
 
 (define (wrapped-feed manifest priv)
   (define wrapped (open-output-bytes))
-  (write-signed-manifest manifest priv "taskly-test" wrapped)
+  (write-signed-manifest manifest priv update-key-id wrapped)
   (get-output-bytes wrapped))
 
 ;; A check config pinned one version behind the feed, matching the current
@@ -124,12 +130,65 @@
 (define (check-config key version)
   (updater-config app-identifier version 'stable
                   (platform-symbol) (architecture-symbol)
-                  key "taskly-test" 0 (* 100 1024 1024) #f))
+                  key update-key-id 0 (* 100 1024 1024) #f))
+
+;; The shipped check verifies the signed envelope; only the HTTPS URL gate
+;; and the pinned key are bypassed for the loopback feed (the public half is
+;; compile-time identity, so tests verify with their throwaway key). The
+;; product's manifest URL stays https because the managed updater — like
+;; the shipped configuration — refuses anything else at construction.
+(define (check-with-loopback-feed! base pub)
+  (parameterize ([current-update-base-url "https://dl.example/taskly"]
+                 [current-managed-fetch-manifest
+                  (lambda (_url _key
+                          #:key-id [key-id #f]
+                          #:trusted-keys [_trusted-keys '()]
+                          #:maximum-bytes [_maximum-bytes (* 1024 1024)])
+                    (define in
+                      (get-pure-port
+                       (string->url (string-append base "/update-manifest.json"))))
+                    (define envelope (port->bytes in))
+                    (close-input-port in)
+                    (verify-signed-manifest (open-input-bytes envelope)
+                                            pub
+                                            #:key-id key-id))]
+                 [current-managed-download (loopback-download base)])
+    (perform-check!)))
 
 (define (zip-artifact url bytes)
   (update-artifact (platform-symbol) (architecture-symbol)
                    url (sha256-bytes/hex bytes)
                    (bytes-length bytes) 'zip '()
+                   ;; rivet #271: component #f = the plain whole-app artifact.
+                   #f))
+
+;; Signed manifests may only carry https artifact URLs, and the trust layer
+;; enforces that while signing. Tests therefore keep the signed shape and
+;; redirect the transport: the real downloader runs with the artifact URL
+;; rewritten to the loopback server, keeping size/SHA-256 verification.
+(define (loopback-download base)
+  (lambda (config candidate destination
+                  #:on-progress on-progress
+                  #:progress-every [_progress-every #f])
+    (define artifact (update-candidate-artifact candidate))
+    (define redirected
+      (struct-copy update-artifact artifact
+                   [url (string-append
+                         base "/"
+                         (car (reverse (string-split
+                                        (update-artifact-url artifact)
+                                        "/"))))]))
+    (download-update
+     config
+     (update-candidate (update-candidate-manifest candidate) redirected)
+     destination
+     #:on-progress on-progress
+     #:progress-every 1)))
+
+(define (appimage-artifact url bytes)
+  (update-artifact (platform-symbol) (architecture-symbol)
+                   url (sha256-bytes/hex bytes)
+                   (bytes-length bytes) 'appimage '()
                    ;; rivet #271: component #f = the plain whole-app artifact.
                    #f))
 
@@ -158,31 +217,16 @@
   survived?)
 
 (test-case "a plain-http feed can never yield a candidate"
-  ;; fetch-update-manifest is HTTPS-only by contract; a loopback http feed
-  ;; must land in the error phase with no offer — the transport gate is
-  ;; part of the release chain, not a nicety.
-  (define-values (priv _pub) (test-signing-key))
-  (define manifest
-    (update-manifest app-identifier "9.9.9" 7 'stable
-                     "2026-10-09T00:00:00Z" "0.0.0" #f #t 100
-                     (list (zip-artifact "https://dl.example/taskly-9.9.9.zip"
-                                         (make-bytes 64 1)))))
-  (define listener (open-loopback))
-  (define server-thread
-    (serve-on! listener
-               (list (cons "update-manifest.json"
-                           (wrapped-feed manifest priv)))))
-  (parameterize ([current-update-base-url
-                  (format "http://127.0.0.1:~a" (loopback-port listener))]
+  ;; fetch-update-manifest is HTTPS-only by contract; the managed check
+  ;; surfaces that gate as the error phase with no offer.
+  (parameterize ([current-update-base-url "http://127.0.0.1:1"]
                  [current-taskly-home
                   (make-temporary-file "taskly-release-http-~a" 'directory)])
     (reset-update-state!)
     (define result (perform-check!))
     (check-equal? (hash-ref result 'status) "error")
     (check-equal? (hash-ref (update-state-snapshot) 'phase) "error")
-    (check-false (hash-ref (update-state-snapshot) 'availableVersion)))
-  (kill-thread server-thread)
-  (tcp-close listener))
+    (check-false (hash-ref (update-state-snapshot) 'availableVersion))))
 
 (test-case "a re-keyed or re-signed feed fails closed"
   (define-values (priv-a pub-a) (test-signing-key))
@@ -198,7 +242,7 @@
    (lambda ()
      (verify-signed-manifest (open-input-bytes (wrapped-feed manifest priv-a))
                              pub-a
-                             #:key-id "taskly-test")))
+                             #:key-id update-key-id)))
   ;; A different key-id must fail closed (the shipped clients pin ours).
   (check-exn exn:fail?
              (lambda ()
@@ -213,7 +257,7 @@
                (verify-signed-manifest
                 (open-input-bytes (wrapped-feed manifest priv-b))
                 pub-a
-                #:key-id "taskly-test"))))
+                #:key-id update-key-id))))
 
 (test-case "rollout 0 gates the offer for every bucket"
   (define-values (priv pub) (test-signing-key))
@@ -231,62 +275,35 @@
   (define-values (priv pub) (test-signing-key))
   (define listener (open-loopback))
   (define base (format "http://127.0.0.1:~a" (loopback-port listener)))
-  ;; The feed offers 0.2.4; a 0.2.2 feed exists only to prove the semver
-  ;; gate refuses downgrades of 0.2.3.
-  ;; The signed envelope carries https URLs — the sign/parse layers
-  ;; reject anything else (transport gate) — and selection never fetches.
+  ;; The feed offers 9.9.9 (above the shipped 0.2.x); a 0.2.2 feed exists
+  ;; only to prove the semver gate refuses downgrades.
   (define manifest
-    (update-manifest app-identifier "0.2.4" 8 'stable
+    (update-manifest app-identifier "9.9.9" 8 'stable
                      "2026-10-23T00:00:00Z" "0.0.0" #f #t 100
                      (list (zip-artifact
-                            "https://dl.example/taskly-0.2.4-x64.zip"
+                            "https://dl.example/taskly-9.9.9-x64.zip"
                             artifact-bytes))))
   (define downgrade
     (update-manifest app-identifier "0.2.2" 6 'stable
                      "2026-10-01T00:00:00Z" "0.0.0" #f #t 100
                      (list (zip-artifact
-                            "http://127.0.0.1:1/taskly-0.2.2-x64.zip"
+                            "https://dl.example/taskly-0.2.2-x64.zip"
                             artifact-bytes))))
   (check-false (select-update (check-config pub "0.2.3") downgrade)
                "a downgrade offer violates the semver gate")
   (define server-thread
     (serve-on! listener
                (list (cons "update-manifest.json" (wrapped-feed manifest priv))
-                     (cons "taskly-0.2.4-x64.zip" artifact-bytes))))
+                     (cons "taskly-9.9.9-x64.zip" artifact-bytes))))
   (parameterize ([current-taskly-home home])
     (reset-update-state!)
-    ;; Fetch + verify + select over the loopback feed — the same pipeline
-    ;; steps perform-check! runs against the production feed and key.
-    (define in
-      (get-pure-port (string->url (string-append base "/update-manifest.json"))))
-    (define envelope (port->bytes in))
-    (close-input-port in)
-    (define verified
-      (verify-signed-manifest (open-input-bytes envelope) pub
-                              #:key-id "taskly-test"))
-    (check-equal? (update-manifest-version verified) "0.2.4")
-    (define candidate (select-update (check-config pub "0.2.3") manifest))
-    (check-true (and candidate #t) "0.2.3 must be offered the 0.2.4 update")
-    (check-equal? (update-manifest-version
-                   (update-candidate-manifest candidate))
-                  "0.2.4")
-    (check-equal? (update-artifact-installer
-                   (update-candidate-artifact candidate))
-                  'zip)
-    ;; Download through the real worker, then the invariants. The signed
-    ;; envelope carries https artifact URLs (the sign/parse layers reject
-    ;; anything else, which is itself contract), so the download leg runs
-    ;; on the same artifact re-targeted at the loopback server — the
-    ;; transport rivet's own download tests use.
-    (define loopback-artifact
-      (zip-artifact (string-append base "/taskly-0.2.4-x64.zip")
-                    artifact-bytes))
-    (define download-candidate
-      (update-candidate
-       (struct-copy update-manifest manifest
-                    [artifacts (list loopback-artifact)])
-       loopback-artifact))
-    (set-update-candidate! download-candidate)
+    ;; The managed check fetches the signed envelope over loopback, verifies
+    ;; it, and selects the matching artifact.
+    (define checked (check-with-loopback-feed! base pub))
+    (check-equal? (hash-ref checked 'status) "available")
+    (check-equal? (hash-ref checked 'availableVersion) "9.9.9")
+    (check-equal? (hash-ref checked 'installer) "zip")
+    (check-equal? (hash-ref (update-state-snapshot) 'phase) "idle")
     (define data-dir (make-temporary-file "taskly-release-data-~a" 'directory))
     (start-download! data-dir)
     (wait-until (lambda ()
@@ -325,19 +342,10 @@
     (serve-on! listener
                (list (cons "update-manifest.json" (wrapped-feed manifest priv))
                      (cons "taskly-9.9.9-x64.zip" (make-bytes 512 9)))))
-  (define candidate (select-update (check-config pub "0.2.3") manifest))
-  (check-true (and candidate #t))
-  (define loopback-artifact
-    (zip-artifact (string-append base "/taskly-9.9.9-x64.zip")
-                  (make-bytes 512 0)))
-  (define download-candidate
-    (update-candidate
-     (struct-copy update-manifest manifest
-                  [artifacts (list loopback-artifact)])
-     loopback-artifact))
   (parameterize ([current-taskly-home home])
     (reset-update-state!)
-    (set-update-candidate! download-candidate)
+    (check-equal? (hash-ref (check-with-loopback-feed! base pub) 'status)
+                  "available")
     (define data-dir (make-temporary-file "taskly-release-bad-~a" 'directory))
     (start-download! data-dir)
     (wait-until (lambda ()
@@ -381,9 +389,11 @@
           (putenv "APPIMAGE" had-appimage)
           (putenv "APPIMAGE" "")))))
 
-;; Backend-owned install arm: Linux only — the AppImage in-place swap.
+;; Backend-owned install arm: Linux only — the AppImage in-place swap. The
+;; flavor gate is platform-symbol (the Racket os value on Linux is 'unix,
+;; so comparing system-type with 'linux silently skipped this suite).
 (define run-appimage-swap-test?
-  (eq? (system-type 'os) 'linux))
+  (eq? (platform-symbol) 'linux))
 
 (when run-appimage-swap-test?
   (test-case "the AppImage swap replaces the running image and keeps the database"
@@ -398,35 +408,29 @@
     (define-values (priv pub) (test-signing-key))
     (define listener (open-loopback))
     (define base (format "http://127.0.0.1:~a" (loopback-port listener)))
-    ;; The feed advertises the tar.gz artifact; the AppImage arm derives
-    ;; the x86_64.AppImage asset name from it — that derivation is the trap.
+    ;; The release feed carries the AppImage as its own signed artifact; the
+    ;; installed AppImage flavor selects it by install kind.
     (define manifest
       (update-manifest app-identifier "9.9.9" 7 'stable
                        "2026-10-09T00:00:00Z" "0.0.0" #f #t 100
-                       (list (update-artifact
-                              'linux (architecture-symbol)
-                              (string-append base
-                                             "/taskly-9.9.9-linux-x64.tar.gz")
-                              (sha256-bytes/hex new-image-bytes)
-                              (bytes-length new-image-bytes)
-                              'targz '() #f))))
+                       (list (appimage-artifact
+                              "https://dl.example/taskly-9.9.9-linux-x86_64.AppImage"
+                              new-image-bytes))))
     (define server-thread
       (serve-on! listener
                  (list (cons "update-manifest.json"
                              (wrapped-feed manifest priv))
                        (cons "taskly-9.9.9-linux-x86_64.AppImage"
                              new-image-bytes))))
-    (define candidate
-      (select-update (check-config pub "0.2.3") manifest
-                     #:install-kind 'appimage))
-    (check-true (and candidate #t)
-                "the appimage install kind must select the feed artifact")
     (parameterize ([current-taskly-home home])
       (write-config! (hash-set (read-config) "install-flavor" "appimage"))
       (define had-appimage (getenv "APPIMAGE"))
       (putenv "APPIMAGE" (path->string running-image))
       (reset-update-state!)
-      (set-update-candidate! candidate)
+      (define checked (check-with-loopback-feed! base pub))
+      (check-equal? (hash-ref checked 'status) "available"
+                    "the appimage install kind must select the feed artifact")
+      (check-equal? (hash-ref checked 'installer) "appimage")
       (start-download!
        (make-temporary-file "taskly-release-appimage-data-~a" 'directory))
       (wait-until (lambda ()
