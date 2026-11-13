@@ -64,7 +64,19 @@ def wait_for(description, probe, timeout=60.0):
         if value:
             return value
         time.sleep(0.05)
-    raise AssertionError(f"timed out waiting for {description}")
+    # Timeout diagnostics: the visible control inventory is what a distant
+    # runner needs; a bare timeout name alone is not actionable.
+    inventory = []
+    try:
+        application = find_application()
+        frame = find_frame(application)
+        for node in walk(frame):
+            if role(node) in ("push button", "button", "entry", "text"):
+                inventory.append(f"{role(node)}[{name(node)}]")
+    except Exception:
+        pass
+    suffix = f"; visible controls={inventory[:40]}" if inventory else ""
+    raise AssertionError(f"timed out waiting for {description}{suffix}")
 
 
 def find_application():
