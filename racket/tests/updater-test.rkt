@@ -1,19 +1,21 @@
 #lang racket/base
 
-;; Updater tests: platform mapping, manifest URL construction, download
-;; progress accounting, the sticky rollout bucket, and the offline trust
-;; chain — craft a manifest, sign it with a throwaway Ed25519 key, verify
-;; it, and select updates the same way the live checker does.
-;; (fetch-update-manifest itself only accepts HTTPS, so the network half is
-;; exercised in production; everything it does with the bytes is tested
-;; here, plus the error path against a closed local port.)
+;; Updater tests: platform mapping, manifest URL construction, the sticky
+;; rollout bucket, the product phase mapping over the managed state
+;; machine, cancellation, and the offline trust chain — craft a manifest,
+;; sign it with a throwaway Ed25519 key, verify it, and select updates the
+;; same way the live checker does. (fetch-update-manifest itself only
+;; accepts HTTPS, so a live network check is exercised in production and
+;; the error path runs here against a closed local port; selected checks
+;; inject the already-verified manifest through the managed updater's
+;; test-support parameter.)
 
 (require crypto
          crypto/all
          rackunit
          ;; Whitelist instead of the full module: updater.rkt re-exports the
-         ;; taskly release-target vocabulary, which rivet main now also
-         ;; centralizes; the explicit list compiles against the pin and main.
+         ;; taskly release-target vocabulary, which rivet also centralizes;
+         ;; the explicit list makes the dependency visible.
          (only-in rivet/distribution
                   write-signed-manifest
                   verify-signed-manifest
@@ -22,14 +24,16 @@
                   update-artifact-installer
                   update-candidate
                   update-candidate-artifact
+                  update-manifest-artifacts
                   updater-config
                   select-update
                   fetch-update-manifest
                   update-manifest-version
-                  update-manifest-artifacts
-                  sha256-file/hex
-                  base64-string->bytes
-                  bytes->base64-string)
+                  sha256-file/hex)
+         ;; The managed updater exposes its transport parameters only to
+         ;; tests: this suite checks signed selection without an HTTPS
+         ;; server, then runs the real download worker against loopback.
+         (submod (lib "rivet/distribution/managed-updater.rkt") test-support)
          racket/file
          racket/list
          racket/path
@@ -48,6 +52,31 @@
       [(> (current-inexact-milliseconds) deadline)
        (fail (string-append "timed out waiting for " who))]
       [else (sleep 0.05) (loop deadline)])))
+
+(define (temp-home prefix)
+  (make-temporary-file prefix 'directory))
+
+;; A managed check whose manifest was already verified (or crafted by a
+;; test): the transport parameter is captured when perform-check! builds
+;; the instance.
+(define (check-with-manifest! manifest)
+  (parameterize ([current-managed-fetch-manifest
+                  (lambda (_url _key
+                          #:key-id [_key-id #f]
+                          #:trusted-keys [_trusted-keys '()]
+                          #:maximum-bytes [_maximum-bytes (* 1024 1024)])
+                    manifest)])
+    (perform-check!)))
+
+(define (test-artifact url installer [size 10])
+  (update-artifact (platform-symbol) (architecture-symbol)
+                   url (make-string 64 #\a) size installer '()
+                   ;; rivet #271: component #f = the plain whole-app artifact.
+                   #f))
+
+(define (test-manifest version artifacts)
+  (update-manifest app-identifier version 7 'stable
+                   "2026-10-09T00:00:00Z" "0.0.0" #f #t 100 artifacts))
 
 (test-case "platform symbols match rivet release manifests"
   (case (system-type 'os)
@@ -73,23 +102,8 @@
      (manifest-url))
    "https://dl.example/taskly/update-manifest.json"))
 
-(test-case "download progress copies bytes and reports percent"
-  (reset-update-state!)
-  (define payload (make-bytes 250000 7))
-  (define out (open-output-bytes))
-  (copy-with-progress! (open-input-bytes payload) out 250000)
-  (check-equal? (bytes-length (get-output-bytes out)) 250000)
-  (check-equal? (hash-ref (update-state-snapshot) 'percent) 100)
-  ;; percent tracks the declared total, not the end of input
-  (reset-update-state!)
-  (define short-out (open-output-bytes))
-  (copy-with-progress! (open-input-bytes payload) short-out 1000000)
-  (check-equal? (hash-ref (update-state-snapshot) 'percent) 25)
-  (reset-update-state!))
-
 (test-case "rollout bucket is sticky and persists to config.ini"
-  (parameterize ([current-taskly-home
-                  (make-temporary-file "taskly-updater-home-~a" 'directory)])
+  (parameterize ([current-taskly-home (temp-home "taskly-updater-home-~a")])
     (check-true (exact-integer? (rollout-bucket)))
     (define first (rollout-bucket))
     (check-true (<= 0 first 99))
@@ -100,12 +114,83 @@
      (number->string first))))
 
 (test-case "check against an unreachable feed reports error state"
-  (parameterize ([current-update-base-url "https://127.0.0.1:9/taskly"])
+  (parameterize ([current-update-base-url "https://127.0.0.1:9/taskly"]
+                 [current-taskly-home (temp-home "taskly-updater-offline-~a")])
     (reset-update-state!)
     (define result (perform-check!))
     (check-equal? (hash-ref result 'status) "error")
     (check-equal? (hash-ref (update-state-snapshot) 'phase) "error")
     (check-true (string? (hash-ref (update-state-snapshot) 'message)))))
+
+(test-case "managed check maps onto the wire phase vocabulary"
+  (parameterize ([current-taskly-home (temp-home "taskly-updater-map-~a")])
+    (reset-update-state!)
+    (define available
+      (check-with-manifest!
+       (test-manifest "9.9.9" (list (test-artifact "https://dl.example/taskly.zip" 'zip)))))
+    (check-equal? (hash-ref available 'status) "available")
+    (check-equal? (hash-ref available 'availableVersion) "9.9.9")
+    ;; The product UI treats "available" as idle; the version carries the
+    ;; signal, exactly as before the managed migration.
+    (check-equal? (hash-ref (update-state-snapshot) 'phase) "idle")
+    (check-equal? (hash-ref (update-state-snapshot) 'availableVersion) "9.9.9")
+    (check-equal? (hash-ref (update-state-snapshot) 'percent) 0)
+
+    ;; An older feed is up-to-date and idles with no offered version.
+    (reset-update-state!)
+    (define stale (test-manifest "0.0.1" (list (test-artifact "https://dl.example/old.zip" 'zip))))
+    (define up-to-date (check-with-manifest! stale))
+    (check-equal? (hash-ref up-to-date 'status) "up-to-date")
+    (check-equal? (hash-ref (update-state-snapshot) 'phase) "idle")
+    (check-false (hash-ref (update-state-snapshot) 'availableVersion))
+
+    ;; A backend-side start failure outranks the managed snapshot until the
+    ;; next check clears it.
+    (check-with-manifest!
+     (test-manifest "9.9.9" (list (test-artifact "https://dl.example/taskly.zip" 'zip))))
+    (set-update-error! "download already running")
+    (check-equal? (hash-ref (update-state-snapshot) 'phase) "error")
+    (check-equal? (hash-ref (update-state-snapshot) 'message)
+                  "download already running")
+    (reset-update-state!)))
+
+(test-case "managed download publishes progress and the final path"
+  (define data-dir (make-temporary-file "taskly-updater-progress-~a" 'directory))
+  (define (fake-download _config _candidate destination
+                         #:on-progress on-progress
+                         #:progress-every [_progress-every #f])
+    (for ([percent (in-list '(0 40 100))])
+      (on-progress percent))
+    (make-parent-directory* destination)
+    (call-with-output-file destination
+      #:exists 'truncate/replace
+      (lambda (out) (display "verified artifact" out)))
+    destination)
+  (parameterize ([current-taskly-home (temp-home "taskly-updater-progress-home-~a")]
+                 [current-managed-fetch-manifest
+                  (lambda (_url _key
+                          #:key-id [_key-id #f]
+                          #:trusted-keys [_trusted-keys '()]
+                          #:maximum-bytes [_maximum-bytes (* 1024 1024)])
+                    (test-manifest
+                     "9.9.9"
+                     (list (test-artifact "https://dl.example/taskly.zip" 'zip))))]
+                 [current-managed-download fake-download])
+    (reset-update-state!)
+    (check-equal? (hash-ref (perform-check!) 'status) "available")
+    (start-download! data-dir)
+    (wait-until (lambda ()
+                  (equal? (hash-ref (update-state-snapshot) 'phase)
+                          "downloaded"))
+                "the downloaded phase")
+    (define snapshot (update-state-snapshot))
+    (check-equal? (hash-ref snapshot 'percent) 100)
+    (check-false (hash-ref snapshot 'message))
+    (define downloaded (hash-ref snapshot 'downloadedPath))
+    (check-true (and downloaded (file-exists? downloaded)))
+    (check-equal? (file->string downloaded) "verified artifact")
+    (check-false (download-running?))
+    (reset-update-state!)))
 
 (test-case "signed manifest verifies and selects updates"
   ;; throwaway keypair: same DER formats the release pipeline uses
@@ -147,6 +232,12 @@
                 (open-input-bytes (get-output-bytes wrapped))
                 pub
                 #:key-id "some-other-key")))
+  ;; the manifest transport itself refuses plain http (the production feed
+  ;; is HTTPS-only); the managed check's default fetch is this function.
+  (check-exn #rx"HTTPS"
+             (lambda ()
+               (fetch-update-manifest "http://127.0.0.1:1/update-manifest.json"
+                                      pub #:key-id "taskly-test")))
   (delete-file priv-path)
   (delete-file artifact-file))
 
@@ -190,85 +281,13 @@
   (check-equal? update-key-id "taskly-2026-10")
   (check-true (string? app-version)))
 
-(test-case "appimage asset derivation maps feed arch names"
-  (check-equal?
-   (appimage-asset-name "taskly-0.1.2-linux-x64.tar.gz" 'x64)
-   "taskly-0.1.2-linux-x86_64.AppImage")
-  (check-equal?
-   (appimage-asset-name "taskly-0.1.2-linux-arm64.tar.gz" 'arm64)
-   "taskly-0.1.2-linux-aarch64.AppImage")
-  (check-exn exn:fail?
-             (lambda () (appimage-asset-name "taskly-0.1.2-linux-x64.zip" 'x64)))
-  (check-exn exn:fail?
-             (lambda () (appimage-asset-name "taskly-0.1.2-linux.tar.gz" 'x64))))
-
-(test-case "watchdog break arm removes the .partial file"
-  ;; A loopback listener that accepts and then never answers parks the
-  ;; worker in the copy loop with an (empty) .partial already on disk —
-  ;; the exact shape the watchdog's break-thread hits on a stalled
-  ;; download. Break the worker the way the watchdog does: the phase must
-  ;; land on error and no .partial may survive.
-  (define data-dir (make-temporary-file "taskly-updater-data-~a" 'directory))
-  (define listener (tcp-listen 0 16 #f))
-  (define-values (_listen-host stall-port _peer-host _peer-port)
-    (tcp-addresses listener #t))
-  (define stall-server
-    (thread
-     (lambda ()
-       (define-values (cin cout) (tcp-accept listener))
-       ;; Drain the request head...
-       (let drain ()
-         (define line (read-line cin 'return-linefeed))
-         (unless (or (eof-object? line) (equal? line "")) (drain)))
-       ;; ...then answer with a body shorter than its declared
-       ;; Content-Length and hold the connection open: the client parks
-       ;; mid-copy with the .partial on disk, the exact stall shape the
-       ;; watchdog's break-thread hits.
-       (display "HTTP/1.1 200 OK\r\nContent-Length: 1000\r\nConnection: close\r\n\r\n" cout)
-       (write-bytes (make-bytes 10 5) cout)
-       (flush-output cout)
-       (sync (thread-receive-evt)))))
-  (define manifest
-    (update-manifest
-     app-identifier "9.9.9" 7 'stable
-     "2026-10-09T00:00:00Z" "0.0.0" #f #t 100
-     (list (update-artifact (platform-symbol) (architecture-symbol)
-                            (format "http://127.0.0.1:~a/taskly-9.9.9~a"
-                                    stall-port (installer-extension))
-                            (make-string 64 #\0)
-                            1000
-                            'zip '()
-                            ;; rivet #271: component #f = the plain whole-app
-                            ;; artifact.
-                            #f))))
-  (define candidate
-    (update-candidate manifest (first (update-manifest-artifacts manifest))))
-  (define temporary
-    (path-add-extension (destination-path data-dir candidate) #".partial"))
-  (parameterize ([current-taskly-home
-                  (make-temporary-file "taskly-updater-home-~a" 'directory)])
-    (reset-update-state!)
-    (set-update-candidate! candidate)
-    (start-download! data-dir)
-    (wait-until (lambda () (file-exists? temporary)) "the .partial to appear")
-    (break-thread (update-worker-thread))
-    (wait-until (lambda ()
-                  (equal? (hash-ref (update-state-snapshot) 'phase) "error"))
-                "the error phase")
-    (check-false (file-exists? temporary)
-                 "the break arm must remove the .partial file")
-    (check-equal? (hash-ref (update-state-snapshot) 'message)
-                  "update download stalled or timed out")
-    (reset-update-state!))
-  (kill-thread stall-server)
-  (tcp-close listener))
-
-
-(test-case "user cancellation stops the worker, cleans partials, and permits retry"
+(test-case "user cancellation stops the worker and permits retry"
   (define data-dir (make-temporary-file "taskly-updater-cancel-data-~a" 'directory))
   (define listener (tcp-listen 0 16 #f))
   (define-values (_listen-host cancel-port _peer-host _peer-port)
     (tcp-addresses listener #t))
+  ;; Two connections: the first download is cancelled mid-copy, the retry
+  ;; reaches the same stalling server again.
   (define stall-server
     (thread
      (lambda ()
@@ -284,23 +303,23 @@
          (close-input-port cin)
          (close-output-port cout)))))
   (define manifest
-    (update-manifest
-     app-identifier "9.9.9" 7 'stable
-     "2026-10-09T00:00:00Z" "0.0.0" #f #t 100
+    (test-manifest
+     "9.9.9"
      (list (update-artifact (platform-symbol) (architecture-symbol)
                             (format "http://127.0.0.1:~a/taskly-9.9.9~a"
                                     cancel-port (installer-extension))
                             (make-string 64 #\0)
                             1000
                             'zip '() #f))))
-  (define candidate
-    (update-candidate manifest (first (update-manifest-artifacts manifest))))
   (define temporary
-    (path-add-extension (destination-path data-dir candidate) #".partial"))
-  (parameterize ([current-taskly-home
-                  (make-temporary-file "taskly-updater-cancel-home-~a" 'directory)])
+    (path-add-extension
+     (destination-path
+      data-dir
+      (update-candidate manifest (first (update-manifest-artifacts manifest))))
+     #".partial"))
+  (parameterize ([current-taskly-home (temp-home "taskly-updater-cancel-home-~a")])
     (reset-update-state!)
-    (set-update-candidate! candidate)
+    (check-with-manifest! manifest)
     (start-download! data-dir)
     (wait-until (lambda () (file-exists? temporary)) "first partial")
     (check-true (cancel-download!))
@@ -308,13 +327,10 @@
     (check-false (hash-ref (update-state-snapshot) 'message))
     (check-false (file-exists? temporary))
 
-    ;; Candidate remains selected, so retry does not require another check.
+    ;; The authenticated candidate remains selected, so retry needs no
+    ;; second check.
     (check-not-exn (lambda () (start-download! data-dir)))
-    (wait-until
-     (lambda ()
-       (define retry-worker (update-worker-thread))
-       (and retry-worker (thread-running? retry-worker)))
-     "the retry worker to start")
+    (wait-until (lambda () (file-exists? temporary)) "retry partial")
     (check-true (cancel-download!))
     (check-equal? (hash-ref (update-state-snapshot) 'phase) "idle")
     (check-false (file-exists? temporary))
