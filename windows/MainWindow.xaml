@@ -315,6 +315,23 @@
                             TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <!-- §5 tag-chip filter: a clear affordance stays in the
+                             header while the filter narrows the view. -->
+                        <Button
+                            x:Name="TagClearButton"
+                            Visibility="Collapsed"
+                            Click="OnClearTagFilter"
+                            AutomationProperties.AutomationId="clear-tag-filter"
+                            Padding="8,2,8,2"
+                            MinWidth="0"
+                            VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE894;" FontSize="11" />
+                                <TextBlock
+                                    x:Name="TagClearText"
+                                    FontSize="12" />
+                            </StackPanel>
+                        </Button>
                         <TextBox
                             x:Name="SearchBox"
                             AutomationProperties.AutomationId="task-search"

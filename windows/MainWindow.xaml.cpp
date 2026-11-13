@@ -1289,6 +1289,16 @@ void MainWindow::RenderTasks() {
     inline_time_box_ = nullptr;
     inline_list_button_ = nullptr;
   }
+  // §5b close-on-leave: the detail layer closes when its task leaves the
+  // current view (completed out of view, deleted, or filtered by the tag
+  // filter).
+  if (detail_task_id_ >= 0) {
+    auto const* kept = FindTaskForAction(detail_task_id_);
+    bool const visible =
+        kept != nullptr && TaskMatchesTagFilter(*kept) &&
+        suppressed_deleted_task_ids_.count(detail_task_id_) == 0;
+    if (!visible) CloseTaskDetail();
+  }
   rebuilding_task_rows_ = true;
   struct TaskRowRestore {
     MainWindow* window;
@@ -1308,6 +1318,7 @@ void MainWindow::RenderTasks() {
   TaskList().Items().Clear();
   for (auto const& task : tasks_) {
     if (suppressed_deleted_task_ids_.count(task.id) != 0) continue;
+    if (!TaskMatchesTagFilter(task)) continue;
     auto row = MakeTaskRow(task);
     TaskList().Items().Append(row);
     if (selected_ids.count(task.id) != 0) {
@@ -1328,8 +1339,12 @@ void MainWindow::RenderTasks() {
                                 : mx::Visibility::Collapsed);
   if (empty) {
     EmptyStateIcon().Text(L"\u2713");
-    EmptyStateText().Text(t("taskListEmptyFirstRun"));
+    EmptyStateText().Text(tag_filter_.empty() ? t("taskListEmptyFirstRun")
+                                              : t("tagFilterEmpty"));
   }
+  TagClearButton().Visibility(tag_filter_.empty() ? mx::Visibility::Collapsed
+                                                  : mx::Visibility::Visible);
+  TagClearText().Text(t("detailClearFilter"));
   RefreshBulkActionBar();
 }
 
@@ -1356,6 +1371,7 @@ void MainWindow::RenderSearchResults() {
   SearchResults().Items().Clear();
   for (auto const& task : search_results_) {
     if (suppressed_deleted_task_ids_.count(task.id) != 0) continue;
+    if (!TaskMatchesTagFilter(task)) continue;
     auto row = MakeTaskRow(task, /*search_result=*/true);
     SearchResults().Items().Append(row);
     if (selected_ids.count(task.id) != 0) {
@@ -1433,8 +1449,9 @@ mxc::Grid MainWindow::MakeTaskRow(rivet_app::Task const& task,
       info, L"task-info-" + std::to_wstring(task.id));
   winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetName(
       info, t("contextMenuDetails"));
-  info.Click([weak = get_weak(), id = task.id](auto const&, auto const&) {
-    if (auto window = weak.get()) window->OpenInlineTaskEditor(id);
+  info.Click([weak = get_weak(), id = task.id,
+              anchor = info](auto const&, auto const&) {
+    if (auto window = weak.get()) window->OpenTaskDetail(id, anchor);
   });
   row.PointerEntered([info](auto const&, auto const&) { info.Opacity(1.0); });
   row.PointerExited([info, expanded_here](auto const&, auto const&) {
@@ -1511,6 +1528,54 @@ mxc::Grid MainWindow::MakeTaskRow(rivet_app::Task const& task,
     }
     chip_text.Foreground(ThemeBrush(brush_key));
     meta.Children().Append(chip_text);
+  }
+  // §5 meta line: priority glyphs, the subtask done/total count and
+  // clickable tag chips (click filters the view by the tag).
+  if (task.priority > 0) {
+    auto prio = mxc::TextBlock{};
+    prio.Text(std::wstring(static_cast<std::size_t>(task.priority), L'!'));
+    prio.FontSize(12);
+    prio.FontWeight(winrt::Microsoft::UI::Text::FontWeights::SemiBold());
+    prio.Foreground(ThemeBrush(L"TasklyOverdueBrush"));
+    prio.VerticalAlignment(mx::VerticalAlignment::Center);
+    meta.Children().Append(prio);
+  }
+  if (!task.subtasks.empty()) {
+    std::size_t done = 0;
+    for (auto const& subtask : task.subtasks) {
+      if (subtask.done) ++done;
+    }
+    auto count_text = mxc::TextBlock{};
+    std::wstring label = t("subtitleSubtaskCount");
+    if (auto at = label.find(L"{0}"); at != std::wstring::npos) {
+      label.replace(at, 3, std::to_wstring(done));
+    }
+    if (auto at = label.find(L"{1}"); at != std::wstring::npos) {
+      label.replace(at, 3, std::to_wstring(task.subtasks.size()));
+    }
+    count_text.Text(label);
+    count_text.FontSize(12);
+    count_text.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
+    count_text.VerticalAlignment(mx::VerticalAlignment::Center);
+    meta.Children().Append(count_text);
+  }
+  for (auto const& tag : task.tags) {
+    auto chip = mxc::Button{};
+    chip.Content(winrt::box_value(L"#" + wide(tag)));
+    chip.FontSize(12);
+    chip.Padding(mx::ThicknessHelper::FromLengths(6, 0, 6, 0));
+    chip.MinWidth(0);
+    chip.VerticalAlignment(mx::VerticalAlignment::Center);
+    auto const transparent = mx::Media::SolidColorBrush{
+        winrt::Windows::UI::Color{0x00, 0x00, 0x00, 0x00}};
+    chip.Background(transparent);
+    chip.BorderBrush(transparent);
+    winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetName(
+        chip, L"#" + wide(tag));
+    chip.Click([weak = get_weak(), tag](auto const&, auto const&) {
+      if (auto window = weak.get()) window->ToggleTagFilter(wide(tag));
+    });
+    meta.Children().Append(chip);
   }
   if (meta.Children().Size() > 0) {
     details.Children().Append(meta);
@@ -2011,7 +2076,709 @@ void MainWindow::ResetInlineTaskEditor() {
   inline_time_chip_ = nullptr;
 }
 
+// ---------------------------------------------------------------------------
+// Anchored task-detail layer (DESIGN-TOKENS §Anchored task detail layer,
+// PRODUCT-SPEC §5b): a Flyout anchored to the row's info button carrying the
+// full field set with per-field autosave — discrete controls persist as they
+// change, text fields persist on Return/focus-out plus once more when the
+// layer closes (closing never discards). A failed save anchors an actionable
+// error to its field; the layer closes when its task leaves the current
+// view. Reminder offsets are staged for the A2 slice (#131): they change §9
+// scheduling semantics, so the field is absent by declared scope.
+// ---------------------------------------------------------------------------
+
+void MainWindow::OpenTaskDetail(std::int64_t id, mxc::Button anchor) {
+  if (detail_task_id_ == id && detail_flyout_ != nullptr) {
+    CloseTaskDetail();
+    return;
+  }
+  CloseTaskDetail();
+  auto const* stored = FindTaskForAction(id);
+  if (stored == nullptr) return;
+
+  detail_task_id_ = id;
+  detail_anchor_ = anchor;
+  detail_tags_.clear();
+  for (auto const& tag : stored->tags) detail_tags_.push_back(wide(tag));
+  detail_subtasks_ = stored->subtasks;
+  detail_list_ids_.clear();
+  for (auto const& list : lists_) detail_list_ids_.push_back(list.id);
+  detail_suppress_ = false;
+  detail_error_field_ = 0;
+
+  auto const transparent = mx::Media::SolidColorBrush{
+      winrt::Windows::UI::Color{0x00, 0x00, 0x00, 0x00}};
+  auto weak = get_weak();
+
+  auto root = mxc::StackPanel{};
+  root.Width(348);
+  root.Spacing(12);
+  root.Margin(mx::ThicknessHelper::FromLengths(14, 12, 14, 12));
+
+  auto scroll = mxc::ScrollViewer{};
+  auto fields = mxc::StackPanel{};
+  fields.Spacing(12);
+
+  // Completion.
+  auto completed = mxc::CheckBox{};
+  completed.Content(winrt::box_value(t("detailCompleted")));
+  completed.IsChecked(stored->completed);
+  completed.Checked([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(0);
+  });
+  completed.Unchecked([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(0);
+  });
+  detail_completed_ = completed;
+  fields.Children().Append(completed);
+
+  // Field container helper: caption + control (+ an error slot).
+  auto make_field = [&](std::wstring const& caption) {
+    auto panel = mxc::StackPanel{};
+    panel.Spacing(4);
+    auto label = mxc::TextBlock{};
+    label.Text(caption);
+    label.FontSize(12);
+    label.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
+    panel.Children().Append(label);
+    fields.Children().Append(panel);
+    return panel;
+  };
+
+  // Title.
+  detail_title_box_ = make_field(t("fieldTitle"));
+  auto title = mxc::TextBox{};
+  title.Text(wide(stored->text));
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      title, L"detail-title-" + std::to_wstring(id));
+  title.KeyDown([weak](auto const&, mx::Input::KeyRoutedEventArgs const& args) {
+    if (args.Key() == Windows::System::VirtualKey::Enter) {
+      args.Handled(true);
+      if (auto window = weak.get()) window->DetailAutosave(1);
+    }
+  });
+  title.LostFocus([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(1);
+  });
+  detail_title_ = title;
+  detail_title_box_.Children().Append(title);
+
+  // Date + time side by side.
+  auto schedule = mxc::StackPanel{};
+  schedule.Orientation(mxc::Orientation::Horizontal);
+  schedule.Spacing(10);
+  auto date_column = mxc::StackPanel{};
+  date_column.Spacing(4);
+  auto date_caption = mxc::TextBlock{};
+  date_caption.Text(t("fieldDate"));
+  date_caption.FontSize(12);
+  date_caption.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
+  date_column.Children().Append(date_caption);
+  auto date_row = mxc::StackPanel{};
+  date_row.Orientation(mxc::Orientation::Horizontal);
+  date_row.Spacing(4);
+  auto date_box = mxc::TextBox{};
+  date_box.Width(110);
+  date_box.PlaceholderText(L"yyyy-MM-dd");
+  date_box.Text(stored->due_date.has_value() ? wide(*stored->due_date)
+                                             : L"");
+  date_box.KeyDown([weak](auto const&,
+                          mx::Input::KeyRoutedEventArgs const& args) {
+    if (args.Key() == Windows::System::VirtualKey::Enter) {
+      args.Handled(true);
+      if (auto window = weak.get()) window->DetailAutosave(2);
+    }
+  });
+  date_box.LostFocus([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(2);
+  });
+  detail_date_ = date_box;
+  date_row.Children().Append(date_box);
+  date_column.Children().Append(date_row);
+  detail_date_box_ = date_column;
+  schedule.Children().Append(date_column);
+  auto time_column = mxc::StackPanel{};
+  time_column.Spacing(4);
+  auto time_caption = mxc::TextBlock{};
+  time_caption.Text(t("fieldTime"));
+  time_caption.FontSize(12);
+  time_caption.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
+  time_column.Children().Append(time_caption);
+  auto time_box = mxc::TextBox{};
+  time_box.Width(80);
+  time_box.PlaceholderText(L"HH:mm");
+  time_box.Text(stored->due_time.has_value() ? wide(*stored->due_time) : L"");
+  time_box.KeyDown([weak](auto const&,
+                          mx::Input::KeyRoutedEventArgs const& args) {
+    if (args.Key() == Windows::System::VirtualKey::Enter) {
+      args.Handled(true);
+      if (auto window = weak.get()) window->DetailAutosave(3);
+    }
+  });
+  time_box.LostFocus([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(3);
+  });
+  detail_time_ = time_box;
+  time_column.Children().Append(time_box);
+  detail_time_box_ = time_column;
+  schedule.Children().Append(time_column);
+  fields.Children().Append(schedule);
+
+  // Priority (无 / 低 / 中 / 高).
+  detail_priority_box_ = make_field(t("fieldPriority"));
+  auto priority = mxc::ComboBox{};
+  priority.MinWidth(140);
+  for (wchar_t const* key :
+       {L"prioNone", L"prioLow", L"prioMedium", L"prioHigh"}) {
+    auto item = mxc::ComboBoxItem{};
+    item.Content(winrt::box_value(t(key)));
+    priority.Items().Append(item);
+  }
+  priority.SelectedIndex(
+      static_cast<std::int32_t>(stored->priority < 0 ? 0
+                                                     : stored->priority));
+  priority.SelectionChanged([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(4);
+  });
+  detail_priority_ = priority;
+  detail_priority_box_.Children().Append(priority);
+
+  // Tags.
+  detail_tags_box_ = make_field(t("fieldTags"));
+  auto tags_panel = mxc::StackPanel{};
+  tags_panel.Spacing(6);
+  detail_tags_panel_ = tags_panel;
+  detail_tags_box_.Children().Append(tags_panel);
+  auto tag_add = mxc::TextBox{};
+  tag_add.PlaceholderText(t("tagAddPlaceholder"));
+  tag_add.KeyDown([weak](auto const&,
+                         mx::Input::KeyRoutedEventArgs const& args) {
+    if (args.Key() == Windows::System::VirtualKey::Enter) {
+      args.Handled(true);
+      if (auto window = weak.get()) {
+        if (window->detail_tag_add_ != nullptr) {
+          auto value = trim_wide(window->detail_tag_add_.Text());
+          window->detail_tag_add_.Text(L"");
+          if (!value.empty()) {
+            bool const exists =
+                std::any_of(window->detail_tags_.begin(),
+                            window->detail_tags_.end(),
+                            [&](std::wstring const& tag) {
+                              return tag == value;
+                            });
+            if (!exists) {
+              window->detail_tags_.push_back(value);
+              window->DetailRebuildTags();
+              window->DetailAutosave(5);
+            }
+          }
+        }
+      }
+    }
+  });
+  detail_tag_add_ = tag_add;
+  detail_tags_box_.Children().Append(tag_add);
+
+  // Subtasks.
+  detail_subtasks_box_ = make_field(t("fieldSubtasks"));
+  auto subtasks_panel = mxc::StackPanel{};
+  subtasks_panel.Spacing(6);
+  detail_subtasks_panel_ = subtasks_panel;
+  detail_subtasks_box_.Children().Append(subtasks_panel);
+  auto subtask_add = mxc::TextBox{};
+  subtask_add.PlaceholderText(t("subtaskAddPlaceholder"));
+  subtask_add.KeyDown([weak](auto const&,
+                             mx::Input::KeyRoutedEventArgs const& args) {
+    if (args.Key() == Windows::System::VirtualKey::Enter) {
+      args.Handled(true);
+      if (auto window = weak.get()) {
+        if (window->detail_subtask_add_ != nullptr) {
+          auto value = trim_wide(window->detail_subtask_add_.Text());
+          window->detail_subtask_add_.Text(L"");
+          if (!value.empty()) {
+            window->detail_subtasks_.push_back(
+                rivet_app::Subtask{winrt::to_string(value), false});
+            window->DetailRebuildSubtasks();
+            window->DetailAutosave(6);
+          }
+        }
+      }
+    }
+  });
+  detail_subtask_add_ = subtask_add;
+  detail_subtasks_box_.Children().Append(subtask_add);
+
+  // Notes.
+  detail_notes_box_ = make_field(t("fieldNotes"));
+  auto notes = mxc::TextBox{};
+  notes.AcceptsReturn(true);
+  notes.Height(80);
+  notes.TextWrapping(mx::TextWrapping::Wrap);
+  notes.Text(stored->notes.has_value() ? wide(*stored->notes) : L"");
+  notes.LostFocus([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(7);
+  });
+  detail_notes_ = notes;
+  detail_notes_box_.Children().Append(notes);
+
+  // URL.
+  detail_url_box_ = make_field(t("fieldUrl"));
+  auto url = mxc::TextBox{};
+  url.PlaceholderText(L"https://");
+  url.Text(stored->url.has_value() ? wide(*stored->url) : L"");
+  url.KeyDown([weak](auto const&, mx::Input::KeyRoutedEventArgs const& args) {
+    if (args.Key() == Windows::System::VirtualKey::Enter) {
+      args.Handled(true);
+      if (auto window = weak.get()) window->DetailAutosave(8);
+    }
+  });
+  url.LostFocus([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(8);
+  });
+  detail_url_ = url;
+  detail_url_box_.Children().Append(url);
+
+  // List membership.
+  detail_list_box_ = make_field(t("fieldList"));
+  auto list_combo = mxc::ComboBox{};
+  list_combo.MinWidth(180);
+  auto selected_list = 0;
+  for (std::size_t i = 0; i < lists_.size(); ++i) {
+    auto item = mxc::ComboBoxItem{};
+    item.Content(winrt::box_value(wide(lists_[i].name)));
+    list_combo.Items().Append(item);
+    if (lists_[i].id == stored->list_id) {
+      selected_list = static_cast<std::int32_t>(i);
+    }
+  }
+  list_combo.SelectedIndex(selected_list);
+  list_combo.SelectionChanged([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(9);
+  });
+  detail_list_ = list_combo;
+  detail_list_box_.Children().Append(list_combo);
+
+  scroll.Content(fields);
+  root.Children().Append(scroll);
+
+  // Field-anchored actionable error (§5b): one TextBlock reparented under
+  // the offending field on failure.
+  auto error = mxc::TextBlock{};
+  error.Visibility(mx::Visibility::Collapsed);
+  error.TextWrapping(mx::TextWrapping::Wrap);
+  error.Foreground(ThemeBrush(L"TasklyOverdueBrush"));
+  error.FontSize(12);
+  detail_error_ = error;
+
+  // Action bar (prototype order): fields, then error, then actions.
+  auto actions = mxc::Grid{};
+  actions.ColumnDefinitions().Append(mxc::ColumnDefinition{});
+  actions.ColumnDefinitions().Append(mxc::ColumnDefinition{});
+  actions.ColumnDefinitions().GetAt(0).Width(
+      mx::GridLength{0, mx::GridUnitType::Star});
+  auto delete_button = mxc::Button{};
+  delete_button.Content(winrt::box_value(t("taskDelete")));
+  delete_button.Foreground(ThemeBrush(L"TasklyOverdueBrush"));
+  delete_button.HorizontalAlignment(mx::HorizontalAlignment::Left);
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      delete_button, L"detail-delete-" + std::to_wstring(id));
+  delete_button.Click([weak, id](auto const&, auto const&) {
+    if (auto window = weak.get()) {
+      window->CloseTaskDetail();
+      window->StageTaskDeletion({id});
+    }
+  });
+  mxc::Grid::SetColumn(delete_button, 0);
+  actions.Children().Append(delete_button);
+  auto done = mxc::Button{};
+  done.Content(winrt::box_value(t("detailClose")));
+  done.Padding(mx::ThicknessHelper::FromLengths(14, 2, 14, 2));
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      done, L"detail-done-" + std::to_wstring(id));
+  done.Click([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->CloseTaskDetail();
+  });
+  mxc::Grid::SetColumn(done, 1);
+  done.HorizontalAlignment(mx::HorizontalAlignment::Right);
+  actions.Children().Append(done);
+  root.Children().Append(detail_error_);
+  root.Children().Append(actions);
+
+  auto flyout = mxc::Flyout{};
+  flyout.Content(root);
+  auto const should_show = anchor.XamlRoot() != nullptr;
+  flyout.Closed([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->OnDetailFlyoutClosed();
+  });
+  detail_flyout_ = flyout;
+  DetailRebuildTags();
+  DetailRebuildSubtasks();
+  if (should_show) {
+    flyout.XamlRoot(anchor.XamlRoot());
+    flyout.ShowAt(anchor);
+    if (detail_title_ != nullptr) {
+      detail_title_.Focus(mx::FocusState::Programmatic);
+      detail_title_.SelectAll();
+    }
+  }
+}
+
+void MainWindow::OnDetailFlyoutClosed() {
+  // Outside click / Esc / Done all land here. Closing never discards (§5b):
+  // a final save covers pending text edits before the controls go away.
+  if (detail_task_id_ < 0) return;
+  detail_task_id_ = -1;
+  if (backend_ != nullptr && backend_->running() &&
+      detail_title_ != nullptr) {
+    auto updated = DetailTaskFromControls();
+    auto const* stored = FindTaskForAction(updated.id);
+    if (stored != nullptr) {
+      auto changed = updated.text != stored->text ||
+                     updated.notes != stored->notes ||
+                     updated.url != stored->url ||
+                     updated.due_date != stored->due_date ||
+                     updated.due_time != stored->due_time ||
+                     updated.priority != stored->priority ||
+                     updated.tags != stored->tags ||
+                     updated.subtasks != stored->subtasks ||
+                     updated.list_id != stored->list_id;
+      if (trim_wide(wide(updated.text)).empty()) {
+        updated.text = stored->text;
+        changed = changed && updated.text != stored->text;
+      }
+      if (changed) {
+        try {
+          rivet_app::API api(*backend_);
+          api.update_task_async(std::move(updated),
+                                [](rivet_app::Result<rivet_app::Task>) {});
+        } catch (std::exception const&) {
+          // The row still shows its stored values; the poll re-syncs.
+        }
+      }
+    }
+  }
+  detail_anchor_ = nullptr;
+  detail_flyout_ = nullptr;
+  detail_completed_ = nullptr;
+  detail_title_ = nullptr;
+  detail_date_ = nullptr;
+  detail_time_ = nullptr;
+  detail_priority_ = nullptr;
+  detail_tags_panel_ = nullptr;
+  detail_tag_add_ = nullptr;
+  detail_subtasks_panel_ = nullptr;
+  detail_subtask_add_ = nullptr;
+  detail_notes_ = nullptr;
+  detail_url_ = nullptr;
+  detail_list_ = nullptr;
+  detail_error_ = nullptr;
+  detail_title_box_ = nullptr;
+  detail_date_box_ = nullptr;
+  detail_time_box_ = nullptr;
+  detail_priority_box_ = nullptr;
+  detail_tags_box_ = nullptr;
+  detail_subtasks_box_ = nullptr;
+  detail_notes_box_ = nullptr;
+  detail_url_box_ = nullptr;
+  detail_list_box_ = nullptr;
+  detail_tags_.clear();
+  detail_subtasks_.clear();
+  detail_list_ids_.clear();
+}
+
+void MainWindow::CloseTaskDetail() {
+  if (detail_task_id_ < 0) return;
+  // Cleanup runs synchronously (final save + all refs nulled); the later
+  // Closed callback from Hide() finds detail_task_id_ < 0 and no-ops.
+  auto flyout = detail_flyout_;
+  OnDetailFlyoutClosed();
+  if (flyout != nullptr) flyout.Hide();
+}
+
+rivet_app::Task MainWindow::DetailTaskFromControls() const {
+  auto const* stored = FindTaskForAction(detail_task_id_);
+  rivet_app::Task updated = stored != nullptr ? *stored : rivet_app::Task{};
+  updated.id = detail_task_id_;
+  updated.text = winrt::to_string(detail_title_.Text());
+  updated.completed = detail_completed_.IsChecked().value_or(false);
+  auto const date = winrt::to_string(detail_date_.Text());
+  updated.due_date =
+      date.empty() ? std::nullopt : std::optional<std::string>(date);
+  auto const time = winrt::to_string(detail_time_.Text());
+  updated.due_time = (date.empty() || time.empty())
+                         ? std::nullopt
+                         : std::optional<std::string>(time);
+  auto const notes = winrt::to_string(detail_notes_.Text());
+  updated.notes =
+      notes.empty() ? std::nullopt : std::optional<std::string>(notes);
+  updated.priority = static_cast<std::int64_t>(
+      detail_priority_.SelectedIndex() < 0 ? 0
+                                           : detail_priority_.SelectedIndex());
+  updated.tags.clear();
+  for (auto const& tag : detail_tags_) {
+    updated.tags.push_back(winrt::to_string(tag));
+  }
+  updated.subtasks = detail_subtasks_;
+  auto const url = winrt::to_string(detail_url_.Text());
+  updated.url = url.empty() ? std::nullopt : std::optional<std::string>(url);
+  auto const selected = detail_list_.SelectedIndex();
+  if (selected >= 0 &&
+      static_cast<std::size_t>(selected) < detail_list_ids_.size()) {
+    auto const list_id =
+        detail_list_ids_[static_cast<std::size_t>(selected)];
+    updated.list_id = list_id;
+    if (auto const* list = find_by_id(lists_, list_id)) {
+      updated.list_name = list->name;
+    }
+  }
+  return updated;
+}
+
+void MainWindow::DetailAutosave(int field) {
+  if (detail_task_id_ < 0 || detail_suppress_) return;
+  if (backend_ == nullptr || !backend_->running()) return;
+  auto updated = DetailTaskFromControls();
+  if (auto const* stored = FindTaskForAction(updated.id);
+      stored != nullptr && trim_wide(wide(updated.text)).empty()) {
+    // A blank edited title retains the stored title (PRODUCT-SPEC §5).
+    updated.text = stored->text;
+  }
+  auto const dispatcher = DispatcherQueue();
+  auto weak = get_weak();
+  try {
+    rivet_app::API api(*backend_);
+    api.update_task_async(
+        std::move(updated),
+        [dispatcher, weak, field](rivet_app::Result<rivet_app::Task> result) {
+          bool ok = false;
+          std::string error;
+          try {
+            result.get();
+            ok = true;
+          } catch (std::exception const& e) {
+            error = e.what();
+          }
+          dispatcher.TryEnqueue([weak, field, ok,
+                                 error = std::move(error)] {
+            if (auto window = weak.get()) {
+              if (ok) {
+                window->DetailClearError();
+                window->SetStatus(t("statusTaskUpdated"));
+                window->RefreshSearchIfActive();
+              } else {
+                window->DetailShowError(field, error);
+              }
+            }
+          });
+        });
+  } catch (std::exception const& e) {
+    DetailShowError(field, e.what());
+  }
+}
+
+void MainWindow::DetailRebuildTags() {
+  if (detail_tags_panel_ == nullptr) return;
+  detail_tags_panel_.Children().Clear();
+  if (detail_tags_.empty()) {
+    auto hint = mxc::TextBlock{};
+    hint.Text(t("detailNoTags"));
+    hint.FontSize(12);
+    hint.Foreground(ThemeBrush(L"TasklyMutedTextBrush"));
+    detail_tags_panel_.Children().Append(hint);
+    return;
+  }
+  auto row = mxc::StackPanel{};
+  row.Orientation(mxc::Orientation::Horizontal);
+  row.Spacing(6);
+  auto const transparent = mx::Media::SolidColorBrush{
+      winrt::Windows::UI::Color{0x00, 0x00, 0x00, 0x00}};
+  for (auto const& tag : detail_tags_) {
+    auto chip = mxc::Button{};
+    chip.Content(winrt::box_value(L"#" + tag + L"  \uE711"));
+    chip.FontSize(12);
+    chip.Padding(mx::ThicknessHelper::FromLengths(8, 0, 8, 0));
+    chip.MinWidth(0);
+    chip.Background(transparent);
+    chip.BorderBrush(transparent);
+    auto weak = get_weak();
+    chip.Click([weak, tag](auto const&, auto const&) {
+      if (auto window = weak.get()) {
+        auto& tags = window->detail_tags_;
+        tags.erase(std::remove(tags.begin(), tags.end(), tag), tags.end());
+        window->DetailRebuildTags();
+        window->DetailAutosave(5);
+      }
+    });
+    row.Children().Append(chip);
+  }
+  detail_tags_panel_.Children().Append(row);
+}
+
+void MainWindow::DetailRebuildSubtasks() {
+  if (detail_subtasks_panel_ == nullptr) return;
+  detail_subtasks_panel_.Children().Clear();
+  if (detail_subtasks_.empty()) {
+    auto hint = mxc::TextBlock{};
+    hint.Text(t("detailNoSubtasks"));
+    hint.FontSize(12);
+    hint.Foreground(ThemeBrush(L"TasklyMutedTextBrush"));
+    detail_subtasks_panel_.Children().Append(hint);
+    return;
+  }
+  for (std::size_t index = 0; index < detail_subtasks_.size(); ++index) {
+    auto row = mxc::StackPanel{};
+    row.Orientation(mxc::Orientation::Horizontal);
+    row.Spacing(8);
+    auto check = mxc::CheckBox{};
+    check.IsChecked(detail_subtasks_[index].done);
+    auto label = mxc::TextBlock{};
+    label.Text(wide(detail_subtasks_[index].text));
+    label.FontSize(13);
+    label.VerticalAlignment(mx::VerticalAlignment::Center);
+    row.Children().Append(check);
+    row.Children().Append(label);
+    auto remove = mxc::Button{};
+    // Simple glyph button: × in text form keeps the visual quiet.
+    remove.Content(winrt::box_value(L"\uE711"));
+    remove.Padding(mx::ThicknessHelper::FromLengths(6, 0, 6, 0));
+    remove.MinWidth(0);
+    remove.Background(mx::Media::SolidColorBrush{
+        winrt::Windows::UI::Color{0x00, 0x00, 0x00, 0x00}});
+    remove.BorderBrush(mx::Media::SolidColorBrush{
+        winrt::Windows::UI::Color{0x00, 0x00, 0x00, 0x00}});
+    auto weak = get_weak();
+    check.Checked([weak, index](auto const&, auto const&) {
+      if (auto window = weak.get()) {
+        if (index < window->detail_subtasks_.size()) {
+          window->detail_subtasks_[index].done = true;
+          window->DetailAutosave(6);
+        }
+      }
+    });
+    check.Unchecked([weak, index](auto const&, auto const&) {
+      if (auto window = weak.get()) {
+        if (index < window->detail_subtasks_.size()) {
+          window->detail_subtasks_[index].done = false;
+          window->DetailAutosave(6);
+        }
+      }
+    });
+    remove.Click([weak, index](auto const&, auto const&) {
+      if (auto window = weak.get()) {
+        if (index < window->detail_subtasks_.size()) {
+          window->detail_subtasks_.erase(window->detail_subtasks_.begin() +
+                                         static_cast<std::ptrdiff_t>(index));
+          window->DetailRebuildSubtasks();
+          window->DetailAutosave(6);
+        }
+      }
+    });
+    row.Children().Append(remove);
+    detail_subtasks_panel_.Children().Append(row);
+  }
+}
+
+void MainWindow::DetailShowError(int field, std::string const& message) {
+  detail_error_field_ = field;
+  wchar_t const* field_name = L"";
+  mxc::StackPanel target{nullptr};
+  switch (field) {
+    case 0: field_name = t("detailCompleted").c_str(); break;
+    case 1:
+      field_name = t("fieldTitle").c_str();
+      target = detail_title_box_;
+      break;
+    case 2:
+      field_name = t("fieldDate").c_str();
+      target = detail_date_box_;
+      break;
+    case 3:
+      field_name = t("fieldTime").c_str();
+      target = detail_time_box_;
+      break;
+    case 4:
+      field_name = t("fieldPriority").c_str();
+      target = detail_priority_box_;
+      break;
+    case 5:
+      field_name = t("fieldTags").c_str();
+      target = detail_tags_box_;
+      break;
+    case 6:
+      field_name = t("fieldSubtasks").c_str();
+      target = detail_subtasks_box_;
+      break;
+    case 7:
+      field_name = t("fieldNotes").c_str();
+      target = detail_notes_box_;
+      break;
+    case 8:
+      field_name = t("fieldUrl").c_str();
+      target = detail_url_box_;
+      break;
+    case 9:
+      field_name = t("fieldList").c_str();
+      target = detail_list_box_;
+      break;
+    default: break;
+  }
+  if (detail_error_ != nullptr) {
+    if (auto parent = detail_error_.Parent().try_as<mxc::StackPanel>()) {
+      parent.Children().Remove(detail_error_);
+    }
+    if (target != nullptr) {
+      target.Children().Append(detail_error_);
+    }
+    detail_error_.Text(std::wstring(field_name) + L": " + wide(message));
+    detail_error_.Visibility(mx::Visibility::Visible);
+  } else {
+    SetError(message);
+  }
+}
+
+void MainWindow::DetailClearError() {
+  if (detail_error_ == nullptr) return;
+  detail_error_.Visibility(mx::Visibility::Collapsed);
+  detail_error_.Text(L"");
+}
+
+bool MainWindow::TaskMatchesTagFilter(rivet_app::Task const& task) const {
+  if (tag_filter_.empty()) return true;
+  auto const wide_tag = wide(tag_filter_);
+  return std::any_of(task.tags.begin(), task.tags.end(),
+                     [&](std::string const& tag) { return wide(tag) == wide_tag; });
+}
+
+void MainWindow::ToggleTagFilter(std::wstring const& tag) {
+  if (tag_filter_ == tag) {
+    ClearTagFilter();
+    return;
+  }
+  tag_filter_ = tag;
+  if (inline_task_id_.has_value()) CommitInlineTaskEditor();
+  CloseTaskDetail();
+  ReloadTasksAsync();
+  RenderTasks();
+  RenderSearchResults();
+}
+
+void MainWindow::ClearTagFilter() {
+  if (tag_filter_.empty()) return;
+  tag_filter_.clear();
+  if (inline_task_id_.has_value()) CommitInlineTaskEditor();
+  CloseTaskDetail();
+  ReloadTasksAsync();
+  RenderTasks();
+  RenderSearchResults();
+}
+
+void MainWindow::OnClearTagFilter(winrt::Windows::Foundation::IInspectable const&,
+                                  winrt::Microsoft::UI::Xaml::RoutedEventArgs const&) {
+  ClearTagFilter();
+}
+
 void MainWindow::OpenInlineTaskEditor(std::int64_t id) {
+  if (detail_task_id_ >= 0) CloseTaskDetail();
   if (inline_task_id_.has_value() && *inline_task_id_ == id) {
     CommitInlineTaskEditor();
     return;
@@ -2107,6 +2874,15 @@ winrt::hstring MainWindow::view_subtitle() const {
   // locale date, the other views show open/completed counts.
   if (!current_search_.empty()) {
     return winrt::hstring{};
+  }
+  // §5 tag-chip filter: the subtitle names the tag and the filtered count.
+  if (!tag_filter_.empty()) {
+    std::size_t open = 0;
+    for (auto const& task : tasks_) {
+      if (!task.completed && TaskMatchesTagFilter(task)) ++open;
+    }
+    return winrt::hstring(tf("subtitleTagFilter", tag_filter_) + L" · " +
+                          tf("subtitleOpenTasks", std::to_wstring(open)));
   }
   switch (view_) {
     case ViewKind::Today:
