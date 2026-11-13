@@ -2747,14 +2747,14 @@ void detail_rebuild_subtasks(TaskDetail* detail) {
         gtk_label_new(detail->subtasks[index].text.c_str()));
     gtk_label_set_xalign(text_label, 0.0f);
     auto* text_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-    gtk_box_append(text_box, check);
-    gtk_box_append(text_box, GTK_WIDGET(text_label));
+    gtk_box_append(GTK_BOX(text_box), check);
+    gtk_box_append(GTK_BOX(text_box), GTK_WIDGET(text_label));
     gtk_widget_set_hexpand(text_box, TRUE);
-    gtk_box_append(row, GTK_WIDGET(text_box));
+    gtk_box_append(GTK_BOX(row), GTK_WIDGET(text_box));
     auto* remove = gtk_button_new_from_icon_name("x-symbolic");
     gtk_widget_add_css_class(remove, "flat");
     gtk_widget_set_tooltip_text(remove, tr("removeSubtask").c_str());
-    gtk_box_append(row, remove);
+    gtk_box_append(GTK_BOX(row), remove);
     g_object_set_data(G_OBJECT(check), "detail-subtask-index",
                       GSIZE_TO_POINTER(index));
     g_object_set_data(G_OBJECT(remove), "detail-subtask-index",
@@ -3686,12 +3686,16 @@ GtkWidget* make_task_row(rivet_app::Task const& task) {
     auto* chip = gtk_button_new_with_label(("#" + tag).c_str());
     gtk_widget_add_css_class(chip, "flat");
     gtk_widget_add_css_class(chip, "tag-chip");
+    g_object_set_data_full(
+        G_OBJECT(chip), "taskly-tag", g_strdup(tag.c_str()), g_free);
     g_signal_connect(
         chip, "clicked",
-        G_CALLBACK(+[](GtkButton*, gpointer user_data) {
-          toggle_tag_filter(static_cast<char const*>(user_data));
+        G_CALLBACK(+[](GtkButton* button, gpointer) {
+          auto const* tag = static_cast<char const*>(
+              g_object_get_data(G_OBJECT(button), "taskly-tag"));
+          if (tag != nullptr) toggle_tag_filter(tag);
         }),
-        const_cast<gpointer>(g_intern_string(tag.c_str())));
+        nullptr);
     gtk_box_append(GTK_BOX(meta_row), chip);
     meta_has_content = true;
   }
