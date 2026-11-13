@@ -390,7 +390,9 @@ try {
     [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
     [void](Wait-Until 'Escape cancelled inline task draft' {
         if ($null -eq (Find-ById $window 'inline-task-title-2') -and
-            $null -ne (Find-ByName $window $plainTask)) { return $true }
+            $null -ne (Find-ByName $window 'Autosaved detail title')) {
+            return $true
+        }
         return $false
     })
     [void](Wait-Until 'task row for inline entry after cancel' {
