@@ -718,11 +718,12 @@ try {
     }
     $restartInfo.GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    # ⓘ opens the detail layer; the persisted date/time are read there.
     $restartDate = Wait-Until 'saved task date after restart' {
-        Find-ById $window 'inline-task-date-2'
+        Find-ById $window 'detail-date-2'
     }
     $restartTime = Wait-Until 'saved task time after restart' {
-        Find-ById $window 'inline-task-time-2'
+        Find-ById $window 'detail-time-2'
     }
     if ($restartDate.GetCurrentPattern(
             [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '2099-12-31' -or
