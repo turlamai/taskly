@@ -2992,6 +2992,9 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
 
   // Title.
   detail->title = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->title), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldTitle").c_str(), -1);
   gtk_editable_set_text(GTK_EDITABLE(detail->title), stored->text.c_str());
   gtk_widget_set_hexpand(GTK_WIDGET(detail->title), TRUE);
   detail->title_box = detail_field_box(fields, "Title", "标题",
@@ -3023,6 +3026,9 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   detail_field_caption(date_column, "Date", "日期");
   auto* date_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
   detail->date = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->date), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldDate").c_str(), -1);
   gtk_entry_set_placeholder_text(detail->date, "yyyy-MM-dd");
   gtk_editable_set_text(GTK_EDITABLE(detail->date),
                         stored->due_date.has_value()
@@ -3037,6 +3043,9 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   auto* time_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
   detail_field_caption(time_column, "Time", "时间");
   detail->time = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->time), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldTime").c_str(), -1);
   gtk_entry_set_placeholder_text(detail->time, "HH:mm");
   gtk_editable_set_text(GTK_EDITABLE(detail->time),
                         stored->due_time.has_value()
@@ -3094,6 +3103,9 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   detail->tags_box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 6));
   gtk_box_append(GTK_BOX(tags_column), GTK_WIDGET(detail->tags_box));
   detail->tag_add = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->tag_add), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldTags").c_str(), -1);
   gtk_entry_set_placeholder_text(detail->tag_add,
                                  tr("tagAddPlaceholder").c_str());
   gtk_widget_set_hexpand(GTK_WIDGET(detail->tag_add), TRUE);
@@ -3109,6 +3121,9 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   detail->subtasks_box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 6));
   gtk_box_append(GTK_BOX(subtasks_column), GTK_WIDGET(detail->subtasks_box));
   detail->subtask_add = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->subtask_add), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldSubtasks").c_str(), -1);
   gtk_entry_set_placeholder_text(detail->subtask_add,
                                  tr("subtaskAddPlaceholder").c_str());
   gtk_widget_set_hexpand(GTK_WIDGET(detail->subtask_add), TRUE);
@@ -3122,6 +3137,9 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   auto* notes_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
   detail_field_caption(notes_column, "Notes", "备注");
   detail->notes = GTK_TEXT_VIEW(gtk_text_view_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->notes), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldNotes").c_str(), -1);
   gtk_text_view_set_wrap_mode(detail->notes, GTK_WRAP_WORD_CHAR);
   gtk_text_view_set_accepts_tab(detail->notes, FALSE);
   gtk_widget_set_size_request(GTK_WIDGET(detail->notes), -1, 64);
@@ -3142,6 +3160,9 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
 
   // URL.
   detail->url = GTK_ENTRY(gtk_entry_new());
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(detail->url), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("fieldUrl").c_str(), -1);
   gtk_entry_set_placeholder_text(detail->url, "https://");
   gtk_editable_set_text(GTK_EDITABLE(detail->url),
                         stored->url.has_value() ? stored->url->c_str() : "");

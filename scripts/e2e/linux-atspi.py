@@ -488,47 +488,35 @@ def main():
         wait_for("first task created", lambda: contains_text(window, "First-run persistence task"))
         task_row = wait_for(
             "first task selected",
-            lambda: select_and_focus_row(window, "First-run persistence task"),
+            lambda: select_single_named_child(window, "First-run persistence task"),
         )
-        # §5: clicking the task title opens the inline quick editor; the
-        # row's ⓘ button now opens the anchored task-detail layer instead.
-        editor = wait_for(
-            "focused first task editor",
+        # §5b: the row's ⓘ button opens the anchored task-detail layer. The
+        # quick-date chips autosave immediately — choosing Tomorrow persists
+        # without any further action, and Done closes without discarding.
+        details = wait_for(
+            "first task details button",
+            lambda: next(
+                reversed(
+                    [node for node in walk(task_row) if role(node) in BUTTON_ROLES]
+                ),
+                None,
+            ),
+        )
+        press(details)
+        wait_for(
+            "first task detail layer title",
             lambda: find_editable_value(window, "First-run persistence task"),
         )
         add_date = wait_for(
-            "first task Add Date action",
-            lambda: find_named(window, "Add Date", "push button"),
+            "first task Tomorrow quick date",
+            lambda: find_named(window, "Tomorrow"),
         )
-        wait_for(
-            "first task editor native keyboard focus",
-            lambda: has_focus(
-                find_editable_value(find_live_window(), "First-run persistence task")
-            ),
-            timeout=10.0,
+        press(add_date)
+        done = wait_for(
+            "first task Done action",
+            lambda: find_named(window, "Done"),
         )
-        application = wait_for("live Taskly application", find_application)
-        window = wait_for("live Taskly frame", lambda: find_frame(application))
-        editor = wait_for(
-            "live first task editor",
-            lambda: find_editable_value(window, "First-run persistence task"),
-        )
-        # Use actual GTK keyboard focus rather than assuming a fixed number
-        # of intermediate Tab stops. Enter must open the native date popover.
-        keyboard_activate_named_button(editor, "Add Date")
-        tomorrow = wait_for(
-            "first task Tomorrow choice",
-            # Popover buttons are exposed as either "button" or
-            # "push button" across AT-SPI stacks; the accessible name is
-            # the stable product contract.
-            lambda: find_named(find_application(), "Tomorrow"),
-        )
-        press(tomorrow)
-        save = wait_for(
-            "first task visible Save action",
-            lambda: find_named(window, "Save", "push button"),
-        )
-        press(save)
+        press(done)
         wait_for(
             "first task save acknowledgement",
             lambda: find_editable_value(window, "First-run persistence task") is None
@@ -538,11 +526,16 @@ def main():
             json.dumps(
                 {
                     "platform": "linux",
-                    "actions": ["set:quick-add", "press:task-details", "press:tomorrow", "press:save"],
+                    "actions": [
+                        "set:quick-add",
+                        "press:task-info",
+                        "press:detail-tomorrow",
+                        "press:detail-done",
+                    ],
                     "assertions": [
                         "fresh profile exposes an actionable empty state",
                         "first task can be created without setup",
-                        "visible Save acknowledges the chosen due date",
+                        "the detail layer autosaved the Tomorrow quick date and Done closed it",
                     ],
                 },
                 indent=2,
@@ -686,59 +679,56 @@ def main():
         lambda: find_editable_value(window, "Autosaved detail A") is None
         and contains_text(window, "Autosaved detail A"),
     )
-    # §5: the inline quick editor opens through the row's double-click.
-    task_row = wait_for(
-        "row selected for inline editing",
-        lambda: select_and_focus_row(window, "Autosaved detail A"),
+
+    # §5b, field reachability: the detail layer exposes every field through
+    # an accessible label. Reopen the layer, autosave a URL through it, and
+    # verify the persisted value by reading the layer again after closing.
+    wait_for(
+        "task A details button again",
+        lambda: select_and_press_unedited_named_row_button(
+            window, "Autosaved detail A"
+        ),
     )
-    editor = wait_for(
-        "keyboard-opened task editor",
-        lambda: find_editable_value(window, "Autosaved detail A"),
+    url_field = wait_for(
+        "detail layer URL field",
+        lambda: find_editable_named(window, "URL"),
+    )
+    url_field.queryEditableText().setTextContents("https://example.com/autosaved")
+    send_keyboard_key("Return")
+    done = wait_for(
+        "task detail Done action after URL",
+        lambda: find_named(window, "Done"),
+    )
+    press(done)
+    wait_for(
+        "URL autosave closed the layer",
+        lambda: find_editable_named(window, "URL") is None,
     )
     wait_for(
-        "visible task editor Save action",
-        lambda: find_named(window, "Save", "push button"),
+        "task A details button third pass",
+        lambda: select_and_press_unedited_named_row_button(
+            window, "Autosaved detail A"
+        ),
     )
-    wait_for(
-        "visible task editor Cancel action",
-        lambda: find_named(window, "Cancel", "push button"),
-    )
-    wait_for(
-        "accessible task editor calendar action",
-        lambda: find_named(window, "Add Date", "push button"),
+    url_field = wait_for(
+        "detail layer URL field after reopen",
+        lambda: find_editable_named(window, "URL"),
     )
     try:
-        wait_for(
-            "task editor native keyboard focus",
-            lambda: has_focus(find_editable_value(find_live_window(), "Autosaved detail A")),
-            timeout=10.0,
-        )
-    except AssertionError:
-        live = find_live_window()
-        focused = [
-            {"name": name(node), "role": role(node), "text": text(node)[:80]}
-            for node in walk(live)
-            if has_focus(node)
-        ]
-        raise AssertionError(f"task editor has no accessible native focus; focused={focused}")
-    application = wait_for("live Taskly application", find_application)
-    window = wait_for("live Taskly frame", lambda: find_frame(application))
-    editor = wait_for(
-        "live keyboard-opened editor",
-        lambda: find_editable_value(window, "Autosaved detail A"),
+        persisted = text(url_field)
+    except Exception:
+        persisted = ""
+    assert persisted == "https://example.com/autosaved", (
+        f"URL did not persist: {persisted!r}"
     )
-    editor.queryEditableText().setTextContents("Cancelled inline draft")
-    # Send a native Escape key to the focused GTK text widget.
-    send_keyboard_key("Escape")
-    wait_for(
-        "visible Escape cancellation feedback",
-        lambda: contains_text(window, "Changes discarded"),
-        timeout=5.0,
+    done = wait_for(
+        "task detail Done action after reopen",
+        lambda: find_named(window, "Done"),
     )
+    press(done)
     wait_for(
-        "Escape cancelled the focused task draft",
-        lambda: find_editable_value(window, "Cancelled inline draft") is None
-        and contains_text(window, "Autosaved detail A"),
+        "detail layer closed after URL verification",
+        lambda: find_editable_named(window, "URL") is None,
     )
 
     # Re-enter through the desktop registry after the editor collapses.
@@ -755,25 +745,52 @@ def main():
         json.dumps(snapshot(window), ensure_ascii=False, indent=2), encoding="utf-8"
     )
     wait_for(
-        "second task row selected for explicit Save",
-        lambda: select_and_focus_row(window, "64-bit task B"),
+        "second task details button",
+        lambda: select_and_press_unedited_named_row_button(
+            window, "64-bit task B"
+        ),
     )
-    # §5: double-click opens the inline quick editor; the row's ⓘ button
-    # opens the anchored task-detail layer instead (covered above on task A).
-    editor = wait_for(
-        "second task editor opened for explicit Save",
-        lambda: find_editable_value(window, "64-bit task B"),
+    # §5b: notes autosave when editing ends. Set them, close through Done,
+    # then reopen and read the persisted value back.
+    notes_view = wait_for(
+        "second task detail layer opened",
+        lambda: find_editable_named(window, "Notes"),
     )
-    editor.queryEditableText().setTextContents("Saved inline draft")
-    save = wait_for(
-        "visible task editor Save action after reopen",
-        lambda: find_named(window, "Save", "push button"),
+    notes_view.queryEditableText().setTextContents("Detail-layer notes B")
+    done = wait_for(
+        "second task Done action",
+        lambda: find_named(window, "Done"),
     )
-    press(save)
+    press(done)
     wait_for(
-        "visible Save persisted the task draft",
-        lambda: find_editable_value(window, "Saved inline draft") is None
-        and contains_text(window, "Saved inline draft"),
+        "notes autosave closed the layer",
+        lambda: find_editable_named(window, "Notes") is None,
+    )
+    wait_for(
+        "second task details button again",
+        lambda: select_and_press_unedited_named_row_button(
+            window, "64-bit task B"
+        ),
+    )
+    notes_view = wait_for(
+        "second task detail layer reopened",
+        lambda: find_editable_named(window, "Notes"),
+    )
+    try:
+        persisted = text(notes_view)
+    except Exception:
+        persisted = ""
+    assert persisted == "Detail-layer notes B", (
+        f"notes did not persist: {persisted!r}"
+    )
+    done = wait_for(
+        "second task Done action after reopen",
+        lambda: find_named(window, "Done"),
+    )
+    press(done)
+    wait_for(
+        "detail layer closed after notes verification",
+        lambda: find_editable_named(window, "Notes") is None,
     )
 
     entry.queryEditableText().setTextContents("Acceptance task")
@@ -797,23 +814,26 @@ def main():
                     "press:selected-row-info",
                     "key:detail-title-autosave-return",
                     "press:detail-done",
-                    "key:row-enter-inline-editor",
-                    "key:escape-cancel-draft",
-                    "key:second-row-enter-inline-editor",
-                    "press:visible-save",
+                    "press:detail-reopen-url-autosave",
+                    "press:detail-done",
+                    "press:detail-reopen-verify-url",
+                    "press:task-B-info",
+                    "set:detail-notes-autosave",
+                    "press:detail-done",
+                    "press:detail-reopen-verify-notes",
                     "set:quick-add",
                     "press:quick-add-submit",
                 ],
                 "assertions": [
-                    "packaged GTK4 frame activated on native Wayland",
+                    "packaged GTK4 frame activated on native X11",
                     "AT-SPI roles and names exposed",
                     "list and task IDs above 2^32 survive GTK row data",
                     "batch scheduling clears hidden due times for both tasks",
                     "six-second staged deletion hides both tasks without deleting them",
                     "undo restores the original task IDs and metadata",
                     "the anchored detail layer autosaved a title change without further action and Done closed it without discarding",
-                    "the inline editor exposes accessible calendar, Save and Cancel actions; Escape cancels its draft",
-                    "visible Save persists the complete task draft and closes only after acknowledgement",
+                    "the detail layer autosaved a URL and reopened with the persisted value",
+                    "the detail layer autosaved notes and reopened with the persisted value",
                     "RPC-created task appeared after the quick-add field cleared",
                     "quick-add preserved the selected 64-bit list ownership",
                 ],
