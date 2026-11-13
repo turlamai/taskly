@@ -2480,7 +2480,7 @@ enum class DetailField { Completed, Title, Date, Time, Priority, Tags, Subtasks,
 struct TaskDetail {
   std::int64_t task_id{0};
   GtkWidget* popover{nullptr};
-  GtkToggleButton* completed{nullptr};
+  GtkCheckButton* completed{nullptr};
   GtkEntry* title{nullptr};
   GtkEntry* date{nullptr};
   GtkEntry* time{nullptr};
@@ -2591,7 +2591,7 @@ void detail_autosave(TaskDetail* detail, DetailField field) {
   rivet_app::Task updated = *stored;
   updated.text = gtk_editable_get_text(GTK_EDITABLE(detail->title));
   updated.completed =
-      gtk_check_button_get_active(GTK_CHECK_BUTTON(detail->completed));
+      gtk_check_button_get_active(detail->completed);
   auto const date =
       std::string(gtk_editable_get_text(GTK_EDITABLE(detail->date)));
   updated.due_date =
@@ -3012,10 +3012,9 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), fields);
 
   // Completed.
-  detail->completed = GTK_TOGGLE_BUTTON(gtk_check_button_new_with_label(
+  detail->completed = GTK_CHECK_BUTTON(gtk_check_button_new_with_label(
       tr("detailCompleted").c_str()));
-  gtk_check_button_set_active(GTK_CHECK_BUTTON(detail->completed),
-                              stored->completed);
+  gtk_check_button_set_active(detail->completed, stored->completed);
   g_signal_connect_data(
       detail->completed, "toggled",
       G_CALLBACK(+[](GtkCheckButton* check, gpointer user_data) {
