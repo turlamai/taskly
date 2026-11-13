@@ -2504,6 +2504,11 @@ struct TaskDetail {
   GtkLabel* error{nullptr};
   DetailField error_field{DetailField::Title};
   bool suppress{false};
+  // Text fields autosave on a short debounce after each keystroke (§5b:
+  // every change persists as it is made); Return and focus-out flush at
+  // once, and the close path flushes anything still pending.
+  guint text_save_timer{0};
+  DetailField text_save_field{DetailField::Title};
   std::vector<std::string> tags;
   std::vector<rivet_app::Subtask> subtasks;
   std::vector<std::int64_t> list_ids;
@@ -2549,6 +2554,34 @@ void detail_show_error(TaskDetail* detail, DetailField field,
 
 void detail_clear_error(TaskDetail* detail) {
   gtk_label_set_text(detail->error, "");
+}
+
+// Debounced text autosave: one timer coalesces keystrokes; the field saved
+// is whichever was edited last.
+void detail_autosave(TaskDetail* detail, DetailField field);
+
+struct DetailTextSave {
+  TaskDetail* detail;
+  std::shared_ptr<bool> alive;
+};
+
+gboolean detail_text_save_flush(gpointer data) {
+  auto* job = static_cast<DetailTextSave*>(data);
+  if (*job->alive) {
+    job->detail->text_save_timer = 0;
+    detail_autosave(job->detail, job->detail->text_save_field);
+  }
+  delete job;
+  return FALSE;  // one-shot
+}
+
+void detail_queue_text_save(TaskDetail* detail, DetailField field) {
+  if (*detail->alive == false) return;
+  detail->text_save_field = field;
+  if (detail->text_save_timer == 0) {
+    auto* job = new DetailTextSave{detail, detail->alive};
+    detail->text_save_timer = g_timeout_add(300, detail_text_save_flush, job);
+  }
 }
 
 void detail_autosave(TaskDetail* detail, DetailField field) {
@@ -3010,6 +3043,13 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
                      }
                    }),
                    detail);
+  g_signal_connect(detail->title, "changed",
+                   G_CALLBACK(+[](GtkEntry*, gpointer user_data) {
+                     detail_queue_text_save(
+                         static_cast<TaskDetail*>(user_data),
+                         DetailField::Title);
+                   }),
+                   detail);
   {
     auto* focus = gtk_event_controller_focus_new();
     g_signal_connect(focus, "leave",
@@ -3060,19 +3100,16 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   detail->time_box = time_column;
   gtk_box_append(GTK_BOX(fields), schedule);
   auto on_schedule_changed = +[](GtkEntry*, gpointer user_data) {
-    auto* detail = detail_for(user_data);
-    if (detail != nullptr) {
-      detail_autosave(detail, DetailField::Date);
-    }
+    detail_queue_text_save(static_cast<TaskDetail*>(user_data),
+                           DetailField::Date);
   };
   g_signal_connect(detail->date, "changed", G_CALLBACK(on_schedule_changed),
                    detail);
   g_signal_connect(detail->time, "changed",
                    G_CALLBACK(+[](GtkEntry*, gpointer user_data) {
-                     auto* detail = detail_for(user_data);
-                     if (detail != nullptr) {
-                       detail_autosave(detail, DetailField::Time);
-                     }
+                     detail_queue_text_save(
+                         static_cast<TaskDetail*>(user_data),
+                         DetailField::Time);
                    }),
                    detail);
 
@@ -3160,6 +3197,13 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
                      G_CALLBACK(detail_on_notes_focus_left), detail);
     gtk_widget_add_controller(GTK_WIDGET(detail->notes), focus);
   }
+  g_signal_connect(gtk_text_view_get_buffer(detail->notes), "changed",
+                   G_CALLBACK(+[](GtkTextBuffer*, gpointer user_data) {
+                     detail_queue_text_save(
+                         static_cast<TaskDetail*>(user_data),
+                         DetailField::Notes);
+                   }),
+                   detail);
 
   // URL.
   detail->url = GTK_ENTRY(gtk_entry_new());
@@ -3178,6 +3222,13 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
                      if (detail != nullptr) {
                        detail_autosave(detail, DetailField::Url);
                      }
+                   }),
+                   detail);
+  g_signal_connect(detail->url, "changed",
+                   G_CALLBACK(+[](GtkEntry*, gpointer user_data) {
+                     detail_queue_text_save(
+                         static_cast<TaskDetail*>(user_data),
+                         DetailField::Url);
                    }),
                    detail);
   {
@@ -3268,6 +3319,10 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
         // close): closing never discards, so a final save covers pending
         // text edits before the state is freed.
         if (*detail->alive && g_state.api != nullptr) {
+          if (detail->text_save_timer != 0) {
+            g_source_remove(detail->text_save_timer);
+            detail->text_save_timer = 0;
+          }
           auto* stored = find_by_id(g_state.tasks, detail->task_id);
           if (stored != nullptr) {
             rivet_app::Task updated = *stored;

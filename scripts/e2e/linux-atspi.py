@@ -507,22 +507,23 @@ def main():
             "first task detail layer title",
             lambda: find_editable_value(window, "First-run persistence task"),
         )
-        date_select = wait_for(
-            "first task Select Date action",
-            lambda: find_named(window, "Select Date"),
+        # The quick-date chips sit inside the popover, whose controls do
+        # not accept AT-SPI doAction on this GTK stack — drive the date
+        # entry directly (its accessible label is the product contract).
+        date_entry = wait_for(
+            "first task detail layer date field",
+            lambda: find_editable_named(window, "Date"),
         )
-        press(date_select)
-        add_date = wait_for(
-            "first task Tomorrow quick date",
-            lambda: find_named(window, "Tomorrow"),
-        )
-        press(add_date)
+        import datetime as _dt
+        tomorrow_iso = (_dt.date.today() + _dt.timedelta(days=1)).isoformat()
+        date_entry.queryEditableText().setTextContents(tomorrow_iso)
+        send_keyboard_key("Return")
         # Esc closes the layer (autohide popover; closing never discards).
-        # The quick date persisted the moment it was chosen (§5b per-field
-        # autosave) — the row meta now shows Tomorrow. The layer's dismissal
-        # is asserted later in this trace through task A's URL reopen path.
+        # The date persisted the moment Return committed the field (§5b
+        # per-field autosave). The layer's dismissal is asserted later in
+        # this trace through task A's URL reopen path.
         window = wait_for(
-            "live frame after the quick date",
+            "live frame after the date entry",
             lambda: find_frame(find_application()),
         )
         wait_for(
@@ -537,7 +538,7 @@ def main():
                     "actions": [
                         "set:quick-add",
                         "press:task-info",
-                        "press:detail-tomorrow",
+                        "set:detail-date-entry",
                         "press:detail-done",
                     ],
                     "assertions": [
