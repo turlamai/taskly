@@ -2727,8 +2727,10 @@ void MainWindow::DetailShowError(int field, std::string const& message) {
   }
   if (detail_error_ != nullptr) {
     if (auto parent = detail_error_.Parent().try_as<mxc::StackPanel>()) {
-      auto const index = parent.Children().IndexOf(detail_error_);
-      if (index) parent.Children().RemoveAt(index.Value());
+      std::uint32_t index = 0;
+      if (parent.Children().IndexOf(detail_error_, index)) {
+        parent.Children().RemoveAt(index);
+      }
     }
     if (target != nullptr) {
       target.Children().Append(detail_error_);
