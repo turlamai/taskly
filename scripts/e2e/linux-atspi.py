@@ -291,6 +291,38 @@ def select_and_focus_row(root, expected):
     return row
 
 
+def open_detail_layer(root, row_title, attempts=6):
+    """Open the anchored detail layer and return the live frame.
+
+    ⓘ is the row's toggle button. GTK rebuilds invalidate proxies between
+    snapshots, so every attempt re-reads the live frame and re-finds the
+    button instead of retrying a stale proxy.
+    """
+    for _ in range(attempts):
+        live = find_frame(find_application())
+        if find_editable_named(live, "Title") is not None:
+            return live  # Already open (e.g. a toggle raced the rebuild).
+        row = select_single_named_child(live, row_title)
+        if row is not None:
+            for node in walk(row):
+                if role(node) not in BUTTON_ROLES:
+                    continue
+                if name(node) not in DETAIL_TOGGLE_NAMES:
+                    continue
+                try:
+                    node.queryAction().doAction(0)
+                except Exception:
+                    pass
+                break
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            live = find_frame(find_application())
+            if find_editable_named(live, "Title") is not None:
+                return live
+            time.sleep(0.1)
+    raise AssertionError(f"could not open the detail layer for {row_title!r}")
+
+
 DETAIL_TOGGLE_NAMES = ("\u24d8", "Details", "\u8be6\u60c5")
 
 
@@ -520,19 +552,13 @@ def main():
         # §5b: the row's ⓘ button opens the anchored task-detail layer. The
         # quick-date chips autosave immediately — choosing Tomorrow persists
         # without any further action, and Done closes without discarding.
-        details = wait_for(
-            "first task details button",
-            lambda: next(
-                reversed(
-                    [node for node in walk(task_row) if role(node) in BUTTON_ROLES]
-                ),
-                None,
-            ),
-        )
-        press(details)
-        wait_for(
+        window = open_detail_layer(window, "First-run persistence task")
+        first_title = wait_for(
             "first task detail layer title",
-            lambda: find_editable_value(window, "First-run persistence task"),
+            lambda: find_editable_named(window, "Title"),
+        )
+        assert text(first_title) == "First-run persistence task", (
+            f"detail title mismatch: {text(first_title)!r}"
         )
         # The quick-date chips sit inside the popover, whose controls do
         # not accept AT-SPI doAction on this GTK stack — drive the date
@@ -674,26 +700,16 @@ def main():
         "single row selected for keyboard editing",
         lambda: select_single_named_child(window, "64-bit task A"),
     )
-    details = wait_for(
-        "selected task details button",
-        lambda: next(
-            reversed(
-                [
-                node
-                for node in walk(task_row)
-                if role(node) in ("push button", "button")
-                ]
-            ),
-            None,
-        ),
-    )
-    press(details)
     # §5b: ⓘ opens the anchored task-detail layer with per-field autosave.
-    # A title change persists on Return without any further action, and the
-    # Done action closes the layer without discarding.
+    # A title change persists on Return without any further action, and
+    # closing through the toggle never discards.
+    window = open_detail_layer(window, "64-bit task A")
     detail_title = wait_for(
         "task detail layer title field",
-        lambda: find_editable_value(window, "64-bit task A"),
+        lambda: find_editable_named(window, "Title"),
+    )
+    assert text(detail_title) == "64-bit task A", (
+        f"detail title mismatch: {text(detail_title)!r}"
     )
     wait_for(
         "task detail layer native keyboard focus",
@@ -723,12 +739,7 @@ def main():
     # §5b, field reachability: the detail layer exposes every field through
     # an accessible label. Reopen the layer, autosave a URL through it, and
     # verify the persisted value by reading the layer again after closing.
-    wait_for(
-        "task A details button again",
-        lambda: select_and_press_unedited_named_row_button(
-            window, "Autosaved detail A"
-        ),
-    )
+    window = open_detail_layer(window, "Autosaved detail A")
     url_field = wait_for(
         "detail layer URL field",
         lambda: find_editable_named(window, "URL"),
@@ -745,12 +756,7 @@ def main():
         "URL autosave closed the layer",
         lambda: find_editable_named(window, "URL") is None,
     )
-    wait_for(
-        "task A details button third pass",
-        lambda: select_and_press_unedited_named_row_button(
-            window, "Autosaved detail A"
-        ),
-    )
+    window = open_detail_layer(window, "Autosaved detail A")
     url_field = wait_for(
         "detail layer URL field after reopen",
         lambda: find_editable_named(window, "URL"),
@@ -786,12 +792,7 @@ def main():
     (args.output / "task-editor-after-escape.json").write_text(
         json.dumps(snapshot(window), ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    wait_for(
-        "second task details button",
-        lambda: select_and_press_unedited_named_row_button(
-            window, "64-bit task B"
-        ),
-    )
+    window = open_detail_layer(window, "64-bit task B")
     # §5b: notes autosave when editing ends. Set them, close through Done,
     # then reopen and read the persisted value back.
     notes_view = wait_for(
@@ -809,12 +810,7 @@ def main():
         "notes autosave closed the layer",
         lambda: find_editable_named(window, "Notes") is None,
     )
-    wait_for(
-        "second task details button again",
-        lambda: select_and_press_unedited_named_row_button(
-            window, "64-bit task B"
-        ),
-    )
+    window = open_detail_layer(window, "64-bit task B")
     notes_view = wait_for(
         "second task detail layer reopened",
         lambda: find_editable_named(window, "Notes"),
