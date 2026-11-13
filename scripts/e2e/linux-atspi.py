@@ -272,7 +272,7 @@ def select_and_focus_row(root, expected):
     if row is None:
         return None
     try:
-        extent = row.queryComponent().getExtent(pyatspi.DESKTOP_COORDS)
+        extent = row.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
         try:
             ex, ey, ew, eh = extent.x, extent.y, extent.width, extent.height
         except AttributeError:
