@@ -291,15 +291,32 @@ def select_and_focus_row(root, expected):
     return row
 
 
+DETAIL_TOGGLE_NAMES = ("\u24d8", "Details", "\u8be6\u60c5")
+
+
 def close_detail_layer(root, row_title):
     """§5b: pressing the row's ⓘ button again closes the layer (the button
-    tracks aria-expanded). A plain button's doAction is reliable on every
-    AT-SPI stack tested; popover-internal controls and synthetic Escape are
-    not, so the close path stays on the row button.
+    tracks aria-expanded). While the layer is open its popover is parented
+    under that same button, so the row exposes many controls — find the
+    toggle by name instead of assuming a single row button. A plain
+    button's doAction is reliable on every AT-SPI stack tested;
+    popover-internal controls and synthetic Escape are not.
     """
-    if select_and_press_unedited_named_row_button(root, row_title) is None:
-        raise AssertionError(f"could not toggle the detail layer for {row_title!r}")
-    return True
+    row = select_single_named_child(root, row_title)
+    if row is None:
+        raise AssertionError(f"row {row_title!r} not found while closing the layer")
+    for node in walk(row):
+        if role(node) not in BUTTON_ROLES:
+            continue
+        if name(node) not in DETAIL_TOGGLE_NAMES:
+            continue
+        try:
+            actions = node.queryAction()
+            if actions.nActions >= 1 and actions.doAction(0):
+                return True
+        except Exception:
+            continue
+    raise AssertionError(f"could not toggle the detail layer for {row_title!r}")
 
 def select_and_press_unedited_named_row_button(root, expected):
     """Select a direct task-list child and invoke its sole row action atomically.
