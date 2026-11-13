@@ -494,21 +494,28 @@ try {
 
     # Reopen after the backend changed-event rebuild and verify every field
     # was read back from persistence, not merely retained in the visual tree.
-    $taskInfo = Wait-Until 'reopen inline task details' {
+    # §5/§5b split: ⓘ opens the detail layer, so the persisted values are
+    # read there; the inline editor is entered by double-clicking the row.
+    $taskInfo = Wait-Until 'reopen task details after inline save' {
         Find-ById $window 'task-info-2'
     }
     $taskInfo.GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-    $persistedNotes = Wait-Until 'persisted inline notes' {
-        Find-ById $window 'inline-task-notes-2'
+    $persistedTitle = Wait-Until 'persisted detail title field' {
+        Find-ById $window 'detail-title-2'
     }
-    $persistedDate = Wait-Until 'persisted inline date' {
-        Find-ById $window 'inline-task-date-2'
+    $persistedNotes = Wait-Until 'persisted detail notes field' {
+        Find-ById $window 'detail-notes-2'
     }
-    $persistedTime = Wait-Until 'persisted inline time' {
-        Find-ById $window 'inline-task-time-2'
+    $persistedDate = Wait-Until 'persisted detail date field' {
+        Find-ById $window 'detail-date-2'
     }
-    if ($persistedNotes.GetCurrentPattern(
+    $persistedTime = Wait-Until 'persisted detail time field' {
+        Find-ById $window 'detail-time-2'
+    }
+    if ($persistedTitle.GetCurrentPattern(
+            [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne $editedPlainTask -or
+        $persistedNotes.GetCurrentPattern(
             [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne $editedNotes -or
         $persistedDate.GetCurrentPattern(
             [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '2099-12-31' -or
@@ -516,21 +523,21 @@ try {
             [System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '10:30') {
         throw 'inline task details were not persisted across the backend refresh'
     }
-    $persistedCancel = Wait-Until 'persisted editor cancel action' {
-        Find-ById $window 'inline-task-cancel-2'
+    $persistedDone = Wait-Until 'detail layer done action' {
+        Find-ById $window 'detail-done-2'
     }
-    $persistedCancel.GetCurrentPattern(
+    $persistedDone.GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-    [void](Wait-Until 'visible Cancel closed the unchanged editor' {
-        if ($null -eq (Find-ById $window 'inline-task-title-2')) { return $true }
+    [void](Wait-Until 'detail layer closed after verification' {
+        if ($null -eq (Find-ById $window 'detail-title-2')) { return $true }
         return $false
     })
 
-    $taskInfo = Wait-Until 'reopen for Return keyboard commit' {
-        Find-ById $window 'task-info-2'
-    }
-    $taskInfo.GetCurrentPattern(
-        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    [void](Wait-Until 'row for Return keyboard commit' {
+        $titleElement = Find-ByName $window $editedPlainTask
+        if ($null -eq $titleElement) { return $false }
+        Invoke-RealDoubleClick $titleElement
+    })
     $returnEditor = Wait-Until 'title editor for Return commit' {
         Find-ById $window 'inline-task-title-2'
     }
