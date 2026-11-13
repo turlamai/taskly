@@ -3224,11 +3224,13 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
       }),
       detail, nullptr, G_CONNECT_AFTER);
   gtk_box_append(GTK_BOX(actions), done);
-  gtk_box_append(GTK_BOX(body), GTK_WIDGET(detail->error));
-  gtk_box_append(GTK_BOX(body), actions);
 
+  // Order matches the prototype: scrollable fields first, then the
+  // field-anchored error, then the action bar at the bottom.
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), fields);
   gtk_box_append(GTK_BOX(body), scroll);
+  gtk_box_append(GTK_BOX(body), GTK_WIDGET(detail->error));
+  gtk_box_append(GTK_BOX(body), actions);
   gtk_popover_set_child(GTK_POPOVER(popover), body);
   gtk_widget_set_parent(popover, anchor);
   detail_rebuild_tags(detail);
