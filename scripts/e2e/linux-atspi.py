@@ -507,6 +507,11 @@ def main():
             "first task detail layer title",
             lambda: find_editable_value(window, "First-run persistence task"),
         )
+        date_select = wait_for(
+            "first task Select Date action",
+            lambda: find_named(window, "Select Date"),
+        )
+        press(date_select)
         add_date = wait_for(
             "first task Tomorrow quick date",
             lambda: find_named(window, "Tomorrow"),

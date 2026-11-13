@@ -2846,6 +2846,9 @@ void detail_on_calendar_day_selected(GtkCalendar* calendar,
 GtkWidget* detail_date_popover_button(TaskDetail* detail) {
   auto* button = gtk_button_new_from_icon_name("x-office-calendar-symbolic");
   gtk_widget_add_css_class(button, "flat");
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(button), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      tr("dialogSelectDate").c_str(), -1);
   auto* flyout = gtk_popover_new();
   auto* body = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
   gtk_widget_set_margin_top(body, 8);
