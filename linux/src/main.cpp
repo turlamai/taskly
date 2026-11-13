@@ -3340,7 +3340,6 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   detail_position_panel(detail, anchor);
   gtk_widget_set_visible(panel, TRUE);
   gtk_widget_grab_focus(GTK_WIDGET(detail->title));
-  gtk_widget_set_parent(popover, anchor);
   detail_rebuild_tags(detail);
   detail_rebuild_subtasks(detail);
 
