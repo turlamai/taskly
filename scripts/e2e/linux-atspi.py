@@ -71,11 +71,12 @@ def wait_for(description, probe, timeout=60.0):
         application = find_application()
         frame = find_frame(application)
         for node in walk(frame):
-            if role(node) in ("push button", "button", "entry", "text"):
-                inventory.append(f"{role(node)}[{name(node)}]")
+            node_name = name(node)
+            if node_name:
+                inventory.append(f"{role(node)}[{node_name[:60]}]")
     except Exception:
         pass
-    suffix = f"; visible controls={inventory[:40]}" if inventory else ""
+    suffix = f"; visible controls={inventory[:60]}" if inventory else ""
     raise AssertionError(f"timed out waiting for {description}{suffix}")
 
 
