@@ -97,9 +97,22 @@ def find_frame(application):
     )
 
 
+# AT-SPI button roles vary across distro accessibility stacks: older
+# stacks expose "push button", GTK 4.16+ on newer AT-SPI exposes plain
+# "button". The name is the product contract; accept either role.
+BUTTON_ROLES = ("push button", "button")
+
+
 def find_named(root, expected_name, expected_role=None):
     for node in walk(root):
-        if name(node) == expected_name and (expected_role is None or role(node) == expected_role):
+        if name(node) != expected_name:
+            continue
+        if expected_role is None:
+            return node
+        if expected_role in BUTTON_ROLES:
+            if role(node) in BUTTON_ROLES:
+                return node
+        elif role(node) == expected_role:
             return node
     return None
 
@@ -184,7 +197,7 @@ def find_staged_delete_ready(root):
     for node in walk(root):
         node_name = name(node)
         node_text = ""
-        if node_name == "Undo" and role(node) == "push button":
+        if node_name == "Undo" and role(node) in BUTTON_ROLES:
             undo = node
         if node_name == "64-bit task A":
             found_a = True
