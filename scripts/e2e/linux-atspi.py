@@ -284,7 +284,8 @@ def select_and_focus_row(root, expected):
              "click", "--repeat", "2", "--delay", "120", "1"],
             check=True, timeout=5,
         )
-    except Exception:
+    except Exception as error:
+        print(f"row double-click failed for {expected!r}: {error}", flush=True)
         return None
     return row
 
