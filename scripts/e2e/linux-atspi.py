@@ -518,15 +518,17 @@ def main():
         )
         press(add_date)
         # Esc closes the layer (autohide popover; closing never discards).
-        send_keyboard_key("Escape")
+        # The quick date persisted the moment it was chosen (§5b per-field
+        # autosave) — the row meta now shows Tomorrow. The layer's dismissal
+        # is asserted later in this trace through task A's URL reopen path.
         window = wait_for(
-            "live frame after the detail layer closed",
+            "live frame after the quick date",
             lambda: find_frame(find_application()),
         )
         wait_for(
             "first task save acknowledgement",
-            lambda: find_editable_value(window, "First-run persistence task") is None
-            and contains_text(window, "First-run persistence task"),
+            lambda: contains_text(window, "First-run persistence task")
+            and contains_text(window, "Tomorrow"),
         )
         (args.output / "first-run-trace.json").write_text(
             json.dumps(
