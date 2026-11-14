@@ -386,6 +386,12 @@ jobs:
     name: Publish
     needs: [macos, windows, linux]
     runs-on: ubuntu-latest
+    # The title states the real trust status: with the macOS signing
+    # secrets present, every tagged build is Developer ID-signed and
+    # notarized fail-closed (the macos job refuses to publish otherwise),
+    # so the "(unsigned evaluation)" caveat only applies to ad-hoc builds.
+    env:
+      MACOS_SIGNING_SECRETS_SET: ${{ secrets.DEVELOPER_ID_P12_B64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Racket CS
@@ -519,11 +525,15 @@ jobs:
           # invisible to 0.2.x clients (the feed kept pointing at the
           # previous stable). The title keeps the trust status explicit;
           # signing/notarization is a separate gate (#80).
+          title="Taskly ${VERSION}"
+          if [[ "$MACOS_SIGNING_SECRETS_SET" != "true" ]]; then
+            title="Taskly ${VERSION} (unsigned evaluation)"
+          fi
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release edit "$GITHUB_REF_NAME" --notes-file /tmp/notes.md --latest
+            gh release edit "$GITHUB_REF_NAME" --title "$title" --notes-file /tmp/notes.md --latest
           else
             gh release create "$GITHUB_REF_NAME" \
-              --title "Taskly ${VERSION} (unsigned evaluation)" \
+              --title "$title" \
               --latest \
               --notes-file /tmp/notes.md
           fi
