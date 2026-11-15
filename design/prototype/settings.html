@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Taskly — 设置原型（三组偏好）</title>
+<title>Taskly — 设置</title>
 <script src="theme-boot.js"></script>
 <link rel="stylesheet" href="shared.css">
+<link rel="stylesheet" href="database-flow.css">
 <style>
-  .window.setwin { width: 460px; height: auto; }
+  .window.setwin { width: min(560px, 100%); height: auto; max-height: calc(100dvh - 64px); overflow-y: auto; }
   .sbody { padding: 0 20px 14px; }
 
   .group { padding-top: 2px; }
@@ -78,6 +79,18 @@
     padding: 10px 20px; border-top: 1px solid var(--divider); background: var(--sidebar);
     font-size: 11.5px; color: var(--ink3);
   }
+  .data-note { font-size: 12px; line-height: 1.6; color: var(--ink2); padding: 8px 0; }
+  .data-feedback { font-size: 12px; line-height: 1.6; color: var(--today-ink); }
+  .frow > div:first-child { min-width: 0; }
+  .frow .fhelp { max-width: 280px; line-height: 1.5; overflow-wrap: anywhere; }
+  .setnote { display: flex; align-items: start; gap: 16px; justify-content: space-between; line-height: 1.5; }
+  .setnote a { flex: none; color: var(--today-ink); }
+  .settings-dialog { margin: auto; width: min(440px, calc(100vw - 32px)); padding: 24px; border: 1px solid var(--divider); border-radius: 12px; background: var(--bg); color: var(--ink); box-shadow: var(--sh-2); }
+  .settings-dialog::backdrop { background: var(--scrim); }
+  .settings-dialog h2 { font-size: 18px; margin-bottom: 16px; }
+  .settings-dialog p { font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+  @media (max-width: 520px) { body { padding: 16px; } .window.setwin { max-height: calc(100dvh - 32px); } .frow { flex-wrap: wrap; gap: 8px; } .setnote { flex-wrap: wrap; } }
 </style>
 </head>
 <body>
@@ -95,7 +108,7 @@
         <div class="frow">
           <div>
             <div class="flabel" id="langLabel">界面语言</div>
-            <div class="fhelp">默认跟随系统语言</div>
+            <div class="fhelp">原型仅记录选择，文案暂不切换</div>
           </div>
           <div class="selectwrap">
             <select id="lang" aria-labelledby="langLabel">
@@ -132,12 +145,8 @@
             <select id="defaultList" aria-labelledby="listLabel">
               <option value="important" selected>重要</option>
               <option value="work">工作</option>
-              <option value="home">家庭</option>
-              <option value="shop">购物</option>
-              <option value="health">健康</option>
-              <option value="study">学习</option>
-              <option value="trip">旅行</option>
-              <option value="idea">灵感</option>
+              <option value="home">家</option>
+              <option value="reading">读书</option>
             </select>
           </div>
         </div>
@@ -145,7 +154,7 @@
         <div class="frow">
           <div>
             <div class="flabel" id="scLabel">全局快速添加</div>
-            <div class="fhelp">在任意位置唤起输入框</div>
+            <div class="fhelp">原型仅录制组合键，不注册系统快捷键</div>
           </div>
           <div class="shortcut">
             <button class="keybtn" id="scBtn" aria-labelledby="scLabel" aria-describedby="scValue">⌃⌥Space</button>
@@ -159,30 +168,48 @@
       </div>
 
       <div class="group">
-        <h2 class="gtitle">更新</h2>
-
+        <h2 class="gtitle">数据</h2>
         <div class="frow">
-          <div>
-            <div class="flabel" id="updateLabel">更新方式</div>
-            <div class="fhelp">自动安装会在后台完成</div>
-          </div>
-          <div class="selectwrap">
-            <select id="updateMode" aria-labelledby="updateLabel">
-              <option value="auto">自动安装</option>
-              <option value="ask" selected>下载后询问</option>
-              <option value="notify">仅提示我</option>
-            </select>
-          </div>
+          <div><div class="flabel">当前数据库</div><div class="fhelp database-current-name" data-db-name>尚未打开数据库</div><div class="fhelp" data-db-path>创建或打开数据库后显示位置</div></div>
+          <button class="btn" type="button" data-db-action="reveal" data-db-requires-open>所在文件夹…</button>
         </div>
+        <div class="frow">
+          <div><div class="flabel">存储位置</div><div class="fhelp">位置由你选择，迁移时保留全部任务</div></div>
+          <button class="btn" type="button" data-db-action="migrate" data-db-requires-open>迁移位置…</button>
+        </div>
+        <div class="frow">
+          <div><div class="flabel">切换数据库</div><div class="fhelp">当前数据库保留，打开另一个继续使用</div></div>
+          <button class="btn" type="button" data-db-action="open">打开已有…</button>
+        </div>
+        <div class="frow">
+          <div><div class="flabel">新建数据库</div><div class="fhelp">选择自己的文件夹，从空白开始</div></div>
+          <button class="btn" type="button" data-db-action="create">创建…</button>
+        </div>
+        <div class="frow">
+          <div><div class="flabel">备份与导出</div><div class="fhelp">导出当前库的演示任务，包含备注与子任务</div></div>
+          <button class="btn" id="exportBtn" data-db-requires-open>导出 JSON</button>
+        </div>
+        <div class="frow">
+          <div><div class="flabel">恢复备份</div><div class="fhelp">先查看备份内容，再确认替换当前库的演示任务</div></div>
+          <button class="btn" id="restoreBtn" data-db-requires-open>选择备份…</button>
+          <input id="backupFile" type="file" accept=".json,application/json" hidden>
+        </div>
+        <p class="data-note">数据库由你持有，不绑定账号或云服务。此处为交互原型：创建、打开和迁移仅为模拟；JSON 仅交换演示任务，不读写真实 SQLite 文件。</p>
+        <p class="data-feedback" id="dataFeedback" role="status"></p>
       </div>
     </div>
-
-    <div class="setnote">外观更改会应用到本机所有窗口。</div>
+    <dialog class="settings-dialog" id="dataDialog" aria-labelledby="dataDialogTitle">
+      <h2 id="dataDialogTitle">恢复演示备份</h2>
+      <p id="restoreDescription" hidden></p>
+      <div class="dialog-actions"><button class="btn" id="dialogCancel">取消</button><button class="btn primary" id="dialogApply">替换演示任务</button></div>
+    </dialog>
+    <div class="setnote"><a href="main-window.html">返回任务</a><span>偏好保存在本浏览器；存储受限时仅当前页有效。</span></div>
   </div>
 
   <div class="sr-only" id="live" aria-live="polite"></div>
 
 <script src="shared.js"></script>
+<script src="database-flow.js"></script>
 <script>
 (function () {
   const T = window.Taskly;
@@ -190,7 +217,8 @@
   const $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
 
   const DEFAULT_SHORTCUT = '⌃⌥Space';
-  let shortcut = DEFAULT_SHORTCUT;
+  let shortcut = T.preferences.get('shortcut', DEFAULT_SHORTCUT);
+  if (shortcut === 'disabled') shortcut = '';
   let recording = false;
 
   /* ---- 主题：交给 shared.js 统一记录与跨页应用 ---- */
@@ -223,10 +251,64 @@
     T.announce('新任务默认加入「' + label + '」');
   });
 
-  /* ---- 更新方式 ---- */
-  $('#updateMode').addEventListener('change', function () {
-    const label = this.options[this.selectedIndex].textContent;
-    T.announce('更新方式已设为' + label);
+  /* Data controls operate on the prototype exchange format only. */
+  const feedback = $('#dataFeedback');
+  const dialog = $('#dataDialog');
+  let pendingBackup = null;
+  let dialogTrigger = null;
+  function report(message) { feedback.textContent = message; T.announce(message); }
+  $('#defaultList').value = T.preferences.defaultList();
+  $('#lang').value = T.preferences.get('language', 'system');
+  $('#lang').addEventListener('change', function () { T.preferences.set('language', this.value); });
+  $('#defaultList').addEventListener('change', function () { T.preferences.set('defaultList', this.value); });
+  T.database.refresh();
+  let restoreDatabaseId = null;
+  $('#dialogCancel').addEventListener('click', function () { dialog.close(); });
+  dialog.addEventListener('close', function () { pendingBackup = null; restoreDatabaseId = null; if (dialogTrigger) dialogTrigger.focus(); });
+  $('#dialogApply').addEventListener('click', function () {
+    const current = T.database.current();
+    if (!pendingBackup || !current || current.id !== restoreDatabaseId) {
+      report('当前数据库已改变，未恢复备份。请重新选择备份。'); dialog.close(); return;
+    }
+    const count = pendingBackup.tasks.length;
+    T.demoData.save(pendingBackup.tasks);
+    report('已恢复 ' + count + ' 条演示任务到当前库。返回主窗查看；实际 SQLite 文件未更改。');
+    dialog.close();
+  });
+  $('#exportBtn').addEventListener('click', function () {
+    const data = T.demoData.read();
+    if (!data) { report('请先打开主窗，再回来导出演示任务。此处不会生成空备份。'); return; }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = 'taskly-demo-' + T.TODAY + '.json';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    report('已发起下载：' + data.tasks.length + ' 条演示任务。请在浏览器下载列表中查看。');
+  });
+  $('#restoreBtn').addEventListener('click', function () { $('#backupFile').click(); });
+  $('#backupFile').addEventListener('change', async function () {
+    const file = this.files[0]; this.value = ''; if (!file) return;
+    if (!T.database.current()) { report('请先创建或打开数据库。'); return; }
+    try {
+      if (file.size > 5 * 1024 * 1024) throw new Error('备份超过 5 MB');
+      const data = JSON.parse(await file.text());
+      const lists = ['work', 'home', 'important', 'reading'];
+      const ids = new Set();
+      if (data.format !== 'taskly-prototype' || data.version !== 1 || !Array.isArray(data.tasks) || data.tasks.length > 10000) throw new Error('请选择本原型导出的 JSON 备份');
+      data.tasks.forEach(function (t) {
+        if (!t || typeof t.id !== 'string' || ids.has(t.id) || !t.id || !/^[a-zA-Z0-9_-]+$/.test(t.id) || typeof t.title !== 'string' || !t.title.trim() || lists.indexOf(t.list) < 0 || typeof t.done !== 'boolean' || [0,1,2,3].indexOf(t.priority) < 0 || typeof t.date !== 'string' || !/^(|[0-9]{4}-[0-9]{2}-[0-9]{2})$/.test(t.date) || typeof t.time !== 'string' || !['none','0','10m','1h'].includes(t.remind) || typeof t.note !== 'string' || typeof t.url !== 'string' || !Array.isArray(t.tags) || !t.tags.every(function (tag) { return typeof tag === 'string'; }) || !Array.isArray(t.subtasks) || !t.subtasks.every(function (sub) { return sub && typeof sub.t === 'string' && typeof sub.done === 'boolean'; })) throw new Error('备份中的任务字段不完整或格式不正确');
+        ids.add(t.id);
+      });
+      pendingBackup = data;
+      restoreDatabaseId = T.database.current().id;
+      dialogTrigger = $('#restoreBtn');
+      $('#dataDialogTitle').textContent = '恢复演示备份';
+      $('#restoreDescription').hidden = false;
+      $('#restoreDescription').textContent = '此备份包含 ' + data.tasks.length + ' 条任务。恢复会替换当前数据库中的演示任务，无法撤销。建议先导出当前数据。不会修改 SQLite 数据库。';
+      $('#dialogApply').textContent = '替换演示任务';
+      dialog.showModal(); $('#dialogCancel').focus();
+    } catch (error) { report('未恢复：' + (error instanceof SyntaxError ? '无法读取 JSON 文件' : error.message) + '。当前任务保持不变。'); }
   });
 
   /* ---- 全局快捷键录制 ---- */
@@ -291,6 +373,7 @@
     }
 
     shortcut = formatCombo(e);
+    T.preferences.set('shortcut', shortcut);
     stopRecording();
     T.announce('快捷键已设为 ' + shortcut);
   }, true);
@@ -306,6 +389,7 @@
   scReset.addEventListener('click', function () {
     stopRecording();
     shortcut = DEFAULT_SHORTCUT;
+    T.preferences.set('shortcut', shortcut);
     renderShortcut();
     scBtn.focus();
     T.announce('已恢复默认快捷键 ' + DEFAULT_SHORTCUT);
@@ -314,6 +398,7 @@
   scClear.addEventListener('click', function () {
     stopRecording();
     shortcut = '';
+    T.preferences.set('shortcut', 'disabled');
     renderShortcut();
     scBtn.focus();
     T.announce('已清除快捷键，快速添加仍可从菜单打开');

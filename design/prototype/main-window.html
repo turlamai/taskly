@@ -6,6 +6,7 @@
 <title>Taskly — 主窗原型（今天视图 + 行内编辑 + 任务详情）</title>
 <script src="theme-boot.js"></script>
 <link rel="stylesheet" href="shared.css">
+<link rel="stylesheet" href="database-flow.css">
 <style>
   /* ==== 主窗：行内编辑器 ==== */
   .editor { margin-top: 2px; }
@@ -32,7 +33,7 @@
 </style>
 </head>
 <body>
-  <div class="window" id="app">
+  <div class="window" id="app" data-database-main>
     <div class="titlebar">
       <div class="lights"><i></i><i></i><i></i></div>
       <div class="t" id="winTitle">Taskly — 今天</div>
@@ -48,6 +49,7 @@
 
         <div class="sect">标签</div>
         <div id="tags"></div>
+        <div class="sidebar-footer"><div class="database-identity"><strong data-db-name></strong><span>数据库由你管理</span></div><a class="sidebar-settings" href="settings.html">设置</a></div>
       </aside>
 
       <section class="pane">
@@ -92,9 +94,20 @@
             </label>
             <div class="f2">
               <label class="field"><span class="flabel">日期</span><input class="input" id="fDate" type="date"></label>
-              <label class="field"><span class="flabel">时间</span><input class="input" id="fTime" type="time"></label>
+
             </div>
+
+
+
+
+            <label class="field"><span class="flabel">备注</span><textarea class="input" id="fNote" rows="3"></textarea></label>
+
             <label class="field">
+              <span class="flabel">所属清单</span>
+              <select class="input" id="fList"></select>
+            </label>
+          <div class="detail-options">
+<details class="detail-option" data-detail-field="time"><summary>时间与提醒</summary><div class="option-body"><label class="field"><span class="flabel">时间</span><input class="input" id="fTime" type="time"></label><label class="field">
               <span class="flabel">提醒</span>
               <select class="input" id="fRemind">
                 <option value="none">不提醒</option>
@@ -102,8 +115,8 @@
                 <option value="10m">提前 10 分钟</option>
                 <option value="1h">提前 1 小时</option>
               </select>
-            </label>
-            <div class="field">
+            </label></div></details>
+<details class="detail-option" data-detail-field="priority"><summary>优先级</summary><div class="option-body"><div class="field">
               <span class="flabel" id="prioLabel">优先级</span>
               <div class="seg" role="group" aria-labelledby="prioLabel" id="fPrio">
                 <button data-prio="0">无</button>
@@ -111,24 +124,19 @@
                 <button data-prio="2">中</button>
                 <button data-prio="3">高</button>
               </div>
-            </div>
-            <div class="field">
+            </div></div></details>
+<details class="detail-option" data-detail-field="tags"><summary>标签</summary><div class="option-body"><div class="field">
               <span class="flabel">标签</span>
               <div class="taglist" id="fTags"></div>
               <input class="input" id="fTagAdd" type="text" placeholder="输入标签后回车" aria-label="添加标签" autocomplete="off">
-            </div>
-            <div class="field">
+            </div></div></details>
+<details class="detail-option" data-detail-field="subtasks"><summary>子任务</summary><div class="option-body"><div class="field">
               <span class="flabel">子任务</span>
               <div class="sublist" id="fSubs"></div>
               <input class="input" id="fSubAdd" type="text" placeholder="输入子任务后回车" aria-label="添加子任务" autocomplete="off">
-            </div>
-            <label class="field"><span class="flabel">备注</span><textarea class="input" id="fNote" rows="3"></textarea></label>
-            <label class="field"><span class="flabel">链接</span><input class="input" id="fUrl" type="url" placeholder="https://"></label>
-            <label class="field">
-              <span class="flabel">所属清单</span>
-              <select class="input" id="fList"></select>
-            </label>
-          </div>
+            </div></div></details>
+<details class="detail-option" data-detail-field="url"><summary>链接</summary><div class="option-body"><label class="field"><span class="flabel">链接</span><input class="input" id="fUrl" type="url" placeholder="https://"></label></div></details>
+</div></div>
           <div class="dacts">
             <button class="btn danger" id="fDelete">删除</button>
             <span class="sp"></span>
@@ -143,6 +151,7 @@
   <div class="sr-only" id="live" aria-live="polite"></div>
 
 <script src="shared.js"></script>
+<script src="database-flow.js"></script>
 <script>
 (function () {
   const T = window.Taskly;
@@ -156,29 +165,17 @@
     reading:   { name: '读书', emoji: '📚', color: 'var(--list-indigo)' }
   };
 
-  const tasks = [
-    { id: 't1', title: '同步季度 OKR 草稿到文档库', list: 'work', date: TODAY, time: '14:00', remind: '10m', priority: 2,
-      note: '先过一遍 Q3 复盘的结论', tags: ['工作', '本周'], done: false, url: '',
-      subtasks: [{ t: '整理 Q3 复盘结论', done: true }, { t: '同步到文档库并通知相关同事', done: false }] },
-    { id: 't2', title: '预约牙医复诊', list: 'important', date: TODAY, time: '09:30', remind: '1h', priority: 1,
-      note: '带上上次拍的片子；顺便问一下矫压器的时间表。', tags: ['健康', '本周'], done: false, url: '',
-      subtasks: [{ t: '确认诊所营业时间', done: true }, { t: '挂号', done: false }] },
-    { id: 't3', title: '回复出版社的排版确认函', list: 'important', date: addDays(TODAY, -1), time: '', remind: 'none', priority: 2,
-      note: '', tags: ['等回复'], done: false, url: '', subtasks: [] },
-    { id: 't4', title: '给新同事开代码仓库权限', list: 'work', date: addDays(TODAY, 1), time: '', remind: 'none', priority: 0,
-      note: '', tags: ['工作'], done: false, url: '', subtasks: [] },
-    { id: 't5', title: '整理读书笔记：深度工作', list: 'reading', date: '', time: '', remind: 'none', priority: 0,
-      note: '第三章关于注意力残留的部分', tags: ['读书'], done: false, url: '', subtasks: [] },
-    { id: 't6', title: '预约周末的羽毛球场地', list: 'home', date: TODAY, time: '', remind: 'none', priority: 0,
-      note: '', tags: ['家'], done: true, url: '', subtasks: [] },
-    { id: 't7', title: '缴纳物业费', list: 'home', date: '', time: '', remind: 'none', priority: 0,
-      note: '', tags: ['家'], done: true, url: '', subtasks: [] }
-  ];
+  const tasks = [];
+
+  const restored = T.demoData.read();
+  if (restored && Array.isArray(restored.tasks)) tasks.splice(0, tasks.length, ...restored.tasks);
+
+  if (!restored) tasks.splice(0, tasks.length);
 
   const state = { view: 'today', listId: null, tag: null, q: '', editing: null, doneOpen: true };
   let draft = null;
   let openId = null;
-  let uid = 30;
+  let uid = Date.now();
   let delArmed = false;
 
   const $ = function (s, r) { return (r || document).querySelector(s); };
@@ -220,14 +217,14 @@
   function renderSidebar() {
     const c = counts();
     const tiles = [
-      { view: 'today', label: '今天', count: c.today, glyph: '<span class="glyph num">12</span>' },
+      { view: 'today', label: '今天', count: c.today, glyph: '<span class="glyph num">' + ICONS.today + '</span>' },
       { view: 'planned', label: '计划', count: c.planned, glyph: '<span class="glyph planned">' + ICONS.calendar + '</span>' },
       { view: 'all', label: '全部', count: c.all, glyph: '<span class="glyph gray">' + ICONS.lines + '</span>' },
       { view: 'completed', label: '已完成', count: c.done, glyph: '<span class="glyph gray">' + ICONS.checkCircle + '</span>' }
     ];
     $('#tiles').innerHTML = tiles.map(function (x) {
       return '<button class="tile" data-view="' + x.view + '" aria-current="' + (state.view === x.view ? 'true' : 'false') + '">' +
-        x.glyph + '<span class="label">' + x.label + '</span><span class="count">' + x.count + '</span></button>';
+        x.glyph.replace('class="icon"', 'class="icon tile-icon"') + '<span class="label">' + x.label + '</span><span class="count">' + x.count + '</span></button>';
     }).join('');
 
     $('#lists').innerHTML = Object.keys(LISTS).map(function (id) {
@@ -253,7 +250,12 @@
     const openN = all.filter(function (t) { return !t.done; }).length;
     let title, sub;
     if (state.view === 'list') { title = LISTS[state.listId].name; sub = openN + ' 项未完成'; }
-    else if (state.view === 'today') { title = '今天'; sub = '11月12日 星期四'; }
+    else if (state.view === 'today') {
+      const parts = TODAY.split('-').map(Number);
+      const date = new Date(parts[0], parts[1] - 1, parts[2]);
+      title = '今天';
+      sub = fmtDate(TODAY) + ' 星期' + '日一二三四五六'[date.getDay()];
+    }
     else if (state.view === 'planned') { title = '计划'; sub = openN + ' 项待安排'; }
     else if (state.view === 'all') { title = '全部'; sub = openN + ' 项未完成'; }
     else { title = '已完成'; sub = all.length + ' 项'; }
@@ -266,7 +268,7 @@
     const m = viewMeta();
     $('#vTitle').textContent = m.title;
     $('#vSub').textContent = m.sub;
-    $('#winTitle').textContent = 'Taskly — ' + m.title;
+    $('#winTitle').textContent = T.database.current() ? 'Taskly — ' + T.database.current().name : 'Taskly';
     const fb = $('#filterBar');
     if (state.tag || state.q) {
       fb.hidden = false;
@@ -357,6 +359,7 @@
   }
 
   function renderRows() {
+    T.demoData.save(tasks);
     const all = visible();
     const open = all.filter(function (t) { return !t.done; });
     const done = all.filter(function (t) { return t.done; });
@@ -463,6 +466,7 @@
   function currentDetail() { return openId ? taskById(openId) : null; }
 
   function fillDetail(t) {
+    T.prepareDetails(t);
     $('#fTitle').value = t.title;
     $('#fDate').value = t.date || '';
     $('#fTime').value = t.time || '';
@@ -571,7 +575,7 @@
   function addTask(raw) {
     const p = parseQuick(raw);
     if (!p.title) return;
-    const list = state.view === 'list' ? state.listId : 'important';
+    const list = state.view === 'list' ? state.listId : T.preferences.defaultList();
     if (state.tag && p.tags.indexOf(state.tag) < 0) p.tags.push(state.tag);
     const created = {
       id: 'n' + (uid++), title: p.title, list: list, date: p.date, time: p.time,
@@ -811,6 +815,7 @@
     });
 
     document.addEventListener('keydown', function (e) {
+      if (!T.database.current() || document.querySelector('dialog[open]')) return;
       if (e.key === 'Escape') {
         if (openId) { closeDetail(true); return; }
         if (state.editing) { commitEdit(false); render(); return; }
@@ -823,6 +828,15 @@
       }
     });
   }
+
+  document.addEventListener('taskly:database', function () {
+    const data = T.demoData.read();
+    tasks.splice(0, tasks.length, ...(data ? data.tasks : []));
+    state.editing = null; draft = null; openId = null;
+    state.view = 'today'; state.listId = null; state.tag = null; state.q = '';
+    $('#q').value = '';
+    render();
+  });
 
   function init() {
     $$('[data-icon]').forEach(function (el) { el.innerHTML = ICONS[el.dataset.icon] || ''; });

@@ -38,6 +38,7 @@
         <div id="lists"></div>
         <div class="sect">标签</div>
         <div id="tags"></div>
+        <div class="sidebar-footer"><a class="sidebar-settings" href="settings.html">设置</a></div>
       </aside>
 
       <section class="pane">
@@ -79,9 +80,20 @@
             </label>
             <div class="f2">
               <label class="field"><span class="flabel">日期</span><input class="input" id="fDate" type="date"></label>
-              <label class="field"><span class="flabel">时间</span><input class="input" id="fTime" type="time"></label>
+
             </div>
+
+
+
+
+            <label class="field"><span class="flabel">备注</span><textarea class="input" id="fNote" rows="3"></textarea></label>
+
             <label class="field">
+              <span class="flabel">所属清单</span>
+              <select class="input" id="fList"></select>
+            </label>
+          <div class="detail-options">
+<details class="detail-option" data-detail-field="time"><summary>时间与提醒</summary><div class="option-body"><label class="field"><span class="flabel">时间</span><input class="input" id="fTime" type="time"></label><label class="field">
               <span class="flabel">提醒</span>
               <select class="input" id="fRemind">
                 <option value="none">不提醒</option>
@@ -89,8 +101,8 @@
                 <option value="10m">提前 10 分钟</option>
                 <option value="1h">提前 1 小时</option>
               </select>
-            </label>
-            <div class="field">
+            </label></div></details>
+<details class="detail-option" data-detail-field="priority"><summary>优先级</summary><div class="option-body"><div class="field">
               <span class="flabel" id="prioLabel">优先级</span>
               <div class="seg" role="group" aria-labelledby="prioLabel" id="fPrio">
                 <button data-prio="0">无</button>
@@ -98,24 +110,19 @@
                 <button data-prio="2">中</button>
                 <button data-prio="3">高</button>
               </div>
-            </div>
-            <div class="field">
+            </div></div></details>
+<details class="detail-option" data-detail-field="tags"><summary>标签</summary><div class="option-body"><div class="field">
               <span class="flabel">标签</span>
               <div class="taglist" id="fTags"></div>
               <input class="input" id="fTagAdd" type="text" placeholder="输入标签后回车" aria-label="添加标签" autocomplete="off">
-            </div>
-            <div class="field">
+            </div></div></details>
+<details class="detail-option" data-detail-field="subtasks"><summary>子任务</summary><div class="option-body"><div class="field">
               <span class="flabel">子任务</span>
               <div class="sublist" id="fSubs"></div>
               <input class="input" id="fSubAdd" type="text" placeholder="输入子任务后回车" aria-label="添加子任务" autocomplete="off">
-            </div>
-            <label class="field"><span class="flabel">备注</span><textarea class="input" id="fNote" rows="3"></textarea></label>
-            <label class="field"><span class="flabel">链接</span><input class="input" id="fUrl" type="url" placeholder="https://"></label>
-            <label class="field">
-              <span class="flabel">所属清单</span>
-              <select class="input" id="fList"></select>
-            </label>
-          </div>
+            </div></div></details>
+<details class="detail-option" data-detail-field="url"><summary>链接</summary><div class="option-body"><label class="field"><span class="flabel">链接</span><input class="input" id="fUrl" type="url" placeholder="https://"></label></div></details>
+</div></div>
           <div class="dacts">
             <button class="btn danger" id="fDelete">删除</button>
             <span class="sp"></span>
@@ -134,7 +141,7 @@
 (function () {
   const T = window.Taskly;
   const ICONS = T.ICONS, esc = T.esc, TODAY = T.TODAY;
-  const addDays = T.addDays, bucket = T.bucket, dueText = T.dueText, place = T.place, announce = T.announce;
+  const addDays = T.addDays, fmtDate = T.fmtDate, bucket = T.bucket, dueText = T.dueText, place = T.place, announce = T.announce;
 
   const LISTS = {
     work:      { name: '工作', emoji: '💼', color: 'var(--list-cyan)' },
@@ -193,14 +200,14 @@
   function renderSidebar() {
     const c = counts();
     const tiles = [
-      { view: 'today', label: '今天', count: c.today, glyph: '<span class="glyph num">12</span>' },
+      { view: 'today', label: '今天', count: c.today, glyph: '<span class="glyph num">' + ICONS.today + '</span>' },
       { view: 'planned', label: '计划', count: c.planned, glyph: '<span class="glyph planned">' + ICONS.calendar + '</span>' },
       { view: 'all', label: '全部', count: c.all, glyph: '<span class="glyph gray">' + ICONS.lines + '</span>' },
       { view: 'completed', label: '已完成', count: c.done, glyph: '<span class="glyph gray">' + ICONS.checkCircle + '</span>' }
     ];
     $('#tiles').innerHTML = tiles.map(function (x) {
       return '<button class="tile" data-view="' + x.view + '" aria-current="' + (state.view === x.view ? 'true' : 'false') + '">' +
-        x.glyph + '<span class="label">' + x.label + '</span><span class="count">' + x.count + '</span></button>';
+        x.glyph.replace('class="icon"', 'class="icon tile-icon"') + '<span class="label">' + x.label + '</span><span class="count">' + x.count + '</span></button>';
     }).join('');
 
     $('#lists').innerHTML = Object.keys(LISTS).map(function (id) {
@@ -223,7 +230,9 @@
   function viewMeta() {
     const all = visible();
     const openN = all.filter(function (t) { return !t.done; }).length;
-    let title = '今天', sub = '11月12日 星期四';
+    const parts = TODAY.split('-').map(Number);
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    let title = '今天', sub = fmtDate(TODAY) + ' 星期' + '日一二三四五六'[date.getDay()];
     if (state.view === 'list') { title = LISTS[state.listId].name; sub = openN + ' 项未完成'; }
     else if (state.view === 'planned') { title = '计划'; sub = openN + ' 项待安排'; }
     else if (state.view === 'all') { title = '全部'; sub = openN + ' 项未完成'; }
@@ -311,6 +320,7 @@
   function current() { return openId ? taskById(openId) : null; }
 
   function fill(t) {
+    T.prepareDetails(t);
     $('#fTitle').value = t.title;
     $('#fDate').value = t.date || '';
     $('#fTime').value = t.time || '';
@@ -387,7 +397,7 @@
 
   function addTask() {
     if (state.view === 'completed') { state.view = 'today'; state.listId = null; }
-    const t = { id: 'n' + (uid++), title: '新任务', list: state.view === 'list' ? state.listId : 'important',
+    const t = { id: 'n' + (uid++), title: '新任务', list: state.view === 'list' ? state.listId : T.preferences.defaultList(),
       date: TODAY, time: '', remind: 'none', priority: 0, note: '', tags: state.tag ? [state.tag] : [],
       done: false, url: '', subtasks: [] };
     tasks.unshift(t);

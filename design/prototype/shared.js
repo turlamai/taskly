@@ -1,6 +1,8 @@
 /* Taskly 原型共享工具：示例数据时钟、日期、图标、详情层定位 */
 window.Taskly = (function () {
-  const TODAY = '2026-11-12';
+  // Use local calendar dates rather than UTC, which can shift the day.
+  const now = new Date();
+  const TODAY = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 
   const svg = function (body) {
     return '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' + body + '</svg>';
@@ -8,6 +10,7 @@ window.Taskly = (function () {
   const stroke = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
 
   const ICONS = {
+    today: svg('<rect x="2.4" y="3.6" width="11.2" height="10" rx="2" ' + stroke + '/><path d="M2.4 6.4h11.2M5.6 2.4v2.2M10.4 2.4v2.2" ' + stroke + '/><text x="8" y="12" text-anchor="middle" fill="currentColor" font-size="5.5" font-weight="700">' + now.getDate() + '</text>'),
     check: svg('<path d="M3.6 8.6l3 3 5.8-7" ' + stroke + '/>'),
     info: svg('<circle cx="8" cy="8" r="6.1" ' + stroke + '/><path d="M8 7.3v3.9" ' + stroke + '/><circle cx="8" cy="5.1" r=".85" fill="currentColor"/>'),
     calendar: svg('<rect x="2.4" y="3.6" width="11.2" height="10" rx="2" ' + stroke + '/><path d="M2.4 7h11.2M5.6 2.4v2.2M10.4 2.4v2.2" ' + stroke + '/>'),
@@ -130,7 +133,43 @@ window.Taskly = (function () {
     return st;
   }
 
+  const memory = {};
+  function readPreference(key, fallback) {
+    try { return localStorage.getItem('taskly.' + key) || memory[key] || fallback; }
+    catch (e) { return memory[key] || fallback; }
+  }
+  function writePreference(key, value) {
+    memory[key] = value;
+    try { localStorage.setItem('taskly.' + key, value); } catch (e) { /* Keep a session fallback. */ }
+  }
+  function prepareDetails(task) {
+    const visible = {
+      time: !!task.time || (task.remind && task.remind !== 'none'),
+      priority: !!task.priority, tags: task.tags.length > 0,
+      subtasks: task.subtasks.length > 0, url: !!task.url
+    };
+    document.querySelectorAll('[data-detail-field]').forEach(function (section) {
+      section.open = !!visible[section.dataset.detailField];
+    });
+  }
+
+  function readDemoData() {
+    try { return JSON.parse(readPreference('demoData', 'null')); }
+    catch (e) { return null; }
+  }
+  function saveDemoData(tasks) {
+    writePreference('demoData', JSON.stringify({ format: 'taskly-prototype', version: 1, tasks: tasks }));
+  }
   const api = {
+    demoData: { read: readDemoData, save: saveDemoData },
+    prepareDetails: prepareDetails,
+    preferences: {
+      get: readPreference, set: writePreference,
+      defaultList: function () {
+        const value = readPreference('defaultList', 'important');
+        return ['work', 'home', 'important', 'reading'].indexOf(value) >= 0 ? value : 'important';
+      }
+    },
     TODAY: TODAY, ICONS: ICONS, esc: esc, addDays: addDays, fmtDate: fmtDate,
     bucket: bucket, dueText: dueText, place: place, announce: announce,
     theme: {

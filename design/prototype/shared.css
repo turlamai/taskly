@@ -74,6 +74,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 /* ==== 图标：几何由 .icon 统一持有，不在父选择器里散写尺寸 ==== */
 .icon { width: 16px; height: 16px; flex: none; display: block; }
+.icon.tile-icon { width: 20px; height: 20px; }
 .icon.sm { width: 13px; height: 13px; }
 .icon.xs { width: 11px; height: 11px; }
 
@@ -139,7 +140,7 @@ kbd {
 }
 .tile:hover { background: var(--hover); }
 .tile[aria-current="true"] { background: var(--sel); border-color: var(--divider-strong); }
-.tile .glyph { width: 18px; display: grid; place-items: center; flex: none; }
+.tile .glyph { width: 20px; height: 20px; display: grid; place-items: center; flex: none; }
 .glyph.num { font-size: 12px; font-weight: 700; color: var(--today-ink); font-variant-numeric: tabular-nums; }
 .glyph.planned { color: var(--planned); }
 .glyph.gray { color: var(--gray-tile); }
@@ -341,3 +342,15 @@ select.input {
 @media (max-width: 760px) {
   .sidebar { display: none; }
 }
+
+/* Progressive disclosure: both task surfaces share this hierarchy. */
+.detail-options { border-top: 1px solid var(--divider); margin-top: 16px; }
+.detail-option { border-bottom: 1px solid var(--divider); }
+.detail-option summary { padding: 12px 0; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--ink2); }
+.detail-option summary:hover { color: var(--ink); }
+.detail-option summary:focus-visible { outline: 2px solid var(--today); outline-offset: 2px; border-radius: 4px; }
+.option-body { display: grid; gap: 8px; padding-bottom: 12px; }
+.sidebar-footer { margin-top: auto; padding-top: 24px; }
+.sidebar-settings { display: block; padding: 8px; border-radius: 8px; color: var(--ink2); font-size: 13px; text-decoration: none; }
+.sidebar-settings:hover { background: var(--hover); color: var(--ink); }
+.sidebar-settings:focus-visible { outline: 2px solid var(--today); }
