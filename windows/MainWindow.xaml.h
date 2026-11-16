@@ -231,7 +231,7 @@ private:
   void ShowGate(LaunchState state);
   void ShowTaskUi();
   void ApplyWindowTitle();
-  winrt::fire_and_forget OpenDatabaseAsync(std::wstring const& path);
+  void OpenDatabaseAsync(std::wstring const& path);
   winrt::fire_and_forget AddTaskAsync(std::wstring const& text,
                                        std::int64_t target_list_id);
   winrt::fire_and_forget ToggleTaskAsync(std::int64_t id, bool completed);

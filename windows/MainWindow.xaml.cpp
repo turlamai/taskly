@@ -3771,7 +3771,7 @@ void MainWindow::ShowTaskUi() {
   RefreshDatabaseIdentity();
 }
 
-winrt::fire_and_forget MainWindow::OpenDatabaseAsync(std::wstring const& path) {
+void MainWindow::OpenDatabaseAsync(std::wstring const& path) {
   // AttemptOpenAsync is itself fire-and-forget; calling (not co_awaiting)
   // keeps the error handling inside its own completion.
   AttemptOpenAsync(path, /*recovery_on_failure=*/false);
