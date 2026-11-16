@@ -218,6 +218,24 @@ var diagnosticOutput: URL?
 
 // ---- §2a database-lifecycle scenario helpers -----------------------------
 
+/// The NSOpenPanel/NSSavePanel presents as a dialog window of the app.
+/// Waiting for it before sending shortcuts is what makes the go-to flow
+/// deterministic: a swallowed press otherwise times out on the go-to field.
+func panelWindow(_ application: AXUIElement) -> AXUIElement? {
+    for element in walk(application) {
+        let role = stringAttribute(element, kAXRoleAttribute)
+        guard role == "AXWindow" || role == "AXSheet" else { continue }
+        let subrole = stringAttribute(element, kAXSubroleAttribute)
+        let title = stringAttribute(element, kAXTitleAttribute)
+        if subrole == "AXDialog" ||
+            ["open", "choose", "save", "打开", "选择", "保存"]
+            .contains(where: { title.lowercased().contains($0) }) {
+            return element
+        }
+    }
+    return nil
+}
+
 /// The focused editable text field of the frontmost sheet/panel (the
 /// go-to-folder field takes focus the moment the shortcut lands).
 func focusedTextField(_ root: AXUIElement) -> AXUIElement? {
@@ -237,6 +255,7 @@ func drivePanelTo(_ application: AXUIElement, path: String) throws {
     // The go-to sheet can take a beat to mount its AX subtree (slow x64
     // runners observed a swallowed first shortcut), so retry the shortcut
     // until the field appears.
+    _ = try waitFor("file panel window") { panelWindow(application) }
     let field: AXUIElement = try waitFor("go-to-folder field") { () -> AXUIElement? in
         for _ in 0..<3 {
             try? postKey(11, flags: cmdShiftG) // Cmd+Shift+G
