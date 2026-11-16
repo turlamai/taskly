@@ -105,7 +105,7 @@ func writeJSON(_ value: Any, to url: URL) throws {
 
 func press(_ element: AXUIElement, _ description: String) throws {
     let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
-    guard result == .success else {
+    if result != .success {
         // Some custom-styled SwiftUI buttons (inside sheets) do not expose
         // the press action (-25204 ActionUnsupported). Fall back to a real
         // click at the element's center.
