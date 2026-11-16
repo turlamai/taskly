@@ -10,6 +10,8 @@
          max-tag-length
          max-subtask-text-length
          max-url-length
+         max-database-name-length
+         max-backup-tasks
          min-year
          max-year
          validate-task-text!
@@ -18,7 +20,8 @@
          validate-task-priority!
          validate-task-tags!
          validate-task-subtasks!
-         validate-task-url!)
+         validate-task-url!
+         validate-database-name!)
 
 (define max-task-text-length 1000)
 (define max-list-name-length 100)
@@ -26,6 +29,10 @@
 (define max-tag-length 100)
 (define max-subtask-text-length 500)
 (define max-url-length 2048)
+;; PRODUCT-SPEC §10: the database display name (sidebar identity).
+(define max-database-name-length 64)
+;; DATA-FORMAT §9: restore rejects oversized backups up front.
+(define max-backup-tasks 10000)
 (define min-year 1900)
 (define max-year 2100)
 
@@ -100,3 +107,17 @@
      (raise-taskly 'validation 2
                    (format "URLs must be ~a characters or fewer." max-url-length))]
     [else (string-trim url)]))
+
+;; Database display name (§2a create flow): non-empty, ≤64 chars, no
+;; characters that are illegal in file names — the prototype's create dialog
+;; rejects the same set.
+(define (validate-database-name! name)
+  (when (blank? name)
+    (raise-taskly 'validation 2 "Please enter a database name."))
+  (when (> (string-length name) max-database-name-length)
+    (raise-taskly 'validation 2
+                  (format "Database name must be ~a characters or fewer."
+                          max-database-name-length)))
+  (when (regexp-match? #px"[\\\\/:*?\"<>|]" name)
+    (raise-taskly 'validation 2 "Database names cannot contain / \\ : * ? \" < > |."))
+  (string-trim name))

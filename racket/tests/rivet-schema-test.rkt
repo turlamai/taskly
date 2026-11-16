@@ -4,6 +4,7 @@
          racket/file
          rivet/backend
          "../taskly/clock.rkt"
+         "../taskly/config.rkt"
          "../taskly/model.rkt"
          "../taskly/paths.rkt"
          "../taskly/rivet-schema.rkt"
@@ -17,7 +18,19 @@
    (parameterize ([current-taskly-home temp-root])
      (define names
        (map (lambda (entry) (hash-ref entry 'name)) (record-schema)))
-     (check-equal? names '("QuickAddParse" "ReminderDecision" "Settings" "SmartCounts" "Snapshot" "Subtask" "Task" "TodoList" "UpdateCheck" "UpdateState"))
+     (check-equal? names '("BackupPreview" "QuickAddParse" "ReminderDecision" "Settings" "SmartCounts" "Snapshot" "Subtask" "Task" "TodoList" "UpdateCheck" "UpdateState"))
+
+     ;; The Settings record grew the 数据-group fields (§2a): display name
+     ;; and quick-add default list resolve from the persisted config.
+     (define lifecycle-config (read-config))
+     (hash-set! lifecycle-config "last-db-name" "Screened Name")
+     (hash-set! lifecycle-config "default-list-id" "2")
+     (write-config! lifecycle-config)
+     (define settings-dto (settings->dto))
+     (check-equal? (record-ref settings-dto 'database-name) "Screened Name")
+     (check-equal? (record-ref settings-dto 'default-list-id) 2)
+     (check-equal? (record-ref settings-dto 'database-path)
+                   (path->string (default-database-path)))
 
      (define service (open-taskly-service (build-path temp-root "schema.db")))
      (define created (service-add-task! service "typed task" #:due-date "2026-09-20"))

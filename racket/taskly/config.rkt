@@ -11,6 +11,8 @@
          config-ref
          config-language
          config-last-selected-list-id
+         config-last-db-name
+         config-default-list-id
          config-theme
          config-close-to-tray
          resolve-database-path)
@@ -48,6 +50,20 @@
   (define parsed (string->number value))
   (if (and parsed (exact-integer? parsed)) parsed 0))
 
+;; Display name of the current database (DATA-FORMAT §7): written by
+;; create_database / open_database, shown by the sidebar identity and the
+;; settings 数据 group. Absent = no database chosen yet.
+(define (config-last-db-name config)
+  (define value (config-ref config "last-db-name" ""))
+  (string-trim value))
+
+;; Quick-add default list (PRODUCT-SPEC §2a): int-as-string, 0 = unset.
+;; Hosts fall back to the first list when it dangles.
+(define (config-default-list-id config)
+  (define value (config-ref config "default-list-id" "0"))
+  (define parsed (string->number value))
+  (if (and parsed (exact-integer? parsed)) parsed 0))
+
 (define (config-theme config)
   (define value (string-downcase (or (config-ref config "theme") "system")))
   (if (member value '("system" "light" "dark")) value "system"))
@@ -68,8 +84,9 @@
          ;; Legacy last_db_path is carried through rewrites: pre-0.x files
          ;; may hold the underscore form, and dropping it here silently
          ;; forgot the user's database location (the 0.2.1 OTA regression).
-         (for ([key (in-list '("last-db-path" "last_db_path" "language"
-                           "last-selected-list-id"
+         (for ([key (in-list '("last-db-path" "last_db_path" "last-db-name"
+                           "language" "last-selected-list-id"
+                           "default-list-id" "global-quick-add"
                            "theme" "close-to-tray" "last-update-check"
                            "rollout-bucket" "install-flavor"
                            "auto-check-updates"))])

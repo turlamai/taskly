@@ -13,6 +13,10 @@
 (provide (struct-out taskly-db)
          open-taskly-db
          close-taskly-db
+         create-taskly-db
+         taskly-database-file?
+         migrate-database-file!
+         db-restore-backup!
          db-lists
          db-list-by-id
          db-list-by-name
@@ -110,6 +114,104 @@
 (define (close-taskly-db db)
   (when (and db (connected? (taskly-db-connection db)))
     (disconnect (taskly-db-connection db))))
+
+;; Exclusive create (PRODUCT-SPEC §2a): the target must not exist. The
+;; existence check comes first — sqlite3-connect #:mode 'create would
+;; happily open-or-create, and the gate's create flow must never adopt or
+;; overwrite an existing file.
+(define (create-taskly-db path)
+  (define complete (path->complete-path path))
+  (when (file-exists? complete)
+    (raise-taskly 'validation 2 (format "database already exists: ~a" complete)))
+  (open-taskly-db complete))
+
+;; Identity probe for open/relocate (PRODUCT-SPEC §2a): a Taskly database
+;; carries user_version > 0 or the v1 lists table. A foreign or unreadable
+;; file must be refused — relocate depends on never adopting someone else's
+;; database, and open must never create a replacement for a missing one.
+(define (taskly-database-file? path)
+  (with-handlers ([exn:fail? (lambda (_) #f)])
+    (define conn
+      (sqlite3-connect #:database (path->complete-path path) #:mode 'read-only))
+    (define ok?
+      (with-handlers ([exn:fail? (lambda (_) #f)])
+        (or (> (query-value conn "PRAGMA user_version") 0)
+            (pair?
+             (query-rows conn
+                         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'lists'")))))
+    (disconnect conn)
+    ok?))
+
+;; Copy-migrate (PRODUCT-SPEC §2a): checkpoint WAL into the source's main
+;; file, copy it to a sibling temp file, verify the copy opens with the same
+;; schema version and list/task counts, then atomically rename it over the
+;; target. The source connection stays open and untouched throughout; any
+;; failure removes the temp file and leaves the original in place.
+(define (migrate-database-file! db target)
+  (define source (taskly-db-path db))
+  (define complete-target (path->complete-path target))
+  (when (file-exists? complete-target)
+    (raise-taskly 'validation 2 (format "target already exists: ~a" complete-target)))
+  ;; Sibling temp name — never a path-replace-extension dance.
+  (define tmp (string-append (path->string complete-target) ".migrating"))
+  (with-handlers
+      ([exn:fail:taskly?
+        (lambda (e)
+          (with-handlers ([exn:fail? void]) (when (file-exists? tmp) (delete-file tmp)))
+          (raise e))]
+       [exn:fail?
+        (lambda (e)
+          (with-handlers ([exn:fail? void]) (when (file-exists? tmp) (delete-file tmp)))
+          (raise-taskly 'database 4
+                        (format "migration to ~a failed: ~a"
+                                complete-target (exn-message e))))])
+    (define conn (taskly-db-connection db))
+    ;; WAL content must land in the main file before copying (DATA-FORMAT §2).
+    (query-exec conn "PRAGMA wal_checkpoint(TRUNCATE)")
+    (define parent (path-only complete-target))
+    (when parent (make-directory* parent))
+    (copy-file source tmp)
+    (define copy (open-taskly-db tmp))
+    (define copied
+      (list (db-count-incomplete copy) (db-count-completed copy)))
+    (close-taskly-db copy)
+    (define original
+      (list (query-value conn "SELECT COUNT(*) FROM tasks WHERE completed = 0")
+            (query-value conn "SELECT COUNT(*) FROM tasks WHERE completed = 1")))
+    (unless (equal? copied original)
+      (raise-taskly 'database 4 "the migrated copy does not match the source database"))
+    (rename-file-or-directory tmp complete-target #f)))
+
+;; Backup restore (DATA-FORMAT §9): replace the current database's lists and
+;; tasks in one transaction. `lists` holds (name icon color) triples in file
+;; order; `tasks` holds task-item structs whose list-id is the 0-based index
+;; into `lists` — re-mapped to the reassigned list ids here. created_at
+;; values are preserved verbatim; ids are reassigned by the database.
+(define (db-restore-backup! db lists tasks)
+  (define conn (taskly-db-connection db))
+  (call-with-transaction
+   conn
+   (lambda ()
+     (query-exec conn "DELETE FROM tasks")
+     (query-exec conn "DELETE FROM lists")
+     (define id-map
+       (for/hash ([entry (in-list lists)] [index (in-naturals)])
+         (define new-id
+           (begin
+             (query-exec conn
+                         "INSERT INTO lists (name, icon, color, created_at) VALUES (?, ?, ?, ?)"
+                         (list-ref entry 0)
+                         (maybe-sql (list-ref entry 1))
+                         (maybe-sql (list-ref entry 2))
+                         (local-timestamp))
+             (query-value conn "SELECT last_insert_rowid()")))
+         (values index new-id)))
+     (for ([task (in-list tasks)])
+       (db-add-task!
+        db
+        (struct-copy task-item task
+                     [id 0]
+                     [list-id (hash-ref id-map (task-item-list-id task))]))))))
 
 (define list-select
   "SELECT l.id, l.name, l.icon, l.color, (SELECT COUNT(*) FROM tasks t WHERE t.list_id = l.id AND t.completed = 0) AS pending_count FROM lists l")

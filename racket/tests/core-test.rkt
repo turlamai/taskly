@@ -241,6 +241,82 @@
      (check-not-false
       (service-reminder-decisions!
        reopened #t #:now-date "2026-09-20" #:now-time "00:03"))
-     (close-taskly-service reopened)))
+     (close-taskly-service reopened)
+
+     ;; ---- database lifecycle primitives (PRODUCT-SPEC §2a) ----------------
+
+     ;; Exclusive create refuses an existing target before writing anything.
+     (define lifecycle-dir (build-path temp-root "lifecycle"))
+     (define lifecycle-path (build-path lifecycle-dir "taskly.sqlite"))
+     (define lifecycle-db (create-taskly-db lifecycle-path))
+     (check-true (file-exists? lifecycle-path))
+     (check-exn exn:fail:taskly?
+                (lambda () (create-taskly-db lifecycle-path)))
+     (check-exn
+      exn:fail:taskly?
+      (lambda ()
+        (validate-database-name! "bad/name"))
+      "invalid filename characters are rejected")
+
+     ;; The identity probe accepts Taskly databases and refuses everything
+     ;; else — relocate must never adopt a foreign file.
+     (check-true (taskly-database-file? lifecycle-path))
+     (check-false (taskly-database-file? (build-path temp-root "absent.db")))
+     (define foreign-path (build-path temp-root "foreign.db"))
+     (call-with-output-file foreign-path (lambda (out) (displayln "not sqlite" out)))
+     (check-false (taskly-database-file? foreign-path))
+
+     ;; Copy-migrate is all-or-nothing: success switches the file with every
+     ;; row preserved; failure leaves source and target untouched.
+     (for ([i (in-range 3)])
+       (db-add-task! lifecycle-db
+                     (task-item 0 (todo-list-id (car (db-lists lifecycle-db)))
+                                (format "task ~a" i) #f #f #f
+                                (local-timestamp) #f #f 0 (list) (list) #f)))
+     (define migrate-dir (build-path temp-root "lifecycle-moved"))
+     (migrate-database-file! lifecycle-db
+                             (build-path migrate-dir "taskly.sqlite"))
+     (check-true (file-exists? (build-path migrate-dir "taskly.sqlite")))
+     (check-true (file-exists? lifecycle-path) "the source file stays in place")
+     (check-equal? (db-count-incomplete lifecycle-db) 3)
+     (check-exn exn:fail:taskly?
+                (lambda ()
+                  (migrate-database-file! lifecycle-db
+                                          (build-path migrate-dir "taskly.sqlite")))
+                "an occupied target is rejected")
+     (define unwritable-target
+       (build-path (build-path migrate-dir "taskly.sqlite" "not-a-dir") "x.db"))
+     (check-exn exn:fail:taskly?
+                (lambda ()
+                  (migrate-database-file! lifecycle-db unwritable-target))
+                "a failing copy leaves the source untouched")
+     (check-false (file-exists? unwritable-target))
+
+     ;; Backup restore replaces lists + tasks in one transaction and re-maps
+     ;; list references (DATA-FORMAT §9).
+     (define source-lists (db-lists lifecycle-db))
+     (db-restore-backup!
+      lifecycle-db
+      (list (list "Restored" "⭐" -16745729) (list "Second" #f #f))
+      (list (task-item 0 0 "restored one" "2026-09-20" #f #f
+                       (local-timestamp) "notes" #f 2 (list "tag") (list) #f)
+            (task-item 0 1 "restored two" #f #f #t
+                       (local-timestamp) #f #f 0 (list)
+                       (list (subtask "step" #f)) #f)))
+     (define restored-lists (db-lists lifecycle-db))
+     (check-equal? (length restored-lists) 2)
+     (check-equal? (todo-list-name (car restored-lists)) "Restored")
+     (check-equal? (db-count-incomplete lifecycle-db) 1)
+     (check-equal? (db-count-completed lifecycle-db) 1)
+     (define restored-two
+       (for/or ([t (in-list (db-tasks lifecycle-db #:show-completed #t))])
+         (and (string=? (task-item-text t) "restored two") t)))
+     (check-not-false restored-two)
+     (check-equal?
+      (todo-list-name
+       (db-list-by-id lifecycle-db (task-item-list-id restored-two)))
+      "Second"
+      "task list references are re-mapped to the reassigned ids")
+     (close-taskly-db lifecycle-db)))
  (lambda ()
    (delete-directory/files temp-root)))

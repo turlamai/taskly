@@ -45,11 +45,11 @@
 (check-equal?
  (sort (map (lambda (rpc) (hash-ref rpc 'name)) (rpc-schema)) string<?)
  (sort (map symbol->string
-            '(acknowledge_reminder add_task check_updates close_database create_list
-              default_database delete_list delete_task get_setting
-              get_settings load_snapshot open_database parse_due
-              parse_quick_add reminder_decisions search_tasks set_completed set_setting
-              start_download update_list update_state update_task
+            '(acknowledge_reminder add_task check_updates close_database create_database
+              create_list default_database delete_list delete_task export_backup get_setting
+              get_settings load_snapshot migrate_database open_database parse_due
+              parse_quick_add preview_backup reminder_decisions restore_backup search_tasks
+              set_completed set_setting start_download update_list update_state update_task
               update_task_text))
        string<?)
  "the registered RPC surface drifted; extend this wire test to cover it")
@@ -148,8 +148,17 @@
 
    ;; ---- open + the data plane -------------------------------------------
 
-   (define db-path (path->string (build-path root "wire.db")))
-   (define-values (snap0 _open-err) (call-rpc 'open_database db-path))
+   ;; §2a: opening refuses a missing file instead of silently creating a
+   ;; replacement — the startup gate's recovery flow depends on it.
+   (define-values (_absent _ab-err) (call-rpc 'open_database "never-created.db"))
+   (check-true (and (string? _ab-err)
+                    (string-contains? _ab-err "database file not found"))
+               "a missing file is refused, not created")
+   ;; The gate's create flow: exclusive create at <folder>/taskly.sqlite,
+   ;; recorded with the entered display name.
+   (define db-path (path->string (build-path root "taskly.sqlite")))
+   (define-values (snap0 create-err) (call-rpc 'create_database (path->string root) "Wire Home"))
+   (check-false create-err)
    ;; Snapshot wire shape: [counts lists tasks], counts [today planned all
    ;; completed] (all counts incomplete tasks), lists [id name icon color
    ;; pending-count], tasks [id list-id list-name text completed due-date
@@ -159,6 +168,9 @@
    (check-equal? (list-ref snap0 1)
                  (list (list 1 "工作" "📋" -16745729 0)))
    (check-equal? (list-ref snap0 2) '())
+   ;; A second create over the same target is rejected before writing.
+   (define-values (_dup _dup-err) (call-rpc 'create_database (path->string root) "Again"))
+   (check-true (and (string? _dup-err) (string-contains? _dup-err "already exists")))
 
    (define-values (task-a-wire _add-a-err)
      (call-rpc 'add_task "write wire test" (void) (void) (void) (void)))
@@ -322,10 +334,13 @@
 
    (define-values (settings0 _gs-err) (call-rpc 'get_settings))
    ;; Settings wire shape: [language theme close-to-tray
-   ;; last-selected-list-id database-path]; fresh config defaults.
-   (check-equal? (length settings0) 5)
+   ;; last-selected-list-id database-path database-name default-list-id];
+   ;; fresh config defaults (create_database recorded "Wire Home").
+   (check-equal? (length settings0) 7)
    (check-equal? (take settings0 4) (list "zh" "system" "1" 0))
    (check-true (string-prefix? (list-ref settings0 4) (path->string root)))
+   (check-equal? (list-ref settings0 5) "Wire Home")
+   (check-equal? (list-ref settings0 6) 0)
 
    (define-values (settings-dark _ss1-err)
      (call-rpc 'set_setting "theme" "dark"))
@@ -338,13 +353,23 @@
    (check-true (and (string? unknown-key-err)
                     (string-contains? unknown-key-err "unknown setting")))
 
-   ;; Integer-as-string throttle key round-trips through the raw config.
+   ;; Integer-as-string keys round-trip through the raw config: the update
+   ;; throttle and the 新任务 default list (PRODUCT-SPEC §2a).
    (define-values (_ss2 _th-err)
      (call-rpc 'set_setting "last-update-check" "1728460800"))
    (check-false _th-err)
    (define-values (throttle _gt-err)
      (call-rpc 'get_setting "last-update-check"))
    (check-equal? throttle "1728460800")
+   (define-values (_dflt _dflt-err) (call-rpc 'set_setting "default-list-id" "2"))
+   (check-false _dflt-err)
+   (check-equal? (list-ref settings-dark 6) 0)
+   (define-values (settings-list _dl2-err) (call-rpc 'set_setting "default-list-id" "1"))
+   (check-equal? (list-ref settings-list 6) 1)
+   (define-values (_free _fq-err) (call-rpc 'set_setting "global-quick-add" "ctrl+alt+space"))
+   (check-false _fq-err)
+   (define-values (accel _gq-err) (call-rpc 'get_setting "global-quick-add"))
+   (check-equal? accel "ctrl+alt+space")
    (define-values (unset _gu-err) (call-rpc 'get_setting "never-set"))
    (check-equal? unset "" "unset keys read as the empty string")
 
@@ -374,6 +399,57 @@
    (check-true (void? dl-void))
    (define-values (state1 _us2-err) (call-rpc 'update_state))
    (check-true (string-contains? (list-ref state1 2) "no update"))
+
+   ;; ---- database lifecycle: migrate + backup JSON (PRODUCT-SPEC §2a) ------
+
+   ;; Wire shape reminders at this point: tasks 1 (open) + 2 (completed) +
+   ;; 4 (overdue reminder), one list (工作).
+   (define migrate-dir (build-path root "migrated"))
+   (define-values (mig-snap _mig-err)
+     (call-rpc 'migrate_database (path->string migrate-dir)))
+   (check-false _mig-err)
+   ;; The snapshot's default view carries the open tasks only (task 2 is
+   ;; completed); the copy verification inside the RPC checks total counts.
+   (check-equal? (length (list-ref mig-snap 2)) 2)
+   (check-true (file-exists? (build-path migrate-dir "taskly.sqlite")))
+   (check-true (file-exists? (build-path root "taskly.sqlite"))
+               "the source file stays in place")
+   (define-values (mig-settings _ms-err) (call-rpc 'get_settings))
+   (check-true (string-prefix? (list-ref mig-settings 4)
+                               (path->string migrate-dir))
+               "the new location is recorded")
+   ;; Occupied target and same-location targets are rejected before writing.
+   (define-values (_mig-occupied occupied-err)
+     (call-rpc 'migrate_database (path->string root)))
+   (check-true (and (string? occupied-err)
+                    (string-contains? occupied-err "target already exists")))
+   (define-values (_mig-same same-err)
+     (call-rpc 'migrate_database (path->string migrate-dir)))
+   (check-true (and (string? same-err)
+                    (string-contains? same-err "target equals the current location")))
+
+   ;; Backup export → preview → restore round trip over the wire.
+   (define backup-path (path->string (build-path root "backup.json")))
+   (define-values (exported _ex-err) (call-rpc 'export_backup backup-path))
+   (check-false _ex-err)
+   (check-equal? exported 3)
+   (define-values (preview _pv-err) (call-rpc 'preview_backup backup-path))
+   (check-false _pv-err)
+   ;; BackupPreview wire shape: [format version list-count task-count].
+   (check-equal? preview (list "taskly-backup" 1 1 3))
+   ;; Restore replaces the open database: wipe the tasks, restore, verify.
+   (for ([id (in-list (list 1 2 4))])
+     (call-rpc 'delete_task id))
+   (define-values (restored _rs-err) (call-rpc 'restore_backup backup-path))
+   (check-false _rs-err)
+   (check-equal? (length (list-ref restored 2)) 2
+                 "restore brings every open exported task back (view default)")
+   (define-values (restored-preview _rp-err) (call-rpc 'preview_backup backup-path))
+   (check-equal? restored-preview (list "taskly-backup" 1 1 3))
+   (define-values (_bad-preview bad-preview-err)
+     (call-rpc 'preview_backup (path->string (build-path root "never.db"))))
+   (check-true (and (string? bad-preview-err)
+                    (string-contains? bad-preview-err "backup file not found")))
 
    ;; ---- close + dispatch-level errors --------------------------------------
 

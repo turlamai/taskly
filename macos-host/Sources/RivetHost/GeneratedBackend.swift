@@ -14,6 +14,19 @@ public enum RivetGeneratedConfig {
 }
 
 public enum RivetTypes {
+    public struct BackupPreview: Sendable {
+        public let format: String
+        public let version: Int64
+        public let list_count: Int64
+        public let task_count: Int64
+        public init(format: String, version: Int64, list_count: Int64, task_count: Int64) {
+            self.format = format
+            self.version = version
+            self.list_count = list_count
+            self.task_count = task_count
+        }
+    }
+
     public struct QuickAddParse: Sendable {
         public let text: String
         public let due_date: String?
@@ -84,12 +97,16 @@ public enum RivetTypes {
         public let close_to_tray: String
         public let last_selected_list_id: Int64
         public let database_path: String
-        public init(language: String, theme: String, close_to_tray: String, last_selected_list_id: Int64, database_path: String) {
+        public let database_name: String
+        public let default_list_id: Int64
+        public init(language: String, theme: String, close_to_tray: String, last_selected_list_id: Int64, database_path: String, database_name: String, default_list_id: Int64) {
             self.language = language
             self.theme = theme
             self.close_to_tray = close_to_tray
             self.last_selected_list_id = last_selected_list_id
             self.database_path = database_path
+            self.database_name = database_name
+            self.default_list_id = default_list_id
         }
     }
 
@@ -181,13 +198,14 @@ private func encode__List_Subtask_(_ v: [RivetTypes.Subtask]) -> RivetValue { .l
 private func encode_Task(_ v: RivetTypes.Task) -> RivetValue { .list([encode_Int64(v.id), encode_Int64(v.list_id), encode__Optional_String_(v.list_name), encode_String(v.text), encode_Bool(v.completed), encode__Optional_String_(v.due_date), encode__Optional_String_(v.due_time), encode__Optional_String_(v.notes), encode_String(v.created_at), encode_Int64(v.priority), encode__List_String_(v.tags), encode__List_Subtask_(v.subtasks), encode__Optional_String_(v.url)]) }
 private func encode_UpdateCheck(_ v: RivetTypes.UpdateCheck) -> RivetValue { .list([encode_String(v.status), encode__Optional_String_(v.error), encode_String(v.current_version), encode__Optional_String_(v.available_version), encode__Optional_Int64_(v.build), encode__Optional_String_(v.published_at), encode__Optional_String_(v.installer), encode__Optional_Int64_(v.size_bytes)]) }
 private func encode_Void(_ v: Void) -> RivetValue { .null }
-private func encode_TodoList(_ v: RivetTypes.TodoList) -> RivetValue { .list([encode_Int64(v.id), encode_String(v.name), encode__Optional_String_(v.icon), encode__Optional_Int64_(v.color), encode_Int64(v.pending_count)]) }
-private func encode_Settings(_ v: RivetTypes.Settings) -> RivetValue { .list([encode_String(v.language), encode_String(v.theme), encode_String(v.close_to_tray), encode_Int64(v.last_selected_list_id), encode_String(v.database_path)]) }
 private func encode_SmartCounts(_ v: RivetTypes.SmartCounts) -> RivetValue { .list([encode_Int64(v.today), encode_Int64(v.planned), encode_Int64(v.all), encode_Int64(v.completed)]) }
+private func encode_TodoList(_ v: RivetTypes.TodoList) -> RivetValue { .list([encode_Int64(v.id), encode_String(v.name), encode__Optional_String_(v.icon), encode__Optional_Int64_(v.color), encode_Int64(v.pending_count)]) }
 private func encode__List_TodoList_(_ v: [RivetTypes.TodoList]) -> RivetValue { .list(v.map(encode_TodoList)) }
 private func encode__List_Task_(_ v: [RivetTypes.Task]) -> RivetValue { .list(v.map(encode_Task)) }
 private func encode_Snapshot(_ v: RivetTypes.Snapshot) -> RivetValue { .list([encode_SmartCounts(v.counts), encode__List_TodoList_(v.lists), encode__List_Task_(v.tasks)]) }
+private func encode_Settings(_ v: RivetTypes.Settings) -> RivetValue { .list([encode_String(v.language), encode_String(v.theme), encode_String(v.close_to_tray), encode_Int64(v.last_selected_list_id), encode_String(v.database_path), encode_String(v.database_name), encode_Int64(v.default_list_id)]) }
 private func encode_QuickAddParse(_ v: RivetTypes.QuickAddParse) -> RivetValue { .list([encode_String(v.text), encode__Optional_String_(v.due_date), encode__Optional_String_(v.due_time)]) }
+private func encode_BackupPreview(_ v: RivetTypes.BackupPreview) -> RivetValue { .list([encode_String(v.format), encode_Int64(v.version), encode_Int64(v.list_count), encode_Int64(v.task_count)]) }
 private func encode__Optional_Task_(_ v: RivetTypes.Task?) -> RivetValue { v.map(encode_Task) ?? .null }
 private func encode_ReminderDecision(_ v: RivetTypes.ReminderDecision) -> RivetValue { .list([encode_String(v.token), encode_String(v.kind), encode_Int64(v.count), encode__Optional_Task_(v.task)]) }
 private func encode__List_ReminderDecision_(_ v: [RivetTypes.ReminderDecision]) -> RivetValue { .list(v.map(encode_ReminderDecision)) }
@@ -205,13 +223,14 @@ private func decode__List_Subtask_(_ v: RivetValue) throws -> [RivetTypes.Subtas
 private func decode_Task(_ v: RivetValue) throws -> RivetTypes.Task { guard case .list(let xs) = v, xs.count == 13 else { throw RivetGeneratedError.typeMismatch("Task") }; return RivetTypes.Task(id: try decode_Int64(xs[0]), list_id: try decode_Int64(xs[1]), list_name: try decode__Optional_String_(xs[2]), text: try decode_String(xs[3]), completed: try decode_Bool(xs[4]), due_date: try decode__Optional_String_(xs[5]), due_time: try decode__Optional_String_(xs[6]), notes: try decode__Optional_String_(xs[7]), created_at: try decode_String(xs[8]), priority: try decode_Int64(xs[9]), tags: try decode__List_String_(xs[10]), subtasks: try decode__List_Subtask_(xs[11]), url: try decode__Optional_String_(xs[12])) }
 private func decode_UpdateCheck(_ v: RivetValue) throws -> RivetTypes.UpdateCheck { guard case .list(let xs) = v, xs.count == 8 else { throw RivetGeneratedError.typeMismatch("UpdateCheck") }; return RivetTypes.UpdateCheck(status: try decode_String(xs[0]), error: try decode__Optional_String_(xs[1]), current_version: try decode_String(xs[2]), available_version: try decode__Optional_String_(xs[3]), build: try decode__Optional_Int64_(xs[4]), published_at: try decode__Optional_String_(xs[5]), installer: try decode__Optional_String_(xs[6]), size_bytes: try decode__Optional_Int64_(xs[7])) }
 private func decode_Void(_ v: RivetValue) throws -> Void { guard case .null = v else { throw RivetGeneratedError.typeMismatch("Void") } }
-private func decode_TodoList(_ v: RivetValue) throws -> RivetTypes.TodoList { guard case .list(let xs) = v, xs.count == 5 else { throw RivetGeneratedError.typeMismatch("TodoList") }; return RivetTypes.TodoList(id: try decode_Int64(xs[0]), name: try decode_String(xs[1]), icon: try decode__Optional_String_(xs[2]), color: try decode__Optional_Int64_(xs[3]), pending_count: try decode_Int64(xs[4])) }
-private func decode_Settings(_ v: RivetValue) throws -> RivetTypes.Settings { guard case .list(let xs) = v, xs.count == 5 else { throw RivetGeneratedError.typeMismatch("Settings") }; return RivetTypes.Settings(language: try decode_String(xs[0]), theme: try decode_String(xs[1]), close_to_tray: try decode_String(xs[2]), last_selected_list_id: try decode_Int64(xs[3]), database_path: try decode_String(xs[4])) }
 private func decode_SmartCounts(_ v: RivetValue) throws -> RivetTypes.SmartCounts { guard case .list(let xs) = v, xs.count == 4 else { throw RivetGeneratedError.typeMismatch("SmartCounts") }; return RivetTypes.SmartCounts(today: try decode_Int64(xs[0]), planned: try decode_Int64(xs[1]), all: try decode_Int64(xs[2]), completed: try decode_Int64(xs[3])) }
+private func decode_TodoList(_ v: RivetValue) throws -> RivetTypes.TodoList { guard case .list(let xs) = v, xs.count == 5 else { throw RivetGeneratedError.typeMismatch("TodoList") }; return RivetTypes.TodoList(id: try decode_Int64(xs[0]), name: try decode_String(xs[1]), icon: try decode__Optional_String_(xs[2]), color: try decode__Optional_Int64_(xs[3]), pending_count: try decode_Int64(xs[4])) }
 private func decode__List_TodoList_(_ v: RivetValue) throws -> [RivetTypes.TodoList] { guard case .list(let xs) = v else { throw RivetGeneratedError.typeMismatch("(List TodoList)") }; return try xs.map(decode_TodoList) }
 private func decode__List_Task_(_ v: RivetValue) throws -> [RivetTypes.Task] { guard case .list(let xs) = v else { throw RivetGeneratedError.typeMismatch("(List Task)") }; return try xs.map(decode_Task) }
 private func decode_Snapshot(_ v: RivetValue) throws -> RivetTypes.Snapshot { guard case .list(let xs) = v, xs.count == 3 else { throw RivetGeneratedError.typeMismatch("Snapshot") }; return RivetTypes.Snapshot(counts: try decode_SmartCounts(xs[0]), lists: try decode__List_TodoList_(xs[1]), tasks: try decode__List_Task_(xs[2])) }
+private func decode_Settings(_ v: RivetValue) throws -> RivetTypes.Settings { guard case .list(let xs) = v, xs.count == 7 else { throw RivetGeneratedError.typeMismatch("Settings") }; return RivetTypes.Settings(language: try decode_String(xs[0]), theme: try decode_String(xs[1]), close_to_tray: try decode_String(xs[2]), last_selected_list_id: try decode_Int64(xs[3]), database_path: try decode_String(xs[4]), database_name: try decode_String(xs[5]), default_list_id: try decode_Int64(xs[6])) }
 private func decode_QuickAddParse(_ v: RivetValue) throws -> RivetTypes.QuickAddParse { guard case .list(let xs) = v, xs.count == 3 else { throw RivetGeneratedError.typeMismatch("QuickAddParse") }; return RivetTypes.QuickAddParse(text: try decode_String(xs[0]), due_date: try decode__Optional_String_(xs[1]), due_time: try decode__Optional_String_(xs[2])) }
+private func decode_BackupPreview(_ v: RivetValue) throws -> RivetTypes.BackupPreview { guard case .list(let xs) = v, xs.count == 4 else { throw RivetGeneratedError.typeMismatch("BackupPreview") }; return RivetTypes.BackupPreview(format: try decode_String(xs[0]), version: try decode_Int64(xs[1]), list_count: try decode_Int64(xs[2]), task_count: try decode_Int64(xs[3])) }
 private func decode__Optional_Task_(_ v: RivetValue) throws -> RivetTypes.Task? { if case .null = v { return nil }; return try decode_Task(v) }
 private func decode_ReminderDecision(_ v: RivetValue) throws -> RivetTypes.ReminderDecision { guard case .list(let xs) = v, xs.count == 4 else { throw RivetGeneratedError.typeMismatch("ReminderDecision") }; return RivetTypes.ReminderDecision(token: try decode_String(xs[0]), kind: try decode_String(xs[1]), count: try decode_Int64(xs[2]), task: try decode__Optional_Task_(xs[3])) }
 private func decode__List_ReminderDecision_(_ v: RivetValue) throws -> [RivetTypes.ReminderDecision] { guard case .list(let xs) = v else { throw RivetGeneratedError.typeMismatch("(List ReminderDecision)") }; return try xs.map(decode_ReminderDecision) }
@@ -279,6 +298,10 @@ public struct RivetAPI: Sendable {
         let rivetResult = try await client.call("close_database", arguments: [])
         return try decode_Void(rivetResult)
     }
+    public func create_database(folder: String, name: String) async throws -> RivetTypes.Snapshot {
+        let rivetResult = try await client.call("create_database", arguments: [encode_String(folder), encode_String(name)])
+        return try decode_Snapshot(rivetResult)
+    }
     public func create_list(name: String, icon: String?, color: Int64?) async throws -> RivetTypes.TodoList {
         let rivetResult = try await client.call("create_list", arguments: [encode_String(name), encode__Optional_String_(icon), encode__Optional_Int64_(color)])
         return try decode_TodoList(rivetResult)
@@ -295,6 +318,10 @@ public struct RivetAPI: Sendable {
         let rivetResult = try await client.call("delete_task", arguments: [encode_Int64(id)])
         return try decode_Bool(rivetResult)
     }
+    public func export_backup(path: String) async throws -> Int64 {
+        let rivetResult = try await client.call("export_backup", arguments: [encode_String(path)])
+        return try decode_Int64(rivetResult)
+    }
     public func get_setting(key: String) async throws -> String {
         let rivetResult = try await client.call("get_setting", arguments: [encode_String(key)])
         return try decode_String(rivetResult)
@@ -305,6 +332,10 @@ public struct RivetAPI: Sendable {
     }
     public func load_snapshot(view: String, list_id: Int64?, show_completed: Bool) async throws -> RivetTypes.Snapshot {
         let rivetResult = try await client.call("load_snapshot", arguments: [encode_String(view), encode__Optional_Int64_(list_id), encode_Bool(show_completed)])
+        return try decode_Snapshot(rivetResult)
+    }
+    public func migrate_database(folder: String) async throws -> RivetTypes.Snapshot {
+        let rivetResult = try await client.call("migrate_database", arguments: [encode_String(folder)])
         return try decode_Snapshot(rivetResult)
     }
     public func open_database(path: String) async throws -> RivetTypes.Snapshot {
@@ -319,9 +350,17 @@ public struct RivetAPI: Sendable {
         let rivetResult = try await client.call("parse_quick_add", arguments: [encode_String(text)])
         return try decode_QuickAddParse(rivetResult)
     }
+    public func preview_backup(path: String) async throws -> RivetTypes.BackupPreview {
+        let rivetResult = try await client.call("preview_backup", arguments: [encode_String(path)])
+        return try decode_BackupPreview(rivetResult)
+    }
     public func reminder_decisions(startup: Bool) async throws -> [RivetTypes.ReminderDecision] {
         let rivetResult = try await client.call("reminder_decisions", arguments: [encode_Bool(startup)])
         return try decode__List_ReminderDecision_(rivetResult)
+    }
+    public func restore_backup(path: String) async throws -> RivetTypes.Snapshot {
+        let rivetResult = try await client.call("restore_backup", arguments: [encode_String(path)])
+        return try decode_Snapshot(rivetResult)
     }
     public func search_tasks(keyword: String) async throws -> [RivetTypes.Task] {
         let rivetResult = try await client.call("search_tasks", arguments: [encode_String(keyword)])
