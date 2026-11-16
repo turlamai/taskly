@@ -2404,11 +2404,16 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   // container is the content, and the layer opens on load when the stored
   // field already holds a value.
   auto make_disclosure = [&](std::wstring const& caption,
-                             mxc::StackPanel const& content, bool expanded) {
+                             mxc::StackPanel const& content, bool expanded,
+                             wchar_t const* disclosure_id) {
     auto expander = mxc::Expander{};
     expander.Header(winrt::box_value(caption));
     expander.Content(content);
     expander.IsExpanded(expanded);
+    winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::
+        SetAutomationId(
+            expander, std::wstring(L"detail-disclosure-") + disclosure_id +
+                          L"-" + std::to_wstring(id));
     fields.Children().Append(expander);
   };
   // Disclosure content container (control + field-anchored error slot).
@@ -2440,7 +2445,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   detail_time_box_.Children().Append(time_box);
   make_disclosure(t("fieldTime"), detail_time_box_,
                   stored->due_time.has_value() &&
-                      !stored->due_time->empty());
+                      !stored->due_time->empty(),
+                  L"time");
 
   // Priority (无 / 低 / 中 / 高).
   detail_priority_box_ = make_content_field();
@@ -2461,7 +2467,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   detail_priority_ = priority;
   detail_priority_box_.Children().Append(priority);
   make_disclosure(t("fieldPriority"), detail_priority_box_,
-                  stored->priority > 0);
+                  stored->priority > 0,
+                  L"priority");
 
   // Tags.
   detail_tags_box_ = make_content_field();
@@ -2499,7 +2506,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   });
   detail_tag_add_ = tag_add;
   detail_tags_box_.Children().Append(tag_add);
-  make_disclosure(t("fieldTags"), detail_tags_box_, !stored->tags.empty());
+  make_disclosure(t("fieldTags"), detail_tags_box_, !stored->tags.empty(),
+                  L"tags");
 
   // Subtasks.
   detail_subtasks_box_ = make_content_field();
@@ -2531,7 +2539,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   detail_subtask_add_ = subtask_add;
   detail_subtasks_box_.Children().Append(subtask_add);
   make_disclosure(t("fieldSubtasks"), detail_subtasks_box_,
-                  !stored->subtasks.empty());
+                  !stored->subtasks.empty(),
+                  L"subtasks");
 
   // URL.
   detail_url_box_ = make_content_field();
@@ -2550,7 +2559,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   detail_url_ = url;
   detail_url_box_.Children().Append(url);
   make_disclosure(t("fieldUrl"), detail_url_box_,
-                  stored->url.has_value() && !stored->url->empty());
+                  stored->url.has_value() && !stored->url->empty(),
+                  L"url");
 
   scroll.Content(fields);
   root.Children().Append(scroll);

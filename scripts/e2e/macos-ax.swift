@@ -106,7 +106,11 @@ func writeJSON(_ value: Any, to url: URL) throws {
 func press(_ element: AXUIElement, _ description: String) throws {
     let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
     guard result == .success else {
-        throw DriverError.failure("AXPress failed for \(description): \(result.rawValue)")
+        // Some custom-styled SwiftUI buttons (inside sheets) do not expose
+        // the press action (-25204 ActionUnsupported). Fall back to a real
+        // click at the element's center.
+        try postClick(element, description, button: .left,
+                      downType: .leftMouseDown, upType: .leftMouseUp)
     }
 }
 
