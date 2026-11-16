@@ -138,6 +138,33 @@ def find_editable_named(root, expected_name):
     return None
 
 
+def expand_disclosure(root, expected_name):
+    """§5b detail disclosures collapse optional fields behind a summary
+    expander (open on load only when the field holds a value). GTK4
+    exposes the expander as role "button" with an "activate" action and
+    the AT-SPI EXPANDED state — expand when that state is absent; a
+    directly visible field is a no-op."""
+    import pyatspi
+
+    for node in walk(root):
+        if name(node) != expected_name:
+            continue
+        try:
+            if node.queryState().contains(pyatspi.STATE_EXPANDED):
+                return True
+        except Exception:
+            pass
+        try:
+            action = node.queryAction()
+        except Exception:
+            continue
+        for index in range(action.nActions):
+            if action.getName(index) == "activate":
+                action.doAction(index)
+                return True
+    return False
+
+
 def find_editable_value(root, expected_value):
     for node in walk(root):
         try:
@@ -772,6 +799,7 @@ def main():
     # an accessible label. Reopen the layer, autosave a URL through it, and
     # verify the persisted value by reading the layer again after closing.
     window = open_detail_layer(window, "Autosaved detail A")
+    expand_disclosure(window, "URL")
     url_field = wait_for(
         "detail layer URL field",
         lambda: find_editable_named(window, "URL"),
@@ -789,6 +817,7 @@ def main():
         lambda: find_editable_named(window, "URL") is None,
     )
     window = open_detail_layer(window, "Autosaved detail A")
+    expand_disclosure(window, "URL")
     url_field = wait_for(
         "detail layer URL field after reopen",
         lambda: find_editable_named(window, "URL"),

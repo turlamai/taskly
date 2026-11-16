@@ -4,7 +4,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 output="$repo/.rivet/acceptance/linux"
 install_record="$output/installed-app.json"
-if [[ -f "$install_record" ]]; then
+if [[ -f "$install_record" && -x /opt/taskly/RivetHost ]] && dpkg -s taskly >/dev/null 2>&1; then
   executable=/opt/taskly/RivetHost
   installed_package=taskly
 elif [[ -x /opt/taskly/RivetHost ]] && dpkg -s taskly >/dev/null 2>&1; then
@@ -22,18 +22,30 @@ mkdir -p "$output" "$home/.taskly" "$first_home/.taskly"
 [[ -n "$executable" && -x "$executable" ]]
 
 epoch="$(date +%s)"
+# §2a: profiles record an existing database so the interaction flow starts
+# connected; the welcome gate is product behavior covered by CI acceptance
+# against a fresh profile (no last-db-path → gate).
 cat >"$home/.taskly/config.ini" <<EOF
 # Taskly acceptance profile
 language = en
 close-to-tray = 0
 last-selected-list-id = 0
 last-update-check = $epoch
+last-db-path = $home/.taskly/tasks.db
 EOF
-cp "$home/.taskly/config.ini" "$first_home/.taskly/config.ini"
+cat >"$first_home/.taskly/config.ini" <<EOF
+# Taskly first-run acceptance profile
+language = en
+close-to-tray = 0
+last-selected-list-id = 0
+last-update-check = $epoch
+last-db-path = $first_home/.taskly/tasks.db
+EOF
 
 # Seed IDs beyond the 32-bit boundary so the GTK acceptance flow exercises
 # the exact row-data conversions used by list selection and batch actions.
-/usr/bin/python3 - "$home/.taskly/tasks.db" <<'PY'
+seed_database() {
+/usr/bin/python3 - "$1" <<'PY'
 import sqlite3
 import sys
 
@@ -80,6 +92,53 @@ database.executescript(
 database.commit()
 database.close()
 PY
+}
+seed_database "$home/.taskly/tasks.db"
+# The first-run profile needs an empty but recorded v5 database (the
+# first-run assertions exercise the empty-state → first-task journey):
+# same schema as the fixture, no rows, only the default list.
+/usr/bin/python3 - "$first_home/.taskly/tasks.db" <<'PY'
+import sqlite3
+import sys
+
+database = sqlite3.connect(sys.argv[1])
+database.executescript(
+    """
+    PRAGMA journal_mode = WAL;
+    PRAGMA user_version = 5;
+    CREATE TABLE lists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        icon TEXT,
+        color INTEGER,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        list_id INTEGER,
+        text TEXT NOT NULL,
+        due_date TEXT,
+        due_time TEXT,
+        completed INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        notes TEXT,
+        priority INTEGER DEFAULT 0,
+        tags TEXT,
+        subtasks TEXT,
+        url TEXT,
+        FOREIGN KEY (list_id) REFERENCES lists (id)
+    );
+    CREATE INDEX idx_tasks_list_id ON tasks(list_id);
+    CREATE INDEX idx_tasks_completed ON tasks(completed);
+    CREATE INDEX idx_tasks_due_date ON tasks(due_date);
+    INSERT INTO lists (name, icon, color, created_at) VALUES
+      ('工作', '📋', -16745729, '2026-11-16T00:00:00Z');
+    """
+)
+database.commit()
+database.close()
+PY
+[[ -f "$first_home/.taskly/tasks.db" ]]
 
 export HOME="$home"
 export XDG_RUNTIME_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/taskly-acceptance-runtime-$$"
