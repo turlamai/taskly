@@ -6,11 +6,13 @@
 #include "GeneratedBackend.hpp"
 
 #include <algorithm>
+#include <ctime>
 #include <fstream>
 #include <functional>
 #include <iterator>
 #include <map>
 #include <set>
+#include <shellapi.h>
 #include <shobjidl_core.h>
 #include <stdexcept>
 
@@ -271,6 +273,13 @@ std::wstring replace_all(std::wstring text, std::wstring const& from,
   return text;
 }
 
+// Two-positional-argument variant of tf() for the §2a copy that carries
+// two placeholders (migrate confirm text, restore preview body).
+std::wstring tf2(char const* key, std::wstring const& arg0,
+                 std::wstring const& arg1) {
+  return replace_all(replace_all(t(key), L"{0}", arg0), L"{1}", arg1);
+}
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -373,10 +382,156 @@ constexpr I18nEntry kI18nFallback[] = {
      "releases page."},
     {"updateOpenReleases", "打开发布页", "Open releases page"},
     {"aboutLicense", "以 GNU AGPL-3.0 授权发布",
-     "Released under the GNU AGPL-3.0"},
+     "Released under GNU AGPL-3.0"},
     {"aboutWebsite", "访问官网", "Website"},
     {"aboutReportIssue", "问题反馈", "Report an Issue"},
     {"updateCopyError", "复制错误信息", "Copy error"},
+    // §2a database lifecycle + settings 新任务/数据 groups (values mirror
+    // shared/i18n/{zh,en}.json byte for byte).
+    {"dbApplyCreate", "创建并打开", "Create and Open"},
+    {"dbApplyMigrate", "继续", "Continue"},
+    {"dbApplyOpen", "打开", "Open"},
+    {"dbChooseBackup", "选择备份文件", "Choose Backup File"},
+    {"dbChooseFolder", "选择文件夹", "Choose Folder"},
+    {"dbConfirmMigrate", "确认迁移", "Confirm Migration"},
+    {"dbCreateBtn", "创建…", "Create…"},
+    {"dbCreateDesc",
+     "选择存储位置，Taskly 会在该文件夹内创建 taskly.sqlite，成功后进入空白任务列表。",
+     "Choose a location — Taskly creates taskly.sqlite inside it and opens an "
+     "empty task list."},
+    {"dbCreateTitle", "创建数据库", "Create Database"},
+    {"dbCreated", "已创建数据库：{0}", "Database created: {0}"},
+    {"dbCurrentLabel", "当前数据库", "Current Database"},
+    {"dbCurrentNone", "尚未打开数据库", "No database open"},
+    {"dbDataNote", "数据库由你持有，不绑定账号或云服务。",
+     "You own the database — no account, no cloud service."},
+    {"dbErrBadExtension", "请选择以 .sqlite、.sqlite3 或 .db 结尾的数据库文件。",
+     "Choose a file ending in .sqlite, .sqlite3 or .db."},
+    {"dbErrBadName", "请填写名称，且不要包含 / \\ : * ? \" < > |。",
+     "Enter a name without / \\ : * ? \" < > |."},
+    {"dbErrCreateFailed", "无法创建数据库：{0}。未创建任何文件。",
+     "Could not create the database: {0}. Nothing was written."},
+    {"dbErrExists",
+     "这个位置已有数据库。请更换位置，或取消后选择“打开已有数据库”。不会覆盖原有内容。",
+     "A database already exists there. Pick another location, or cancel and "
+     "use Open Existing Database — existing content is never overwritten."},
+    {"dbErrMigrateFailed", "迁移未完成：{0}。原位置和任务保持不变，可以重试。",
+     "Migration did not finish: {0}. The original location and tasks are "
+     "unchanged; you can retry."},
+    {"dbErrNoPath", "请选择一个位置。当前数据库保持不变。",
+     "Choose a location first. The current database stays unchanged."},
+    {"dbErrNotTaskly", "该文件不是 Taskly 数据库。",
+     "That file is not a Taskly database."},
+    {"dbErrOpenFailed", "无法打开数据库：{0}。当前数据库保持不变。",
+     "Could not open the database: {0}. The current database stays unchanged."},
+    {"dbErrTargetOccupied",
+     "目标位置已有另一个数据库。请另选位置，不会覆盖它。",
+     "The target location holds another database. Pick a different location — "
+     "it will not be overwritten."},
+    {"dbErrTargetSame", "目标与当前位置相同，请选择另一个文件夹。",
+     "The target equals the current location. Choose another folder."},
+    {"dbExportBtn", "导出 JSON", "Export JSON"},
+    {"dbExportHelp", "导出当前库的全部清单与任务",
+     "Export every list and task of the current database"},
+    {"dbExportLabel", "备份与导出", "Backup & Export"},
+    {"dbExported", "已导出 {0} 条任务。", "Exported {0} tasks."},
+    {"dbFileLabel", "数据库文件", "Database File"},
+    {"dbFolderChoose", "选择文件夹…", "Choose Folder…"},
+    {"dbFolderLabel", "保存文件夹", "Save Folder"},
+    {"dbGateBody",
+     "选择自己的文件夹，创建任务数据库。也可以打开已有数据库，继续记录。",
+     "Create a task database in a folder of your choice, or open an existing "
+     "database and pick up where you left off."},
+    {"dbGateCreate", "创建数据库", "Create Database"},
+    {"dbGateOpen", "打开已有数据库…", "Open Existing Database…"},
+    {"dbGatePrinciple",
+     "无需绑定账号或云服务。数据的位置与同步方式由你管理。",
+     "No account, no cloud service. The location and sync of your data stay "
+     "under your control."},
+    {"dbGateTitle", "任务有归处，位置由你定。",
+     "Every task needs a home — and you choose where."},
+    {"dbLocationHelp", "位置由你选择，迁移时保留全部任务",
+     "You choose the location; migrating keeps every task"},
+    {"dbLocationLabel", "存储位置", "Location"},
+    {"dbMigrateBtn", "迁移位置…", "Move Location…"},
+    {"dbMigrateConfirmText",
+     "从：{0}\n迁移到：{1}\n\n全部任务随数据库保留。只有成功后才切换位置；失败时保留原位置。",
+     "From: {0}\nTo: {1}\n\nAll tasks move with the database. The location "
+     "switches only on success; the original stays on failure."},
+    {"dbMigrateDesc",
+     "先选择目标文件夹，再确认迁移。只有成功后才切换位置；失败时原位置保持不变。",
+     "Pick a target folder, then confirm. The location switches only on "
+     "success; the original stays untouched on failure."},
+    {"dbMigrateTitle", "迁移数据库", "Migrate Database"},
+    {"dbMigrated", "数据库已迁移到新位置。",
+     "Database moved to the new location."},
+    {"dbMissingPathFallback", "上次记录的数据库位置不可用。",
+     "The last recorded database location is unavailable."},
+    {"dbNameDefault", "我的任务", "My Tasks"},
+    {"dbNameLabel", "数据库名称", "Database Name"},
+    {"dbNewHelp", "选择自己的文件夹，从空白开始",
+     "Pick your own folder and start blank"},
+    {"dbNewLabel", "新建数据库", "New Database"},
+    {"dbOpenBtn", "打开已有…", "Open Existing…"},
+    {"dbOpenDesc", "选择一个 Taskly 数据库文件；打开后记录该位置。",
+     "Choose a Taskly database file; the location is remembered once opened."},
+    {"dbOpenTitle", "打开已有数据库", "Open Database"},
+    {"dbPathNone", "创建或打开数据库后显示位置",
+     "Location shows after you create or open a database"},
+    {"dbReconnectTitle", "重新连接你的数据库", "Reconnect your database"},
+    {"dbRecoveryBody",
+     "文件可能已移动，或所在磁盘尚未连接。重新定位原文件即可继续，不会自动新建或覆盖。",
+     "The file may have moved, or its disk is not connected yet. Relocate the "
+     "original file to continue — nothing is created or overwritten "
+     "automatically."},
+    {"dbRecoveryTitle", "找不到上次的数据库",
+     "Can't find your last database"},
+    {"dbRelocate", "重新定位…", "Relocate…"},
+    {"dbRelocateDesc", "重新选择原来的数据库文件；不会创建替代数据库。",
+     "Pick the original database file again; no replacement database is "
+     "created."},
+    {"dbRelocateTitle", "重新定位数据库", "Relocate Database"},
+    {"dbRelocated", "已重新连接原数据库。",
+     "Reconnected to the original database."},
+    {"dbRestoreApply", "替换当前任务", "Replace Tasks"},
+    {"dbRestoreBtn", "选择备份…", "Choose Backup…"},
+    {"dbRestoreHelp", "先查看备份内容，再确认替换当前库",
+     "Review the backup first, then confirm the replacement"},
+    {"dbRestoreInvalid", "未恢复：{0}。当前任务保持不变。",
+     "Not restored: {0}. Current tasks are unchanged."},
+    {"dbRestoreLabel", "恢复备份", "Restore Backup"},
+    {"dbRestorePreviewBody",
+     "此备份包含 {0} 条任务、{1} 个清单。恢复会替换当前数据库中的全部任务，无法撤销。建议先导出当前数据。",
+     "This backup holds {0} tasks across {1} lists. Restoring replaces every "
+     "task in the current database and cannot be undone. Export your current "
+     "data first."},
+    {"dbRestorePreviewTitle", "恢复备份", "Restore Backup"},
+    {"dbRestoreStale", "当前数据库已改变，未恢复备份。请重新选择备份。",
+     "The current database changed — the backup was not restored. Choose the "
+     "backup again."},
+    {"dbRestored", "已恢复 {0} 条任务到当前数据库。",
+     "Restored {0} tasks into the current database."},
+    {"dbRetry", "重试", "Retry"},
+    {"dbReveal", "所在文件夹…", "Reveal Folder…"},
+    {"dbSaveBackup", "保存备份", "Save Backup"},
+    {"dbSwitchHelp", "当前数据库保留，打开另一个继续使用",
+     "The current database is kept; open another to continue"},
+    {"dbSwitchLabel", "切换数据库", "Switch Database"},
+    {"defaultListHelp", "快速添加的任务会进入这里",
+     "Quick-added tasks land here"},
+    {"defaultListLabel", "默认清单", "Default List"},
+    {"globalQuickAddHelp", "仅记录组合键，不注册系统快捷键",
+     "Records the combination; not registered as a system shortcut"},
+    {"globalQuickAddLabel", "全局快速添加", "Global Quick Add"},
+    {"settingsGroupData", "数据", "Data"},
+    {"settingsGroupNewTasks", "新任务", "New Tasks"},
+    {"shortcutClear", "清除", "Clear"},
+    {"shortcutNeedModifier", "请搭配 ⌘、⌃ 或 ⌥ 使用",
+     "Combine with ⌘/Ctrl or ⌥/Alt"},
+    {"shortcutNone", "未设置", "Not Set"},
+    {"shortcutRecording", "按下组合键…", "Press keys…"},
+    {"shortcutReset", "恢复默认", "Reset"},
+    {"sidebarDbManaged", "数据库由你管理", "Managed by you"},
 };
 
 using I18nTable = std::map<std::string, std::wstring>;
@@ -881,6 +1036,8 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
                       current->settings_ = settings;
                       current->ApplyTheme(settings.theme);
                       current->ApplyLanguage();
+                      // §2a 新任务 group: the quick-add default list.
+                      current->default_list_id_ = settings.default_list_id;
                       // Stamp the install shape so the backend downloads the
                       // matching update flavor (UPDATE.md): MSI installs
                       // upgrade through msiexec, portable zips swap in place.
@@ -891,7 +1048,7 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
                       // (shared/spec/UPDATE.md); surface it once, then start
                       // the throttled silent check.
                       current->HandleInstallMarkers();
-                      current->OpenDefaultDatabaseAsync();
+                      current->BootstrapDatabaseAsync();
                       current->LoadAutoCheckUpdatesSetting();
                       current->AutoCheckUpdatesAsync();
                     }
@@ -1071,6 +1228,20 @@ void MainWindow::ApplyLanguage() {
   BulkScheduleButton().Content(winrt::box_value(t("bulkSchedule")));
   BulkDeleteButton().Content(winrt::box_value(t("listDelete")));
   UndoDeleteButton().Content(winrt::box_value(t("bannerUndo")));
+  // §2a launch gate + sidebar identity (translated on language switch).
+  GateWordmark().Text(L"Taskly");
+  GateTitle().Text(launch_state_ == LaunchState::Recovery ? t("dbReconnectTitle")
+                                                          : t("dbGateTitle"));
+  GateBody().Text(t("dbGateBody"));
+  GateCreateButton().Content(winrt::box_value(t("dbGateCreate")));
+  GateOpenButton().Content(winrt::box_value(t("dbGateOpen")));
+  GateRecoveryTitle().Text(t("dbRecoveryTitle"));
+  GateRecoveryBody().Text(t("dbRecoveryBody"));
+  GateRelocateButton().Content(winrt::box_value(t("dbRelocate")));
+  GateRetryButton().Content(winrt::box_value(t("dbRetry")));
+  GatePrinciple().Text(t("dbGatePrinciple"));
+  DatabaseIdentityNote().Text(t("sidebarDbManaged"));
+  RefreshDatabaseIdentity();
   // The settings window retranslates while it is open (PRODUCT-SPEC §8:
   // runtime language switch covers every host surface).
   if (settings_window_) {
@@ -2163,17 +2334,13 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   detail_title_ = title;
   detail_title_box_.Children().Append(title);
 
-  // Date + time side by side.
-  auto schedule = mxc::StackPanel{};
-  schedule.Orientation(mxc::Orientation::Horizontal);
-  schedule.Spacing(10);
-  auto date_column = mxc::StackPanel{};
-  date_column.Spacing(4);
-  auto date_caption = mxc::TextBlock{};
-  date_caption.Text(t("fieldDate"));
-  date_caption.FontSize(12);
-  date_caption.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
-  date_column.Children().Append(date_caption);
+  // Prototype checkpoint 2026-11-15 (§5b): title, date, notes and list
+  // membership render directly; time, priority, tags, subtasks and URL sit
+  // behind Expander disclosures that open on load when the field already
+  // holds a value.
+
+  // Date (directly visible; time moved behind its own disclosure).
+  detail_date_box_ = make_field(t("fieldDate"));
   auto date_row = mxc::StackPanel{};
   date_row.Orientation(mxc::Orientation::Horizontal);
   date_row.Spacing(4);
@@ -2196,16 +2363,63 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   });
   detail_date_ = date_box;
   date_row.Children().Append(date_box);
-  date_column.Children().Append(date_row);
-  detail_date_box_ = date_column;
-  schedule.Children().Append(date_column);
-  auto time_column = mxc::StackPanel{};
-  time_column.Spacing(4);
-  auto time_caption = mxc::TextBlock{};
-  time_caption.Text(t("fieldTime"));
-  time_caption.FontSize(12);
-  time_caption.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
-  time_column.Children().Append(time_caption);
+  detail_date_box_.Children().Append(date_row);
+
+  // Notes.
+  detail_notes_box_ = make_field(t("fieldNotes"));
+  auto notes = mxc::TextBox{};
+  notes.AcceptsReturn(true);
+  notes.Height(80);
+  notes.TextWrapping(mx::TextWrapping::Wrap);
+  notes.Text(stored->notes.has_value() ? wide(*stored->notes) : L"");
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      notes, L"detail-notes-" + std::to_wstring(id));
+  notes.LostFocus([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(7);
+  });
+  detail_notes_ = notes;
+  detail_notes_box_.Children().Append(notes);
+
+  // List membership.
+  detail_list_box_ = make_field(t("fieldList"));
+  auto list_combo = mxc::ComboBox{};
+  list_combo.MinWidth(180);
+  auto selected_list = 0;
+  for (std::size_t i = 0; i < lists_.size(); ++i) {
+    auto item = mxc::ComboBoxItem{};
+    item.Content(winrt::box_value(wide(lists_[i].name)));
+    list_combo.Items().Append(item);
+    if (lists_[i].id == stored->list_id) {
+      selected_list = static_cast<std::int32_t>(i);
+    }
+  }
+  list_combo.SelectedIndex(selected_list);
+  list_combo.SelectionChanged([weak](auto const&, auto const&) {
+    if (auto window = weak.get()) window->DetailAutosave(9);
+  });
+  detail_list_ = list_combo;
+  detail_list_box_.Children().Append(list_combo);
+
+  // Disclosure helper: the caption rides the Expander header, the control
+  // container is the content, and the layer opens on load when the stored
+  // field already holds a value.
+  auto make_disclosure = [&](std::wstring const& caption,
+                             mxc::StackPanel const& content, bool expanded) {
+    auto expander = mxc::Expander{};
+    expander.Header(winrt::box_value(caption));
+    expander.Content(content);
+    expander.IsExpanded(expanded);
+    fields.Children().Append(expander);
+  };
+  // Disclosure content container (control + field-anchored error slot).
+  auto make_content_field = [&]() {
+    auto panel = mxc::StackPanel{};
+    panel.Spacing(4);
+    return panel;
+  };
+
+  // Time (disclosure; opens when set).
+  detail_time_box_ = make_content_field();
   auto time_box = mxc::TextBox{};
   time_box.Width(80);
   time_box.PlaceholderText(L"HH:mm");
@@ -2223,13 +2437,13 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
     if (auto window = weak.get()) window->DetailAutosave(3);
   });
   detail_time_ = time_box;
-  time_column.Children().Append(time_box);
-  detail_time_box_ = time_column;
-  schedule.Children().Append(time_column);
-  fields.Children().Append(schedule);
+  detail_time_box_.Children().Append(time_box);
+  make_disclosure(t("fieldTime"), detail_time_box_,
+                  stored->due_time.has_value() &&
+                      !stored->due_time->empty());
 
   // Priority (无 / 低 / 中 / 高).
-  detail_priority_box_ = make_field(t("fieldPriority"));
+  detail_priority_box_ = make_content_field();
   auto priority = mxc::ComboBox{};
   priority.MinWidth(140);
   for (char const* key :
@@ -2246,9 +2460,11 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   });
   detail_priority_ = priority;
   detail_priority_box_.Children().Append(priority);
+  make_disclosure(t("fieldPriority"), detail_priority_box_,
+                  stored->priority > 0);
 
   // Tags.
-  detail_tags_box_ = make_field(t("fieldTags"));
+  detail_tags_box_ = make_content_field();
   auto tags_panel = mxc::StackPanel{};
   tags_panel.Spacing(6);
   detail_tags_panel_ = tags_panel;
@@ -2283,9 +2499,10 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   });
   detail_tag_add_ = tag_add;
   detail_tags_box_.Children().Append(tag_add);
+  make_disclosure(t("fieldTags"), detail_tags_box_, !stored->tags.empty());
 
   // Subtasks.
-  detail_subtasks_box_ = make_field(t("fieldSubtasks"));
+  detail_subtasks_box_ = make_content_field();
   auto subtasks_panel = mxc::StackPanel{};
   subtasks_panel.Spacing(6);
   detail_subtasks_panel_ = subtasks_panel;
@@ -2313,24 +2530,11 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   });
   detail_subtask_add_ = subtask_add;
   detail_subtasks_box_.Children().Append(subtask_add);
-
-  // Notes.
-  detail_notes_box_ = make_field(t("fieldNotes"));
-  auto notes = mxc::TextBox{};
-  notes.AcceptsReturn(true);
-  notes.Height(80);
-  notes.TextWrapping(mx::TextWrapping::Wrap);
-  notes.Text(stored->notes.has_value() ? wide(*stored->notes) : L"");
-  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
-      notes, L"detail-notes-" + std::to_wstring(id));
-  notes.LostFocus([weak](auto const&, auto const&) {
-    if (auto window = weak.get()) window->DetailAutosave(7);
-  });
-  detail_notes_ = notes;
-  detail_notes_box_.Children().Append(notes);
+  make_disclosure(t("fieldSubtasks"), detail_subtasks_box_,
+                  !stored->subtasks.empty());
 
   // URL.
-  detail_url_box_ = make_field(t("fieldUrl"));
+  detail_url_box_ = make_content_field();
   auto url = mxc::TextBox{};
   url.PlaceholderText(L"https://");
   url.Text(stored->url.has_value() ? wide(*stored->url) : L"");
@@ -2345,26 +2549,8 @@ void MainWindow::OpenTaskDetail(std::int64_t id) {
   });
   detail_url_ = url;
   detail_url_box_.Children().Append(url);
-
-  // List membership.
-  detail_list_box_ = make_field(t("fieldList"));
-  auto list_combo = mxc::ComboBox{};
-  list_combo.MinWidth(180);
-  auto selected_list = 0;
-  for (std::size_t i = 0; i < lists_.size(); ++i) {
-    auto item = mxc::ComboBoxItem{};
-    item.Content(winrt::box_value(wide(lists_[i].name)));
-    list_combo.Items().Append(item);
-    if (lists_[i].id == stored->list_id) {
-      selected_list = static_cast<std::int32_t>(i);
-    }
-  }
-  list_combo.SelectedIndex(selected_list);
-  list_combo.SelectionChanged([weak](auto const&, auto const&) {
-    if (auto window = weak.get()) window->DetailAutosave(9);
-  });
-  detail_list_ = list_combo;
-  detail_list_box_.Children().Append(list_combo);
+  make_disclosure(t("fieldUrl"), detail_url_box_,
+                  stored->url.has_value() && !stored->url->empty());
 
   scroll.Content(fields);
   root.Children().Append(scroll);
@@ -3269,7 +3455,7 @@ bool MainWindow::ApplySnapshot(rivet_app::Snapshot const& snapshot,
 }
 
 winrt::fire_and_forget MainWindow::ReloadTasksAsync() {
-  if (backend_ == nullptr || !backend_->running() ||
+  if (backend_ == nullptr || !backend_->running() || !database_connected_ ||
       reload_in_flight_.load(std::memory_order_acquire)) {
     co_return;
   }
@@ -3339,7 +3525,15 @@ winrt::fire_and_forget MainWindow::ReloadTasksAsync() {
   }
 }
 
-winrt::fire_and_forget MainWindow::OpenDefaultDatabaseAsync() {
+// ---------------------------------------------------------------------------
+// §2a database lifecycle — launch gate, open, create, migrate, backup
+// (state machine mirrors macos-host AppModel.swift; UI is Windows-native).
+// ---------------------------------------------------------------------------
+
+// §2a startup: an empty `last-db-path` shows the welcome gate; a recorded
+// path is opened, and its failure becomes the recovery gate. No default
+// storage folder is ever silently assigned.
+winrt::fire_and_forget MainWindow::BootstrapDatabaseAsync() {
   if (backend_ == nullptr || !backend_->running()) {
     co_return;
   }
@@ -3348,14 +3542,37 @@ winrt::fire_and_forget MainWindow::OpenDefaultDatabaseAsync() {
   auto backend = backend_;
   try {
     rivet_app::API api(*backend);
-    (void)api.default_database_async(
+    // §2a 新任务 group: the recorded global quick-add accelerator
+    // (display-only; missing key keeps the default).
+    (void)api.get_setting_async(
+        "global-quick-add",
         [dispatcher, weak](rivet_app::Result<std::string> result) {
           try {
-            auto const path = result.get();
-            dispatcher.TryEnqueue([weak, path] {
+            auto const stored = result.get();
+            dispatcher.TryEnqueue([weak, stored] {
               if (auto window = weak.get()) {
-                window->settings_.database_path = path;
-                window->OpenDatabaseAsync(std::wstring(winrt::to_hstring(path)));
+                window->global_quick_add_ = wide(stored);
+              }
+            });
+          } catch (std::exception const&) {
+            // Absent key: the default stays; never a startup failure.
+          }
+        });
+    (void)api.get_setting_async(
+        "last-db-path",
+        [dispatcher, weak](rivet_app::Result<std::string> result) {
+          try {
+            auto const raw = result.get();
+            dispatcher.TryEnqueue([weak, raw] {
+              if (auto window = weak.get()) {
+                auto const path = trim_wide(wide(raw));
+                window->settings_.database_path = winrt::to_string(path);
+                if (path.empty()) {
+                  window->ShowGate(LaunchState::Welcome);
+                  window->RefreshDatabaseIdentity();
+                } else {
+                  window->AttemptOpenAsync(path, /*recovery_on_failure=*/true);
+                }
               }
             });
           } catch (std::exception const& e) {
@@ -3371,13 +3588,26 @@ winrt::fire_and_forget MainWindow::OpenDefaultDatabaseAsync() {
     SetError(e.what());
   }
 }
-winrt::fire_and_forget MainWindow::OpenDatabaseAsync(std::wstring const& path) {
+
+// §2a: open a database file in place (the core refuses missing/foreign
+// files — never creates). `recovery_on_failure` moves the launch surface to
+// the recovery gate instead of flashing a status line. `database_generation_`
+// plus the abandoned staged delete keep a stale open callback from mutating
+// another database (PRODUCT-SPEC §6 database-switch scenario).
+winrt::fire_and_forget MainWindow::AttemptOpenAsync(std::wstring const& path,
+                                                    bool recovery_on_failure) {
   if (backend_ == nullptr || !backend_->running() || path.empty()) {
+    if (recovery_on_failure) {
+      recovery_path_ = path;
+      ShowGate(LaunchState::Recovery);
+    }
     co_return;
   }
   // Pending deletions must never commit against another database that
   // happens to contain the same numeric task IDs.
   if (!pending_delete_ids_.empty()) UndoPendingDeletion();
+  ++database_generation_;
+  auto const generation = database_generation_;
   auto const dispatcher = DispatcherQueue();
   auto const weak = get_weak();
   auto backend = backend_;
@@ -3385,59 +3615,807 @@ winrt::fire_and_forget MainWindow::OpenDatabaseAsync(std::wstring const& path) {
     rivet_app::API api(*backend);
     (void)api.open_database_async(
         winrt::to_string(path),
-        [dispatcher, weak](rivet_app::Result<rivet_app::Snapshot> result) {
+        [dispatcher, weak, path, generation,
+         recovery_on_failure](rivet_app::Result<rivet_app::Snapshot> result) {
           try {
             auto const snapshot = result.get();
-            dispatcher.TryEnqueue([weak, snapshot] {
+            dispatcher.TryEnqueue([weak, snapshot, path, generation,
+                                   recovery_on_failure] {
               if (auto window = weak.get()) {
-                window->suppressed_deleted_task_ids_.clear();
-                // Restore the last-selected list when it still exists —
-                // checked against the incoming snapshot because ApplySnapshot
-                // owns the render pass.
-                auto const restored = window->settings_.last_selected_list_id;
-                if (restored > 0 &&
-                    find_by_id(snapshot.lists, restored) != nullptr) {
-                  window->view_ = MainWindow::ViewKind::List;
-                  window->view_list_id_ = restored;
+                if (generation != window->database_generation_) {
+                  return;  // stale open for a database already switched away
+                }
+                window->FinishDatabaseOpened(snapshot);
+                window->RefreshDatabaseIdentityFromBackendAsync();
+              }
+            });
+          } catch (std::exception const& e) {
+            auto message = std::string(e.what());
+            dispatcher.TryEnqueue([weak, path, message = std::move(message),
+                                   generation,
+                                   recovery_on_failure] {
+              if (auto window = weak.get()) {
+                if (generation != window->database_generation_) {
+                  return;
+                }
+                window->database_connected_ = false;
+                if (recovery_on_failure) {
+                  window->recovery_path_ = path;
+                  window->ShowGate(LaunchState::Recovery);
                 } else {
-                  window->view_ = MainWindow::ViewKind::All;
-                  window->view_list_id_ = 0;
+                  window->SetStatus(tf("dbErrOpenFailed", wide(message)));
                 }
-                // open_database returns an ALL-view snapshot. Never show
-                // those rows under a restored named-list heading: wait for
-                // the filtered list snapshot instead.
-                if (window->view_ == MainWindow::ViewKind::List) {
-                  window->has_applied_snapshot_ = false;
-                  window->current_counts_ = snapshot.counts;
-                  window->lists_ = snapshot.lists;
-                  window->tasks_.clear();
-                  window->RenderSidebar();
-                  window->RenderTasks();
-                  window->ReloadTasksAsync();
-                } else {
-                  // Opening another DB invalidates the previous fingerprint.
-                  window->ApplySnapshot(snapshot, /*force=*/true);
-                }
-                window->database_connected_ = true;
-                window->CheckReminders(true);
-                // An in-flight download owns the status line.
-                if (!window->update_downloading_) {
-                  window->SetStatus(t("statusDatabaseConnected"));
-                }
+              }
+            });
+          }
+        });
+  } catch (std::exception const& e) {
+    if (recovery_on_failure) {
+      recovery_path_ = path;
+      ShowGate(LaunchState::Recovery);
+    } else {
+      SetError(e.what());
+    }
+  }
+}
+
+// Shared open/create success path: leave the gate, restore the last-selected
+// list, connect, and render. open_database/create_database return an ALL-view
+// snapshot; never show those rows under a restored named-list heading.
+void MainWindow::FinishDatabaseOpened(rivet_app::Snapshot const& snapshot) {
+  suppressed_deleted_task_ids_.clear();
+  auto const restored = settings_.last_selected_list_id;
+  if (restored > 0 && find_by_id(snapshot.lists, restored) != nullptr) {
+    view_ = MainWindow::ViewKind::List;
+    view_list_id_ = restored;
+  } else {
+    view_ = MainWindow::ViewKind::All;
+    view_list_id_ = 0;
+  }
+  if (view_ == MainWindow::ViewKind::List) {
+    has_applied_snapshot_ = false;
+    current_counts_ = snapshot.counts;
+    lists_ = snapshot.lists;
+    tasks_.clear();
+    RenderSidebar();
+    RenderTasks();
+    ReloadTasksAsync();
+  } else {
+    // Opening another DB invalidates the previous fingerprint.
+    ApplySnapshot(snapshot, /*force=*/true);
+  }
+  database_connected_ = true;
+  ShowTaskUi();
+  CheckReminders(true);
+  // An in-flight download owns the status line.
+  if (!update_downloading_) {
+    SetStatus(t("statusDatabaseConnected"));
+  }
+}
+
+// §2a identity: re-read settings after a lifecycle success so the sidebar
+// footer, window title and settings 数据 group carry the real name/path and
+// the persisted default-list/quick-add values.
+winrt::fire_and_forget
+MainWindow::RefreshDatabaseIdentityFromBackendAsync() {
+  if (backend_ == nullptr || !backend_->running()) {
+    co_return;
+  }
+  auto const dispatcher = DispatcherQueue();
+  auto const weak = get_weak();
+  auto backend = backend_;
+  try {
+    rivet_app::API api(*backend);
+    (void)api.get_settings_async(
+        [dispatcher, weak](rivet_app::Result<rivet_app::Settings> result) {
+          try {
+            auto const settings = result.get();
+            dispatcher.TryEnqueue([weak, settings] {
+              if (auto window = weak.get()) {
+                // Persistence acknowledgements must never roll back newer
+                // local preference edits (PRODUCT-SPEC §8): language/theme/
+                // last-selected-list stay as the user set them.
+                window->settings_.database_path = settings.database_path;
+                window->settings_.database_name = settings.database_name;
+                window->default_list_id_ = settings.default_list_id;
+                window->database_path_ = wide(settings.database_path);
+                window->database_name_ = wide(settings.database_name);
+                window->RefreshDatabaseIdentity();
+                window->SyncSettingsDatabaseState();
+              }
+            });
+          } catch (std::exception const&) {
+            // Identity is best-effort; the open itself already succeeded.
+          }
+        });
+  } catch (std::exception const&) {
+  }
+}
+
+void MainWindow::RefreshDatabaseIdentity() {
+  DatabaseIdentityName().Text(database_name_.empty() ? t("dbCurrentNone")
+                                                     : database_name_);
+  DatabaseIdentityNote().Text(t("sidebarDbManaged"));
+  ApplyWindowTitle();
+}
+
+// Window title carries the database name (PRODUCT-SPEC §2a identity).
+void MainWindow::ApplyWindowTitle() {
+  Title(database_name_.empty() ? winrt::hstring(L"Taskly")
+                               : winrt::hstring(L"Taskly — " + database_name_));
+}
+
+void MainWindow::ShowGate(LaunchState state) {
+  launch_state_ = state;
+  auto const recovery = state == LaunchState::Recovery;
+  BodyGrid().Visibility(mx::Visibility::Collapsed);
+  DatabaseGate().Visibility(mx::Visibility::Visible);
+  GateTitle().Text(recovery ? t("dbReconnectTitle") : t("dbGateTitle"));
+  GateChoices().Visibility(recovery ? mx::Visibility::Collapsed
+                                    : mx::Visibility::Visible);
+  GateRecoveryBlock().Visibility(recovery ? mx::Visibility::Visible
+                                          : mx::Visibility::Collapsed);
+  if (recovery) {
+    // The recorded path is the recovery block's payload; a blank recording
+    // falls back to the shared explanation line (macOS parity).
+    GateRecoveryPath().Text(recovery_path_.empty() ? t("dbMissingPathFallback")
+                                                   : recovery_path_);
+  }
+  SetStatus(t("statusDatabaseNotConnected"));
+}
+
+void MainWindow::ShowTaskUi() {
+  launch_state_ = LaunchState::None;
+  DatabaseGate().Visibility(mx::Visibility::Collapsed);
+  BodyGrid().Visibility(mx::Visibility::Visible);
+  RefreshDatabaseIdentity();
+}
+
+winrt::fire_and_forget MainWindow::OpenDatabaseAsync(std::wstring const& path) {
+  co_await AttemptOpenAsync(path, /*recovery_on_failure=*/false);
+}
+
+// Core lifecycle error → actionable i18n copy. Core messages are machine-
+// English (DATA-FORMAT §7 wording), so the known collisions map to their
+// dedicated keys; everything else carries the raw detail (macOS
+// databaseActionError parity).
+std::wstring MainWindow::DatabaseActionError(std::exception const& error,
+                                             char const* fallback_key) {
+  auto const detail = trim_wide(wide(error.what()));
+  std::wstring lowered = detail;
+  for (auto& c : lowered) {
+    if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c - L'A' + L'a');
+  }
+  if (lowered.find(L"already exists") != std::wstring::npos) {
+    return t("dbErrExists");
+  }
+  if (lowered.find(L"target already exists") != std::wstring::npos) {
+    return t("dbErrTargetOccupied");
+  }
+  if (lowered.find(L"equals the current location") != std::wstring::npos) {
+    return t("dbErrTargetSame");
+  }
+  if (lowered.find(L"not a taskly database") != std::wstring::npos) {
+    return t("dbErrNotTaskly");
+  }
+  return tf(fallback_key, detail);
+}
+
+// §2a create/migrate: folder dialog (the prototype's typed folder entry is
+// replaced by the platform picker).
+winrt::fire_and_forget MainWindow::PickFolderAsync(
+    std::function<void(std::wstring const& folder)> on_picked) {
+  auto picker = winrt::Windows::Storage::Pickers::FolderPicker{};
+  auto window_native = try_as<::IWindowNative>();
+  if (window_native) {
+    HWND hwnd = nullptr;
+    if (SUCCEEDED(window_native->get_WindowHandle(&hwnd))) {
+      if (auto initializer = picker.try_as<::IInitializeWithWindow>()) {
+        initializer->Initialize(hwnd);
+      }
+    }
+  }
+  auto const folder = co_await picker.PickSingleFolderAsync();
+  if (folder != nullptr && on_picked) {
+    on_picked(std::wstring(folder.Path()));
+  }
+}
+
+// §2a create flow: exclusive create at <folder>/taskly.sqlite, opened on
+// success. The validation error anchors inside the dialog and the dialog
+// stays open for correction (macOS DatabaseSheetView parity).
+winrt::fire_and_forget MainWindow::ShowCreateDatabaseDialogAsync() {
+  auto dispatcher = DispatcherQueue();
+  auto weak = get_weak();
+
+  auto content = mxc::StackPanel{};
+  content.Spacing(10);
+  auto description = mxc::TextBlock{};
+  description.Text(t("dbCreateDesc"));
+  description.TextWrapping(mx::TextWrapping::Wrap);
+  description.FontSize(12);
+  description.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
+  content.Children().Append(description);
+
+  auto name_caption = mxc::TextBlock{};
+  name_caption.Text(t("dbNameLabel"));
+  name_caption.FontSize(12);
+  name_caption.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
+  content.Children().Append(name_caption);
+
+  auto name_box = mxc::TextBox{};
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      name_box, L"database-name-field");
+  name_box.Text(t("dbNameDefault"));
+  name_box.MaxLength(64);
+  content.Children().Append(name_box);
+
+  auto folder_caption = mxc::TextBlock{};
+  folder_caption.Text(t("dbFolderLabel"));
+  folder_caption.FontSize(12);
+  folder_caption.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
+  content.Children().Append(folder_caption);
+
+  auto folder_row = mxc::StackPanel{};
+  folder_row.Orientation(mxc::Orientation::Horizontal);
+  folder_row.Spacing(8);
+  auto folder_button = mxc::Button{};
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      folder_button, L"database-folder-choose");
+  folder_button.Content(winrt::box_value(t("dbFolderChoose")));
+  folder_row.Children().Append(folder_button);
+  auto folder_text = mxc::TextBlock{};
+  folder_text.Text(L"—");
+  folder_text.FontSize(12);
+  folder_text.VerticalAlignment(mx::VerticalAlignment::Center);
+  folder_text.TextTrimming(mx::TextTrimming::CharacterEllipsis);
+  folder_text.MaxWidth(220);
+  folder_row.Children().Append(folder_text);
+  content.Children().Append(folder_row);
+
+  auto error_text = mxc::TextBlock{};
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      error_text, L"database-error");
+  error_text.Visibility(mx::Visibility::Collapsed);
+  error_text.TextWrapping(mx::TextWrapping::Wrap);
+  error_text.FontSize(12);
+  error_text.Foreground(ThemeBrush(L"TasklyOverdueBrush"));
+  content.Children().Append(error_text);
+
+  auto actions = mxc::Grid{};
+  actions.ColumnDefinitions().Append(mxc::ColumnDefinition{});
+  actions.ColumnDefinitions().Append(mxc::ColumnDefinition{});
+  actions.ColumnDefinitions().GetAt(0).Width(
+      mx::GridLength{1, mx::GridUnitType::Star});
+  auto apply_button = mxc::Button{};
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      apply_button, L"database-create-apply");
+  apply_button.Content(winrt::box_value(t("dbApplyCreate")));
+  apply_button.Style(
+      winrt::Microsoft::UI::Xaml::Application::Current()
+          .Resources()
+          .Lookup(winrt::box_value(L"AccentButtonStyle"))
+          .as<winrt::Microsoft::UI::Xaml::Style>());
+  mxc::Grid::SetColumn(apply_button, 1);
+  apply_button.HorizontalAlignment(mx::HorizontalAlignment::Right);
+  actions.Children().Append(apply_button);
+  content.Children().Append(actions);
+
+  auto dialog = mxc::ContentDialog{};
+  dialog.Title(winrt::box_value(t("dbCreateTitle")));
+  dialog.Content(content);
+  dialog.CloseButtonText(t("dialogCancel"));
+  dialog.DefaultButton(mxc::ContentDialogButton::Close);
+  dialog.XamlRoot(Content().XamlRoot());
+
+  auto dialog_weak = winrt::weak_ref<mxc::ContentDialog>(dialog);
+  apply_button.Click(
+      [weak, dialog_weak, name_box, folder_text, error_text,
+       apply_button, dispatcher](auto const&, auto const&) {
+        auto window = weak.get();
+        if (!window) return;
+        auto const name = trim_wide(std::wstring(name_box.Text()));
+        auto const folder = trim_wide(std::wstring(folder_text.Text()));
+        error_text.Visibility(mx::Visibility::Collapsed);
+        // §10 validation: non-empty, ≤64, none of / \ : * ? " < > |.
+        if (name.empty() || name.size() > 64 ||
+            name.find_first_of(L"/\\:*?\"<>|") != std::wstring::npos) {
+          error_text.Text(t("dbErrBadName"));
+          error_text.Visibility(mx::Visibility::Visible);
+          return;
+        }
+        if (folder.empty()) {
+          error_text.Text(t("dbErrNoPath"));
+          error_text.Visibility(mx::Visibility::Visible);
+          return;
+        }
+        apply_button.IsEnabled(false);
+        ++window->database_generation_;
+        auto const generation = window->database_generation_;
+        if (!window->pending_delete_ids_.empty()) window->UndoPendingDeletion();
+        if (window->backend_ == nullptr || !window->backend_->running()) {
+          apply_button.IsEnabled(true);
+          return;
+        }
+        try {
+          rivet_app::API api(*window->backend_);
+          (void)api.create_database_async(
+              winrt::to_string(folder), winrt::to_string(name),
+              [weak, dialog_weak, error_text, apply_button, dispatcher,
+               generation, name](rivet_app::Result<rivet_app::Snapshot> result) {
+                dispatcher.TryEnqueue(
+                    [weak, dialog_weak, error_text, apply_button, result,
+                     generation, name]() mutable {
+                      auto window = weak.get();
+                      if (!window || generation != window->database_generation_) {
+                        return;
+                      }
+                      apply_button.IsEnabled(true);
+                      try {
+                        auto const snapshot = result.get();
+                        window->FinishDatabaseOpened(snapshot);
+                        if (!window->update_downloading_) {
+                          window->SetStatus(tf("dbCreated", name));
+                        }
+                        if (auto dialog = dialog_weak.get()) {
+                          dialog.Hide();
+                        }
+                        window->RefreshDatabaseIdentityFromBackendAsync();
+                      } catch (std::exception const& e) {
+                        error_text.Text(
+                            window->DatabaseActionError(e, "dbErrCreateFailed"));
+                        error_text.Visibility(mx::Visibility::Visible);
+                      }
+                    });
+              });
+        } catch (std::exception const& e) {
+          apply_button.IsEnabled(true);
+          error_text.Text(window->DatabaseActionError(e, "dbErrCreateFailed"));
+          error_text.Visibility(mx::Visibility::Visible);
+        }
+      });
+  folder_button.Click(
+      [weak, folder_text, error_text](auto const&, auto const&) {
+        auto window = weak.get();
+        if (!window) return;
+        error_text.Visibility(mx::Visibility::Collapsed);
+        window->PickFolderAsync([weak, folder_text](std::wstring const& folder) {
+          if (auto window = weak.get(); window && !folder.empty()) {
+            folder_text.Text(folder);
+          }
+        });
+      });
+
+  co_await dialog.ShowAsync();
+}
+
+// §2a two-step migrate: step 1 collects the target folder, step 2 shows the
+// explicit from → to confirmation; all-or-nothing, the source file stays.
+winrt::fire_and_forget MainWindow::ShowMigrateDatabaseDialogAsync() {
+  if (backend_ == nullptr || !backend_->running() || !database_connected_) {
+    co_return;
+  }
+  auto weak = get_weak();
+  auto dispatcher = DispatcherQueue();
+
+  auto content = mxc::StackPanel{};
+  content.Spacing(10);
+  auto description = mxc::TextBlock{};
+  description.Text(t("dbMigrateDesc"));
+  description.TextWrapping(mx::TextWrapping::Wrap);
+  description.FontSize(12);
+  description.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
+  content.Children().Append(description);
+
+  auto fields_panel = mxc::StackPanel{};
+  fields_panel.Spacing(10);
+  auto folder_caption = mxc::TextBlock{};
+  folder_caption.Text(t("dbFolderLabel"));
+  folder_caption.FontSize(12);
+  folder_caption.Foreground(ThemeBrush(L"TasklySecondaryTextBrush"));
+  fields_panel.Children().Append(folder_caption);
+  auto folder_row = mxc::StackPanel{};
+  folder_row.Orientation(mxc::Orientation::Horizontal);
+  folder_row.Spacing(8);
+  auto folder_button = mxc::Button{};
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      folder_button, L"database-folder-choose");
+  folder_button.Content(winrt::box_value(t("dbFolderChoose")));
+  folder_row.Children().Append(folder_button);
+  auto folder_text = mxc::TextBlock{};
+  folder_text.Text(L"—");
+  folder_text.FontSize(12);
+  folder_text.VerticalAlignment(mx::VerticalAlignment::Center);
+  folder_text.TextTrimming(mx::TextTrimming::CharacterEllipsis);
+  folder_text.MaxWidth(220);
+  folder_row.Children().Append(folder_text);
+  fields_panel.Children().Append(folder_row);
+  content.Children().Append(fields_panel);
+
+  auto confirm_text = mxc::TextBlock{};
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      confirm_text, L"database-migrate-confirm-text");
+  confirm_text.Visibility(mx::Visibility::Collapsed);
+  confirm_text.TextWrapping(mx::TextWrapping::Wrap);
+  confirm_text.FontSize(12);
+  content.Children().Append(confirm_text);
+
+  auto error_text = mxc::TextBlock{};
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      error_text, L"database-error");
+  error_text.Visibility(mx::Visibility::Collapsed);
+  error_text.TextWrapping(mx::TextWrapping::Wrap);
+  error_text.FontSize(12);
+  error_text.Foreground(ThemeBrush(L"TasklyOverdueBrush"));
+  content.Children().Append(error_text);
+
+  auto actions = mxc::Grid{};
+  actions.ColumnDefinitions().Append(mxc::ColumnDefinition{});
+  actions.ColumnDefinitions().Append(mxc::ColumnDefinition{});
+  actions.ColumnDefinitions().GetAt(0).Width(
+      mx::GridLength{1, mx::GridUnitType::Star});
+  auto apply_button = mxc::Button{};
+  winrt::Microsoft::UI::Xaml::Automation::AutomationProperties::SetAutomationId(
+      apply_button, L"database-migrate-apply");
+  apply_button.Content(winrt::box_value(t("dbApplyMigrate")));
+  apply_button.Style(
+      winrt::Microsoft::UI::Xaml::Application::Current()
+          .Resources()
+          .Lookup(winrt::box_value(L"AccentButtonStyle"))
+          .as<winrt::Microsoft::UI::Xaml::Style>());
+  mxc::Grid::SetColumn(apply_button, 1);
+  apply_button.HorizontalAlignment(mx::HorizontalAlignment::Right);
+  actions.Children().Append(apply_button);
+  content.Children().Append(actions);
+
+  auto dialog = mxc::ContentDialog{};
+  dialog.Title(winrt::box_value(t("dbMigrateTitle")));
+  dialog.Content(content);
+  dialog.CloseButtonText(t("dialogCancel"));
+  dialog.DefaultButton(mxc::ContentDialogButton::Close);
+  dialog.XamlRoot(Content().XamlRoot());
+
+  // Two-step state shared with the apply click handler; shared_ptr keeps it
+  // alive independently of the coroutine frame (a second click after the
+  // dialog closed must never touch dangling locals).
+  auto confirming = std::make_shared<bool>(false);
+  auto folder = std::make_shared<std::wstring>();
+  auto dialog_weak = winrt::weak_ref<mxc::ContentDialog>(dialog);
+  apply_button.Click(
+      [weak, dialog_weak, dispatcher, fields_panel, folder_button, folder_text,
+       confirm_text, error_text,
+       apply_button, confirming, folder](auto const&, auto const&) {
+        auto window = weak.get();
+        if (!window) return;
+        error_text.Visibility(mx::Visibility::Collapsed);
+        if (!*confirming) {
+          *folder = trim_wide(std::wstring(folder_text.Text()));
+          if (folder->empty()) {
+            error_text.Text(t("dbErrNoPath"));
+            error_text.Visibility(mx::Visibility::Visible);
+            return;
+          }
+          // §2a step 2: the explicit from → to confirmation. Only a success
+          // switches the location; the copy says so before the user commits.
+          *confirming = true;
+          fields_panel.Visibility(mx::Visibility::Collapsed);
+          auto const target = (std::filesystem::path(*folder) /
+                               L"taskly.sqlite")
+                                  .wstring();
+          confirm_text.Text(
+              tf2("dbMigrateConfirmText", window->database_path_, target));
+          confirm_text.Visibility(mx::Visibility::Visible);
+          apply_button.Content(winrt::box_value(t("dbConfirmMigrate")));
+          return;
+        }
+        apply_button.IsEnabled(false);
+        ++window->database_generation_;
+        auto const generation = window->database_generation_;
+        if (!window->pending_delete_ids_.empty()) window->UndoPendingDeletion();
+        try {
+          rivet_app::API api(*window->backend_);
+          (void)api.migrate_database_async(
+              winrt::to_string(*folder),
+              [weak, dialog_weak, error_text, apply_button, dispatcher,
+               confirming, folder,
+               generation](rivet_app::Result<rivet_app::Snapshot> result) {
+                dispatcher.TryEnqueue(
+                    [weak, dialog_weak, error_text, apply_button, result,
+                     confirming, folder, generation]() mutable {
+                      auto window = weak.get();
+                      if (!window || generation != window->database_generation_) {
+                        return;
+                      }
+                      apply_button.IsEnabled(true);
+                      try {
+                        auto const snapshot = result.get();
+                        // Identity rides the backend re-read (name/path).
+                        window->ApplySnapshot(snapshot, /*force=*/true);
+                        if (!window->update_downloading_) {
+                          window->SetStatus(t("dbMigrated"));
+                        }
+                        window->ReportDataFeedback(t("dbMigrated"));
+                        if (auto dialog = dialog_weak.get()) {
+                          dialog.Hide();
+                        }
+                        window->RefreshDatabaseIdentityFromBackendAsync();
+                      } catch (std::exception const& e) {
+                        // Back to step 1 with the actionable error; original
+                        // file, location and open database are unchanged.
+                        *confirming = false;
+                        error_text.Text(window->DatabaseActionError(
+                            e, "dbErrMigrateFailed"));
+                        error_text.Visibility(mx::Visibility::Visible);
+                        confirm_text.Visibility(mx::Visibility::Collapsed);
+                        apply_button.Content(
+                            winrt::box_value(t("dbApplyMigrate")));
+                      }
+                    });
+              });
+        } catch (std::exception const& e) {
+          apply_button.IsEnabled(true);
+          *confirming = false;
+          error_text.Text(window->DatabaseActionError(e, "dbErrMigrateFailed"));
+          error_text.Visibility(mx::Visibility::Visible);
+        }
+      });
+  folder_button.Click(
+      [weak, folder_text, error_text](auto const&, auto const&) {
+        auto window = weak.get();
+        if (!window) return;
+        error_text.Visibility(mx::Visibility::Collapsed);
+        window->PickFolderAsync([weak, folder_text](std::wstring const& picked) {
+          if (auto window = weak.get(); window && !picked.empty()) {
+            folder_text.Text(picked);
+          }
+        });
+      });
+
+  co_await dialog.ShowAsync();
+}
+
+// §2a backup export: save dialog (.json) → export_backup → report the task
+// count in the settings data feedback line.
+winrt::fire_and_forget MainWindow::ShowExportBackupAsync() {
+  if (backend_ == nullptr || !backend_->running() || !database_connected_) {
+    co_return;
+  }
+  auto picker = winrt::Windows::Storage::Pickers::FileSavePicker{};
+  auto window_native = try_as<::IWindowNative>();
+  if (window_native) {
+    HWND hwnd = nullptr;
+    if (SUCCEEDED(window_native->get_WindowHandle(&hwnd))) {
+      if (auto initializer = picker.try_as<::IInitializeWithWindow>()) {
+        initializer->Initialize(hwnd);
+      }
+    }
+  }
+  picker.SuggestedFileName(
+      L"taskly-backup-" + std::to_wstring(std::time(nullptr)));
+  picker.DefaultFileExtension(L".json");
+  picker.FileTypeChoices().Insert(
+      L"JSON", winrt::single_threaded_vector<winrt::hstring>({L".json"})
+                   .GetView());
+  auto const file = co_await picker.PickSaveFileAsync();
+  if (file == nullptr) {
+    co_return;
+  }
+  auto const dispatcher = DispatcherQueue();
+  auto const weak = get_weak();
+  auto backend = backend_;
+  try {
+    rivet_app::API api(*backend);
+    (void)api.export_backup_async(
+        winrt::to_string(std::wstring(file.Path())),
+        [dispatcher, weak](rivet_app::Result<std::int64_t> result) {
+          try {
+            auto const count = result.get();
+            dispatcher.TryEnqueue([weak, count] {
+              if (auto window = weak.get()) {
+                auto const message =
+                    tf("dbExported", std::to_wstring(count));
+                window->SetStatus(message);
+                window->ReportDataFeedback(message);
               }
             });
           } catch (std::exception const& e) {
             auto message = std::string(e.what());
             dispatcher.TryEnqueue([weak, message = std::move(message)] {
               if (auto window = weak.get()) {
-                window->SetError(message);
+                auto const text =
+                    tf("dbRestoreInvalid", wide(message));
+                window->SetStatus(text);
+                window->ReportDataFeedback(text);
               }
             });
           }
         });
   } catch (std::exception const& e) {
-    SetError(e.what());
+    auto const text = tf("dbRestoreInvalid", wide(e.what()));
+    SetStatus(text);
+    ReportDataFeedback(text);
   }
+}
+
+// §2a restore, step 1: pick the backup file, then let the core validate it
+// and preview the counts.
+winrt::fire_and_forget MainWindow::ShowRestoreBackupAsync() {
+  if (backend_ == nullptr || !backend_->running() || !database_connected_) {
+    co_return;
+  }
+  auto picker = winrt::Windows::Storage::Pickers::FileOpenPicker{};
+  auto window_native = try_as<::IWindowNative>();
+  if (window_native) {
+    HWND hwnd = nullptr;
+    if (SUCCEEDED(window_native->get_WindowHandle(&hwnd))) {
+      if (auto initializer = picker.try_as<::IInitializeWithWindow>()) {
+        initializer->Initialize(hwnd);
+      }
+    }
+  }
+  picker.FileTypeFilter().Append(L".json");
+  auto const file = co_await picker.PickSingleFileAsync();
+  if (file == nullptr) {
+    co_return;
+  }
+  auto const path = std::wstring(file.Path());
+  auto const dispatcher = DispatcherQueue();
+  auto const weak = get_weak();
+  auto backend = backend_;
+  try {
+    rivet_app::API api(*backend);
+    (void)api.preview_backup_async(
+        winrt::to_string(path),
+        [dispatcher, weak, path](rivet_app::Result<rivet_app::BackupPreview> result) {
+          try {
+            auto const preview = result.get();
+            dispatcher.TryEnqueue([weak, preview, path] {
+              if (auto window = weak.get()) {
+                // §2a stale-selection guard: bind the pending restore to the
+                // database selected at preview time; confirmation refuses
+                // when the active database changed.
+                window->pending_restore_path_ = path;
+                window->pending_restore_db_path_ = window->database_path_;
+                window->ConfirmRestoreThenApply(tf2(
+                    "dbRestorePreviewBody",
+                    std::to_wstring(preview.task_count),
+                    std::to_wstring(preview.list_count)));
+              }
+            });
+          } catch (std::exception const& e) {
+            auto message = std::string(e.what());
+            dispatcher.TryEnqueue([weak, message = std::move(message)] {
+              if (auto window = weak.get()) {
+                auto const text =
+                    tf("dbRestoreInvalid", wide(message));
+                window->SetStatus(text);
+                window->ReportDataFeedback(text);
+              }
+            });
+          }
+        });
+  } catch (std::exception const& e) {
+    auto const text = tf("dbRestoreInvalid", wide(e.what()));
+    SetStatus(text);
+    ReportDataFeedback(text);
+  }
+}
+
+// §2a restore, step 2: the explicit irreversible-replacement confirmation
+// hosted by the settings window (the surface the user acted on), then the
+// guarded restore RPC.
+winrt::fire_and_forget MainWindow::ConfirmRestoreThenApply(
+    std::wstring const& body) {
+  if (!settings_window_) {
+    co_return;
+  }
+  bool const confirmed =
+      co_await settings_window_.ConfirmRestoreAsync(winrt::hstring(body));
+  if (!confirmed) {
+    pending_restore_path_.clear();
+    pending_restore_db_path_.clear();
+    co_return;
+  }
+  // PRODUCT-SPEC §2a: if the active database changed between preview and
+  // confirm, refuse and ask to re-select — nothing is restored.
+  if (pending_restore_db_path_ != database_path_ ||
+      pending_restore_path_.empty()) {
+    SetStatus(t("dbRestoreStale"));
+    ReportDataFeedback(t("dbRestoreStale"));
+    pending_restore_path_.clear();
+    co_return;
+  }
+  if (backend_ == nullptr || !backend_->running()) {
+    co_return;
+  }
+  auto const path = pending_restore_path_;
+  pending_restore_path_.clear();
+  pending_restore_db_path_.clear();
+  if (!pending_delete_ids_.empty()) UndoPendingDeletion();
+  ++database_generation_;
+  auto const generation = database_generation_;
+  auto const dispatcher = DispatcherQueue();
+  auto const weak = get_weak();
+  auto backend = backend_;
+  try {
+    rivet_app::API api(*backend);
+    (void)api.restore_backup_async(
+        winrt::to_string(path),
+        [dispatcher, weak,
+         generation](rivet_app::Result<rivet_app::Snapshot> result) {
+          try {
+            auto const snapshot = result.get();
+            dispatcher.TryEnqueue([weak, snapshot, generation] {
+              if (auto window = weak.get()) {
+                if (generation != window->database_generation_) {
+                  return;
+                }
+                window->ApplySnapshot(snapshot, /*force=*/true);
+                auto const message =
+                    tf("dbRestored", std::to_wstring(snapshot.tasks.size()));
+                window->SetStatus(message);
+                window->ReportDataFeedback(message);
+                window->RefreshDatabaseIdentityFromBackendAsync();
+              }
+            });
+          } catch (std::exception const& e) {
+            auto message = std::string(e.what());
+            dispatcher.TryEnqueue([weak, message = std::move(message)] {
+              if (auto window = weak.get()) {
+                auto const text =
+                    tf("dbRestoreInvalid", wide(message));
+                window->SetStatus(text);
+                window->ReportDataFeedback(text);
+              }
+            });
+          }
+        });
+  } catch (std::exception const& e) {
+    auto const text = tf("dbRestoreInvalid", wide(e.what()));
+    SetStatus(text);
+    ReportDataFeedback(text);
+  }
+}
+
+// §2a reveal: Explorer shows the folder with the database file selected.
+void MainWindow::RevealDatabaseFolder() {
+  if (database_path_.empty()) {
+    return;
+  }
+  std::wstring const params = L"/select,\"" + database_path_ + L"\"";
+  ::ShellExecuteW(nullptr, L"open", L"explorer.exe", params.c_str(), nullptr,
+                  SW_SHOWNORMAL);
+}
+
+// Outcomes of the settings 数据 group land in its status line (when the
+// window is open) beside the persistent status bar.
+void MainWindow::ReportDataFeedback(std::wstring const& message) {
+  if (settings_window_) {
+    settings_window_.SetDataFeedback(winrt::hstring(message));
+  }
+}
+
+// Push the current database/lists snapshot into the settings window so the
+// 新任务 and 数据 groups render live state (same event-callback pattern as
+// the preference rows). A database identity change clears a stale feedback.
+void MainWindow::SyncSettingsDatabaseState() {
+  if (!settings_window_) {
+    return;
+  }
+  if (database_path_ != last_feedback_db_path_) {
+    last_feedback_db_path_ = database_path_;
+    settings_window_.SetDataFeedback(winrt::hstring(L""));
+  }
+  auto ids = winrt::single_threaded_vector<std::int64_t>();
+  auto names = winrt::single_threaded_vector<winrt::hstring>();
+  for (auto const& list : lists_) {
+    ids.Append(list.id);
+    names.Append(winrt::hstring(wide(list.name)));
+  }
+  settings_window_.SyncDatabaseState(
+      winrt::hstring(database_name_), winrt::hstring(database_path_),
+      database_connected_, ids.GetView(), names.GetView(), default_list_id_,
+      winrt::hstring(global_quick_add_));
 }
 
 winrt::fire_and_forget MainWindow::AddTaskAsync(std::wstring const& text,
@@ -3917,17 +4895,14 @@ winrt::fire_and_forget MainWindow::RunSearchAsync(std::wstring const& keyword) {
 // Menu handlers
 // ---------------------------------------------------------------------------
 
+// §2a create flow (File menu, Ctrl+Shift+N, gate + settings entry points).
 void MainWindow::OnNewDatabase(winrt::Windows::Foundation::IInspectable const&,
                                Microsoft::UI::Xaml::RoutedEventArgs const&) {
-  auto const weak = get_weak();
-  PromptAsync(t("menuNewDatabase"), t("dialogInputListName"), L"",
-              [weak](std::wstring const& path) {
-                if (auto window = weak.get()) {
-                  window->OpenDatabaseAsync(path);
-                }
-              });
+  ShowCreateDatabaseDialogAsync();
 }
 
+// §2a open: file dialog over *.db *.sqlite *.sqlite3 (never creates — the
+// core refuses missing/foreign files).
 winrt::fire_and_forget MainWindow::OnOpenDatabase(
     winrt::Windows::Foundation::IInspectable const&,
     Microsoft::UI::Xaml::RoutedEventArgs const&) {
@@ -3943,9 +4918,11 @@ winrt::fire_and_forget MainWindow::OnOpenDatabase(
   }
   picker.FileTypeFilter().Append(L".db");
   picker.FileTypeFilter().Append(L".sqlite");
+  picker.FileTypeFilter().Append(L".sqlite3");
   auto const file = co_await picker.PickSingleFileAsync();
   if (file != nullptr) {
-    OpenDatabaseAsync(std::wstring(file.Path()));
+    AttemptOpenAsync(std::wstring(file.Path()),
+                     /*recovery_on_failure=*/false);
   }
 }
 
@@ -3956,16 +4933,21 @@ void MainWindow::OnCloseDatabase(
     return;
   }
   if (!pending_delete_ids_.empty()) UndoPendingDeletion();
+  ++database_generation_;
+  auto const generation = database_generation_;
   auto const dispatcher = DispatcherQueue();
   auto const weak = get_weak();
   auto backend = backend_;
   rivet_app::API api(*backend);
   (void)api.close_database_async(
-      [dispatcher, weak](rivet_app::Result<void> result) {
+      [dispatcher, weak, generation](rivet_app::Result<void> result) {
         try {
           result.get();
-          dispatcher.TryEnqueue([weak] {
+          dispatcher.TryEnqueue([weak, generation] {
             if (auto window = weak.get()) {
+              if (generation != window->database_generation_) {
+                return;
+              }
               window->lists_.clear();
               window->tasks_.clear();
               window->suppressed_deleted_task_ids_.clear();
@@ -3974,9 +4956,16 @@ void MainWindow::OnCloseDatabase(
               // closed database ended with.
               window->has_applied_snapshot_ = false;
               window->database_connected_ = false;
+              // §2a: closing keeps the existing not-connected task UI (no
+              // gate); identity falls back to the no-database state.
+              window->launch_state_ = LaunchState::None;
+              window->database_name_.clear();
+              window->database_path_.clear();
+              window->RefreshDatabaseIdentity();
+              window->SyncSettingsDatabaseState();
               window->RenderSidebar();
               window->RenderTasks();
-              window->SetStatus(L"");
+              window->SetStatus(t("statusDatabaseClosed"));
             }
           });
         } catch (std::exception const& e) {
@@ -3988,6 +4977,37 @@ void MainWindow::OnCloseDatabase(
           });
         }
       });
+}
+
+// §2a gate buttons: welcome choices and the recovery block. Relocate/retry
+// never create a replacement database — relocate reopens only after the
+// core verifies the picked file (AttemptOpenAsync with recovery disabled
+// keeps the gate up on failure, matching the macOS host).
+void MainWindow::OnGateCreate(winrt::Windows::Foundation::IInspectable const&,
+                              Microsoft::UI::Xaml::RoutedEventArgs const&) {
+  Microsoft::UI::Xaml::RoutedEventArgs args;
+  OnNewDatabase(nullptr, args);
+}
+
+void MainWindow::OnGateOpen(winrt::Windows::Foundation::IInspectable const&,
+                            Microsoft::UI::Xaml::RoutedEventArgs const&) {
+  Microsoft::UI::Xaml::RoutedEventArgs args;
+  OnOpenDatabase(nullptr, args);
+}
+
+void MainWindow::OnRecoveryRelocate(
+    winrt::Windows::Foundation::IInspectable const&,
+    Microsoft::UI::Xaml::RoutedEventArgs const&) {
+  Microsoft::UI::Xaml::RoutedEventArgs args;
+  OnOpenDatabase(nullptr, args);
+}
+
+void MainWindow::OnRecoveryRetry(
+    winrt::Windows::Foundation::IInspectable const&,
+    Microsoft::UI::Xaml::RoutedEventArgs const&) {
+  if (launch_state_ == LaunchState::Recovery) {
+    AttemptOpenAsync(recovery_path_, /*recovery_on_failure=*/true);
+  }
 }
 
 void MainWindow::OnExit(winrt::Windows::Foundation::IInspectable const&,
@@ -4011,7 +5031,16 @@ void MainWindow::OnOpenSettings() {
         {this, &MainWindow::OnSettingsThemeChanged});
     settings_window_.AutoCheckCommitted(
         {this, &MainWindow::OnSettingsAutoCheckChanged});
+    // §2a 新任务/数据 groups: same event split as the preference rows, with
+    // the database/lists snapshot pushed in through SyncDatabaseState.
+    settings_window_.DataActionRequested(
+        {this, &MainWindow::OnSettingsDataAction});
+    settings_window_.DefaultListCommitted(
+        {this, &MainWindow::OnSettingsDefaultListChanged});
+    settings_window_.QuickAddCommitted(
+        {this, &MainWindow::OnSettingsQuickAddCommitted});
   }
+  SyncSettingsDatabaseState();
   settings_window_.Activate();
 }
 
@@ -4060,6 +5089,47 @@ void MainWindow::OnSettingsAutoCheckChanged(
     winrt::Windows::Foundation::IInspectable const&) {
   auto_check_updates_ = sender.AutoCheckUpdatesOn();
   SaveSettingAsync("auto-check-updates", auto_check_updates_ ? "1" : "0");
+}
+
+// §2a 数据 group actions: the settings window stays presentational and the
+// flows run here, where the backend and database state live.
+void MainWindow::OnSettingsDataAction(
+    winrt::RivetHost::SettingsWindow const&,
+    winrt::Windows::Foundation::IInspectable const& args) {
+  auto const action = winrt::unbox_value<winrt::hstring>(args);
+  if (action == L"reveal") {
+    RevealDatabaseFolder();
+  } else if (action == L"migrate") {
+    ShowMigrateDatabaseDialogAsync();
+  } else if (action == L"open") {
+    Microsoft::UI::Xaml::RoutedEventArgs routed;
+    OnOpenDatabase(nullptr, routed);
+  } else if (action == L"create") {
+    ShowCreateDatabaseDialogAsync();
+  } else if (action == L"export") {
+    ShowExportBackupAsync();
+  } else if (action == L"restore") {
+    ShowRestoreBackupAsync();
+  }
+}
+
+// §2a 新任务 group: the quick-add default list (§4 targeting).
+void MainWindow::OnSettingsDefaultListChanged(
+    winrt::RivetHost::SettingsWindow const&,
+    winrt::Windows::Foundation::IInspectable const& args) {
+  auto const id = winrt::unbox_value<std::int64_t>(args);
+  default_list_id_ = id;
+  SaveSettingAsync("default-list-id", std::to_string(id));
+}
+
+// §2a 新任务 group: the recorded global quick-add accelerator — persisted
+// but never registered with the operating system (declared slice scope).
+void MainWindow::OnSettingsQuickAddCommitted(
+    winrt::RivetHost::SettingsWindow const&,
+    winrt::Windows::Foundation::IInspectable const& args) {
+  auto const combo = std::wstring(winrt::unbox_value<winrt::hstring>(args));
+  global_quick_add_ = combo;
+  SaveSettingAsync("global-quick-add", winrt::to_string(combo));
 }
 
 void MainWindow::SyncAutoCheckSetting(bool on) {
@@ -4635,15 +5705,21 @@ void MainWindow::CommitQuickAdd() {
       backend_ == nullptr || !backend_->running()) {
     return;
   }
-  // Match macOS/Linux: a named list owns new tasks; smart views use the
-  // first list only as an explicit fallback. Capture the target BEFORE the
+  // Target resolution (PRODUCT-SPEC §4): the selected list wins; smart views
+  // use the configured default list (§2a 新任务 group, when it still resolves
+  // to an existing list), then the first list. Capture the target BEFORE the
   // async parser runs, so switching views cannot redirect an in-flight add.
   std::optional<std::int64_t> target_list_id;
   if (view_ == ViewKind::List) {
     if (find_by_id(lists_, view_list_id_) != nullptr) {
       target_list_id = view_list_id_;
     }
-  } else if (!lists_.empty()) {
+  }
+  if (!target_list_id.has_value() && default_list_id_ != 0 &&
+      find_by_id(lists_, default_list_id_) != nullptr) {
+    target_list_id = default_list_id_;
+  }
+  if (!target_list_id.has_value() && !lists_.empty()) {
     target_list_id = lists_.front().id;
   }
   if (!target_list_id.has_value()) {
