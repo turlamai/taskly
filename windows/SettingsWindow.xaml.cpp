@@ -288,19 +288,19 @@ void SettingsWindow::HandleRecorderKey(
   if (key == VirtualKey::Shift || key == VirtualKey::Control ||
       key == VirtualKey::Menu || key == VirtualKey::LeftWindows ||
       key == VirtualKey::RightWindows || key == VirtualKey::Tab ||
-      key == VirtualKey::CapsLock) {
+      key == VirtualKey::CapitalLock) {
     return;
   }
-  auto const down = [](VirtualKey modifier) {
-    return (winrt::Windows::UI::Input::InputKeyboardSource::GetKeyState(
-                modifier) &
-            winrt::Windows::UI::Core::CoreVirtualKeyStates::Down) ==
-           winrt::Windows::UI::Core::CoreVirtualKeyStates::Down;
+  // Modifier state via the classic Win32 API: the C++/WinRT projections
+  // available to this host carry no InputKeyboardSource, and GetAsyncKeyState
+  // is the dependable desktop reading of "held right now".
+  auto const down = [](int virtual_key) {
+    return (GetAsyncKeyState(virtual_key) & 0x8000) != 0;
   };
-  bool const ctrl = down(VirtualKey::Control);
-  bool const alt = down(VirtualKey::Menu);
-  bool const shift = down(VirtualKey::Shift);
-  bool const win = down(VirtualKey::LeftWindows) || down(VirtualKey::RightWindows);
+  bool const ctrl = down(VK_CONTROL);
+  bool const alt = down(VK_MENU);
+  bool const shift = down(VK_SHIFT);
+  bool const win = down(VK_LWIN) || down(VK_RWIN);
   if (!ctrl && !alt && !win) {
     QuickAddHintText().Text(t("shortcutNeedModifier"));
     QuickAddHintText().Visibility(mx::Visibility::Visible);

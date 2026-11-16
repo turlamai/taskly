@@ -3772,7 +3772,9 @@ void MainWindow::ShowTaskUi() {
 }
 
 winrt::fire_and_forget MainWindow::OpenDatabaseAsync(std::wstring const& path) {
-  co_await AttemptOpenAsync(path, /*recovery_on_failure=*/false);
+  // AttemptOpenAsync is itself fire-and-forget; calling (not co_awaiting)
+  // keeps the error handling inside its own completion.
+  AttemptOpenAsync(path, /*recovery_on_failure=*/false);
 }
 
 // Core lifecycle error → actionable i18n copy. Core messages are machine-
@@ -4121,7 +4123,7 @@ winrt::fire_and_forget MainWindow::ShowMigrateDatabaseDialogAsync() {
                generation](rivet_app::Result<rivet_app::Snapshot> result) {
                 dispatcher.TryEnqueue(
                     [weak, dialog_weak, error_text, apply_button, result,
-                     confirming, folder, generation]() mutable {
+                     confirming, folder, generation, confirm_text]() mutable {
                       auto window = weak.get();
                       if (!window || generation != window->database_generation_) {
                         return;
@@ -4194,8 +4196,7 @@ winrt::fire_and_forget MainWindow::ShowExportBackupAsync() {
       L"taskly-backup-" + std::to_wstring(std::time(nullptr)));
   picker.DefaultFileExtension(L".json");
   picker.FileTypeChoices().Insert(
-      L"JSON", winrt::single_threaded_vector<winrt::hstring>({L".json"})
-                   .GetView());
+      L"JSON", winrt::single_threaded_vector<winrt::hstring>({L".json"}));
   auto const file = co_await picker.PickSaveFileAsync();
   if (file == nullptr) {
     co_return;
