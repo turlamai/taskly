@@ -4119,7 +4119,7 @@ winrt::fire_and_forget MainWindow::ShowMigrateDatabaseDialogAsync() {
           (void)api.migrate_database_async(
               winrt::to_string(*folder),
               [weak, dialog_weak, error_text, apply_button, dispatcher,
-               confirming, folder,
+               confirming, folder, confirm_text,
                generation](rivet_app::Result<rivet_app::Snapshot> result) {
                 dispatcher.TryEnqueue(
                     [weak, dialog_weak, error_text, apply_button, result,

@@ -341,15 +341,17 @@ std::wstring SettingsWindow::RecorderKeyName(
   if (code >= 0x70 && code <= 0x87) {  // F1 … F24
     return L"f" + std::to_wstring(code - 0x70 + 1);
   }
-  switch (key) {
-    case winrt::Windows::System::VirtualKey::Space: return L"space";
-    case winrt::Windows::System::VirtualKey::Comma: return L"comma";
-    case winrt::Windows::System::VirtualKey::Period: return L"period";
-    case winrt::Windows::System::VirtualKey::Semicolon: return L"semicolon";
-    case winrt::Windows::System::VirtualKey::Minus: return L"minus";
-    case winrt::Windows::System::VirtualKey::Slash: return L"slash";
-    default: return L"";
-  }
+  // Punctuation has no WinRT VirtualKey members — match raw codes
+  // (0x20 space, 0xBC comma, 0xBE period, 0xBA semicolon, 0xBD minus,
+  // 0xBF slash), the same recorded shape the display formatter splits on.
+  auto const code_key = static_cast<unsigned int>(key);
+  if (code_key == 0x20) return L"space";
+  if (code_key == 0xBC) return L"comma";
+  if (code_key == 0xBE) return L"period";
+  if (code_key == 0xBA) return L"semicolon";
+  if (code_key == 0xBD) return L"minus";
+  if (code_key == 0xBF) return L"slash";
+  return L"";
 }
 
 // The 数据 group's buttons stay presentational: the XAML Tag carries the
