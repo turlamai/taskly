@@ -547,6 +547,11 @@ do {
     let taskTitle: AXUIElement = try waitFor("identified task title") {
         findTaskTitle(window, text: "Acceptance task")
     }
+    // The row insert animates (0.15 s ease-out). Grabbing the info button
+    // mid-animation hands the press a stale AX reference that lands on the
+    // title's tap gesture and expands the inline editor instead. Let the
+    // layout settle before pressing row controls.
+    Thread.sleep(forTimeInterval: 0.8)
     let taskIdentifier = stringAttribute(taskTitle, kAXIdentifierAttribute)
     guard let taskID = taskIdentifier.split(separator: "-").last.map(String.init) else {
         throw DriverError.failure("task title had no stable id: \(taskIdentifier)")
