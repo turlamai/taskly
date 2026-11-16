@@ -13,16 +13,24 @@ else
 fi
 driver="$output/macos-ax"
 home="$output/home-$$"
-mkdir -p "$output" "$home/.taskly"
+mkdir -p "$output" "$home/.taskly" "$home/.taskly"
 [[ -x "$app" ]]
 
 epoch="$(date +%s)"
+# §2a: the interaction flow runs against a recorded database — the welcome
+# gate is a dedicated scenario below. The CLI seeds a real v5 database file
+# (open-or-create semantics unchanged), then config records it.
+seed_db="$home/seed.db"
+HOME="$home" bash "$repo/scripts/taskly-cli.sh" --db "$seed_db" list >/dev/null
+[[ -f "$seed_db" ]]
 cat >"$home/.taskly/config.ini" <<EOF
 # Taskly acceptance profile
 language = en
 close-to-tray = 0
 last-selected-list-id = 0
 last-update-check = $epoch
+last-db-path = $seed_db
+last-db-name = Acceptance Home
 EOF
 
 swiftc "$repo/scripts/e2e/macos-ax.swift" -o "$driver" \
@@ -80,4 +88,55 @@ HOME="$home" "$app" >"$output/application-restart.log" 2>&1 &
 app_pid=$!
 "$driver" --pid "$app_pid" --output "$output" --verify-restart
 wait "$app_pid"
+app_pid=""
+
+# ---- §2a database lifecycle scenarios (dedicated profiles) ----------------
+
+# Welcome gate → exclusive create: fresh profile with no recorded database.
+gate_home="$output/gate-home-$$"
+mkdir -p "$gate_home/.taskly"
+cat >"$gate_home/.taskly/config.ini" <<EOF
+# Taskly gate acceptance profile
+language = en
+close-to-tray = 0
+last-update-check = $epoch
+EOF
+HOME="$gate_home" "$app" >"$output/application-gate.log" 2>&1 &
+app_pid=$!
+"$driver" --pid "$app_pid" --output "$output" --home "$gate_home" --database-gate
+wait "$app_pid"
+app_pid=""
+
+# Recovery → 重试: the recorded database is missing at boot; the harness
+# restores the file mid-run while the driver retries.
+recovery_home="$output/recovery-home-$$"
+mkdir -p "$recovery_home/.taskly" "$recovery_home/data"
+recovery_db="$recovery_home/data/vanish.db"
+HOME="$recovery_home" bash "$repo/scripts/taskly-cli.sh" --db "$recovery_db" list >/dev/null
+mv "$recovery_db" "$recovery_db.stash"
+cat >"$recovery_home/.taskly/config.ini" <<EOF
+# Taskly recovery acceptance profile
+language = en
+close-to-tray = 0
+last-update-check = $epoch
+last-db-path = $recovery_db
+EOF
+HOME="$recovery_home" "$app" >"$output/application-recovery.log" 2>&1 &
+app_pid=$!
+"$driver" --pid "$app_pid" --output "$output" --home "$recovery_home" \
+  --database-recovery-retry &
+driver_pid=$!
+sleep 3
+mv "$recovery_db.stash" "$recovery_db"
+wait "$driver_pid"
+stop_bounded "$app_pid" || true
+wait "$app_pid" 2>/dev/null || true
+app_pid=""
+
+# Settings 数据 group: migrate / export / restore against the seeded home.
+HOME="$home" "$app" >"$output/application-settings.log" 2>&1 &
+app_pid=$!
+"$driver" --pid "$app_pid" --output "$output" --home "$home" --database-settings
+stop_bounded "$app_pid" || true
+wait "$app_pid" 2>/dev/null || true
 app_pid=""

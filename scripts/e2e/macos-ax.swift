@@ -145,14 +145,24 @@ func setValue(_ value: String, on element: AXUIElement) throws {
 }
 
 func postKey(_ keyCode: CGKeyCode) throws {
+    try postKey(keyCode, flags: [])
+}
+
+/// Modifier-combined key event (Cmd+Shift+G go-to-folder, Cmd+, settings…).
+func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags) throws {
     guard let source = CGEventSource(stateID: .hidSystemState),
           let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
           let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
         throw DriverError.failure("could not create keyboard event")
     }
+    keyDown.flags = flags
+    keyUp.flags = flags
     keyDown.post(tap: .cghidEventTap)
     keyUp.post(tap: .cghidEventTap)
 }
+
+let cmdShiftG: CGEventFlags = [.maskCommand, .maskShift]
+let cmdOnly: CGEventFlags = [.maskCommand]
 
 func clickPoint(_ element: AXUIElement) throws -> CGPoint {
     guard let positionRaw = attribute(element, kAXPositionAttribute),
@@ -202,6 +212,244 @@ func leftClick(_ element: AXUIElement, _ description: String) throws {
 var diagnosticApplication: AXUIElement?
 var diagnosticOutput: URL?
 
+// ---- §2a database-lifecycle scenario helpers -----------------------------
+
+/// The focused editable text field of the frontmost sheet/panel (the
+/// go-to-folder field takes focus the moment the shortcut lands).
+func focusedTextField(_ root: AXUIElement) -> AXUIElement? {
+    for element in walk(root) {
+        let role = stringAttribute(element, kAXRoleAttribute)
+        guard role == "AXTextField" else { continue }
+        let focused = stringAttribute(element, kAXFocusedAttribute)
+        if focused == "1" { return element }
+    }
+    return nil
+}
+
+/// Drives a real NSOpenPanel/NSSavePanel to the given path: Cmd+Shift+G,
+/// type the path into the go-to sheet, Return to navigate, Return to accept
+/// the default (Go / Open / Choose / Save) button.
+func drivePanelTo(_ application: AXUIElement, path: String) throws {
+    try postKey(11, flags: cmdShiftG) // G
+    let field: AXUIElement = try waitFor("go-to-folder field") {
+        focusedTextField(application)
+    }
+    try setValue(path, on: field)
+    Thread.sleep(forTimeInterval: 0.3)
+    try postKey(36) // Return — navigate
+    Thread.sleep(forTimeInterval: 0.5)
+    try postKey(36) // Return — default panel button
+    Thread.sleep(forTimeInterval: 0.5)
+}
+
+func configFileValue(_ home: URL, key: String) -> String? {
+    let configURL = home.appendingPathComponent(".taskly/config.ini")
+    guard let text = try? String(contentsOf: configURL, encoding: .utf8) else {
+        return nil
+    }
+    for line in text.split(separator: "\n") {
+        let parts = line.split(separator: "=", maxSplits: 1)
+        if parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == key {
+            return parts[1].trimmingCharacters(in: .whitespaces)
+        }
+    }
+    return nil
+}
+
+func openSettings(_ application: AXUIElement) throws {
+    try postKey(43, flags: cmdOnly) // , — ⌘, opens the settings window (§8)
+    _ = try waitFor("settings window") {
+        find(application, identifier: "settings-db-current")
+    }
+}
+
+/// The §2a gate scenarios (--database-gate / --database-recovery-retry),
+/// each running against a dedicated profile prepared by e2e-macos.sh.
+func runDatabaseGateScenario(application: AXUIElement, window: AXUIElement,
+                             output: URL, home: URL, mode: String) throws {
+    if mode == "gate" {
+        // Welcome gate visible before any task UI.
+        _ = try waitFor("welcome gate headline") {
+            find(window, identifier: "database-gate-title")
+        }
+        let create = try waitFor("welcome gate create action") {
+            find(window, identifier: "database-gate-create")
+        }
+        _ = try waitFor("welcome gate open action") {
+            find(window, identifier: "database-gate-open")
+        }
+        // Exclusive create: folder + name through the create sheet.
+        try press(create, "database-gate-create")
+        let nameField = try waitFor("create sheet name field") {
+            find(application, identifier: "database-name-field")
+        }
+        try setValue("Gate Acceptance", on: nameField)
+        let chooseFolder = try waitFor("create sheet folder chooser") {
+            find(application, identifier: "database-folder-choose")
+        }
+        try press(chooseFolder, "database-folder-choose")
+        try drivePanelTo(application, path: home.path)
+        let apply = try waitFor("create sheet apply action") {
+            find(application, identifier: "database-create-apply")
+        }
+        try press(apply, "database-create-apply")
+        _ = try waitFor("task UI after create") {
+            find(window, identifier: "quick-add")
+        }
+        _ = try waitFor("sidebar database identity") {
+            find(window, identifier: "database-identity")
+        }
+        // The created file is the recorded database.
+        let recorded = configFileValue(home, key: "last-db-path") ?? ""
+        guard recorded.hasSuffix("taskly.sqlite"),
+              FileManager.default.fileExists(atPath: recorded) else {
+            throw DriverError.failure("create did not record the database: \(recorded)")
+        }
+        try writeJSON([
+            "platform": "macos",
+            "scenario": "database-gate-create",
+            "assertions": [
+                "welcome gate replaces the task UI with no database recorded",
+                "create flow opened the create sheet and the native folder panel",
+                "create produced taskly.sqlite and recorded it as the last database",
+                "sidebar database identity is visible after create",
+            ],
+        ], to: output.appendingPathComponent("database-gate.json"))
+    } else {
+        // Recovery: the recorded database file is missing until the harness
+        // restores it; 重试 re-attempts the recorded path.
+        _ = try waitFor("recovery block headline") {
+            containsStaticText(window, "Can't find your last database") ||
+            containsStaticText(window, "找不到上次的数据库") ? true : nil
+        }
+        _ = try waitFor("recovery recorded path shown") {
+            find(window, identifier: "database-recovery-path")
+        }
+        let retry = try waitFor("recovery retry action") {
+            find(window, identifier: "database-recovery-retry")
+        }
+        // Retry in a loop: while the file is still absent every attempt
+        // returns to the recovery block; once the harness restores the file
+        // the next retry reconnects.
+        var connected = false
+        for _ in 0..<40 {
+            try press(retry, "database-recovery-retry")
+            Thread.sleep(forTimeInterval: 0.5)
+            if find(window, identifier: "quick-add") != nil {
+                connected = true
+                break
+            }
+            if find(window, identifier: "database-recovery-retry") == nil {
+                connected = find(window, identifier: "quick-add") != nil
+                break
+            }
+        }
+        guard connected else {
+            throw DriverError.failure("retry never reconnected the restored database")
+        }
+        try writeJSON([
+            "platform": "macos",
+            "scenario": "database-recovery",
+            "assertions": [
+                "missing recorded database shows the recovery block with the recorded path",
+                "no replacement database is created automatically",
+                "重试 reconnects once the file is restored in place",
+            ],
+        ], to: output.appendingPathComponent("database-recovery.json"))
+    }
+}
+
+/// §2a settings 数据 group: migrate / export / restore against the
+/// connected database (profile seeded by e2e-macos.sh).
+func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
+                                 output: URL, home: URL) throws {
+    try openSettings(application)
+    let migrate = try waitFor("settings migrate action") {
+        find(application, identifier: "settings-db-migrate")
+    }
+    try press(migrate, "settings-db-migrate")
+    let chooseFolder = try waitFor("migrate sheet folder chooser") {
+        find(application, identifier: "database-folder-choose")
+    }
+    try press(chooseFolder, "database-folder-choose")
+    let migrateDir = home.appendingPathComponent("migrated")
+    try FileManager.default.createDirectory(at: migrateDir, withIntermediateDirectories: true)
+    try drivePanelTo(application, path: migrateDir.path)
+    let continueButton = try waitFor("migrate continue action") {
+        find(application, identifier: "database-migrate-apply")
+    }
+    try press(continueButton, "database-migrate-apply")
+    let confirmText = try waitFor("migrate confirmation text") {
+        find(application, identifier: "database-migrate-confirm-text")
+    }
+    _ = confirmText
+    try press(continueButton, "database-migrate-confirm")
+    _ = try waitFor("settings window after migrate") {
+        find(application, identifier: "settings-db-current")
+    }
+    let recorded = configFileValue(home, key: "last-db-path") ?? ""
+    guard recorded == migrateDir.appendingPathComponent("taskly.sqlite").path,
+          FileManager.default.fileExists(atPath: recorded),
+          FileManager.default.fileExists(
+            atPath: home.appendingPathComponent("seed.db").path) else {
+        throw DriverError.failure(
+            "migrate did not switch the recorded location (recorded: \(recorded))")
+    }
+
+    // Backup export through the save panel; the file must be taskly-backup v1.
+    let export = try waitFor("settings export action") {
+        find(application, identifier: "settings-db-export")
+    }
+    try press(export, "settings-db-export")
+    let backupPath = home.appendingPathComponent("seed-backup.json")
+    try FileManager.default.removeItem(at: backupPath)
+    // The save panel's name field owns focus; set the file name, then
+    // go-to the folder and accept.
+    let nameField = try waitFor("save panel name field") {
+        focusedTextField(application)
+    }
+    try setValue("seed-backup.json", on: nameField)
+    try drivePanelTo(application, path: home.path)
+    _ = try waitFor("backup file written") {
+        FileManager.default.fileExists(atPath: backupPath.path) ? true : nil
+    }
+    let backupData = try Data(contentsOf: backupPath)
+    let backupJSON = try JSONSerialization.jsonObject(with: backupData) as? [String: Any]
+    guard (backupJSON?["format"] as? String) == "taskly-backup",
+          (backupJSON?["version"] as? Int) == 1,
+          let tasks = backupJSON?["tasks"] as? [[String: Any]], !tasks.isEmpty else {
+        throw DriverError.failure("export did not write a taskly-backup v1 file")
+    }
+
+    // Restore: preview → explicit confirmation → replaced (identical file,
+    // so the observable outcome is the confirmation + a live database).
+    let restore = try waitFor("settings restore action") {
+        find(application, identifier: "settings-db-restore")
+    }
+    try press(restore, "settings-db-restore")
+    _ = try waitFor("restore picker panel") {
+        focusedTextField(application) != nil ? true : nil
+    }
+    try drivePanelTo(application, path: backupPath.path)
+    let applyRestore = try waitFor("restore replace action") {
+        findButton(application, title: "Replace Tasks")
+    }
+    try press(applyRestore, "dbRestoreApply")
+    _ = try waitFor("restore feedback reported") {
+        find(application, identifier: "settings-data-feedback") != nil ? true : nil
+    }
+
+    try writeJSON([
+        "platform": "macos",
+        "scenario": "database-settings",
+        "assertions": [
+            "migrate moved the recorded location and left the source file in place",
+            "export wrote a taskly-backup v1 JSON file with tasks",
+            "restore required the explicit confirmation and completed",
+        ],
+    ], to: output.appendingPathComponent("database-settings.json"))
+}
+
 do {
     let arguments = CommandLine.arguments
     guard let pidIndex = arguments.firstIndex(of: "--pid"), pidIndex + 1 < arguments.count,
@@ -221,6 +469,39 @@ do {
     }
     _ = AXUIElementSetAttributeValue(application, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
     _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+
+    // §2a scenario dispatch: the lifecycle flows run against dedicated
+    // profiles prepared by e2e-macos.sh (--home points at the profile).
+    if let homeIndex = arguments.firstIndex(of: "--home"), homeIndex + 1 < arguments.count {
+        let home = URL(fileURLWithPath: arguments[homeIndex + 1], isDirectory: true)
+        if arguments.contains("--database-gate") {
+            try runDatabaseGateScenario(application: application, window: window,
+                                        output: output, home: home, mode: "gate")
+            guard let running = NSRunningApplication(processIdentifier: pid),
+                  running.terminate() else {
+                throw DriverError.failure("gate scenario application rejected termination")
+            }
+            exit(0)
+        }
+        if arguments.contains("--database-recovery-retry") {
+            try runDatabaseGateScenario(application: application, window: window,
+                                        output: output, home: home, mode: "recovery")
+            guard let running = NSRunningApplication(processIdentifier: pid),
+                  running.terminate() else {
+                throw DriverError.failure("recovery scenario application rejected termination")
+            }
+            exit(0)
+        }
+        if arguments.contains("--database-settings") {
+            try runDatabaseSettingsScenario(application: application, window: window,
+                                            output: output, home: home)
+            guard let running = NSRunningApplication(processIdentifier: pid),
+                  running.terminate() else {
+                throw DriverError.failure("settings scenario application rejected termination")
+            }
+            exit(0)
+        }
+    }
 
     if arguments.contains("--verify-restart") {
         _ = try waitFor("persisted task after application restart") {

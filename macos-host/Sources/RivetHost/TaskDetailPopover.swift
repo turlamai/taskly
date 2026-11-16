@@ -42,6 +42,14 @@ struct TaskDetailPopover: View {
     @State private var saveError: String?
     @State private var errorField: Field?
     @FocusState private var focusedField: TextFieldID?
+    // §5b prototype checkpoint 2026-11-15: secondary fields live behind
+    // disclosure controls that open on load when the field already holds a
+    // value (prototype `prepareDetails`).
+    @State private var timeOpen = false
+    @State private var priorityOpen = false
+    @State private var tagsOpen = false
+    @State private var subtasksOpen = false
+    @State private var urlOpen = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,16 +60,16 @@ struct TaskDetailPopover: View {
                     headTags
                     completionRow
                     field(model.t("fieldTitle"), .title) { titleField }
-                    HStack(alignment: .top, spacing: 10) {
-                        field(model.t("fieldDate"), .date) { dateField }
-                        field(model.t("fieldTime"), .time) { timeField }
-                    }
-                    field(model.t("fieldPriority"), .priority) { priorityPicker }
-                    field(model.t("fieldTags"), .tags) { tagSection }
-                    field(model.t("fieldSubtasks"), .subtasks) { subtaskSection }
+                    field(model.t("fieldDate"), .date) { dateField }
+                    // Directly visible per the prototype checkpoint; time
+                    // and the optional fields collapse behind disclosures.
                     field(model.t("fieldNotes"), .notes) { notesField }
-                    field(model.t("fieldUrl"), .url) { urlField }
                     field(model.t("fieldList"), .list) { listPicker }
+                    disclosure(model.t("fieldTime"), .time, $timeOpen, timeField)
+                    disclosure(model.t("fieldPriority"), .priority, $priorityOpen, priorityPicker)
+                    disclosure(model.t("fieldTags"), .tags, $tagsOpen, tagSection)
+                    disclosure(model.t("fieldSubtasks"), .subtasks, $subtasksOpen, subtaskSection)
+                    disclosure(model.t("fieldUrl"), .url, $urlOpen, urlField)
                 }
                 .padding(14)
             }
@@ -203,6 +211,29 @@ struct TaskDetailPopover: View {
             if errorField == field, let saveError {
                 errorText(saveError)
             }
+        }
+    }
+
+    /// Keyboard-accessible disclosure section (§5b checkpoint): the summary
+    /// row toggles natively; the anchored field error stays visible while
+    /// collapsed so a failed save is never hidden. The content view is
+    /// built by the caller (DisclosureGroup's content closure escapes, so
+    /// it cannot capture a non-escaping ViewBuilder parameter).
+    @ViewBuilder
+    private func disclosure<V: View>(_ label: String, _ field: Field,
+                                     _ isOpen: Binding<Bool>,
+                                     _ content: V) -> some View {
+        DisclosureGroup(isExpanded: isOpen) {
+            content
+                .padding(.top, 4)
+        } label: {
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(model.theme.secondaryText)
+        }
+        .accessibilityIdentifier("detail-disclosure-\(String(describing: field))")
+        if errorField == field, let saveError {
+            errorText(saveError)
         }
     }
 
@@ -438,6 +469,13 @@ struct TaskDetailPopover: View {
         subtasks = task.subtasks
         listId = task.list_id
         completed = task.completed
+        // §5b checkpoint: a section opens on load when it already holds a
+        // value; empty sections stay available but closed.
+        timeOpen = hasTime
+        priorityOpen = priority != 0
+        tagsOpen = !tags.isEmpty
+        subtasksOpen = !subtasks.isEmpty
+        urlOpen = !url.isEmpty
     }
 
     /// Current editor state as a Task. Text emptiness maps to the absent
