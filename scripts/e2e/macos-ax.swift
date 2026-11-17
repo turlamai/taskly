@@ -522,8 +522,14 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
     // The save panel's name field owns focus; wait for the panel window,
     // then set the file name and confirm through the default button.
     _ = try waitFor("save panel window") { panelWindow(application) }
-    let nameField = try waitFor("save panel name field") {
-        focusedTextField(application)
+    let nameField = try waitFor("save panel name field") { () -> AXUIElement? in
+        guard let panel = panelWindow(application) else { return nil }
+        // The save panel's name field: its only editable text field (focus
+        // flags proved unreliable on runners).
+        return walk(panel).first { element in
+            let role = stringAttribute(element, kAXRoleAttribute)
+            return role == "AXTextField" || role == "AXComboBox"
+        }
     }
     try setValue("seed-backup.json", on: nameField)
     try confirmPanel(application, buttonTitle: "Save")
