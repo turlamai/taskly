@@ -101,6 +101,10 @@ language = en
 close-to-tray = 0
 last-update-check = $epoch
 EOF
+# NSOpenPanel remembers its last directory per app; pin it so the create
+# flow's folder panel opens at the profile home without keyboard navigation
+# (blind Cmd+Shift+G proved flaky on CI runners).
+defaults write app.taskly.Taskly NSNavLastRootDirectory "$gate_home"
 HOME="$gate_home" "$app" >"$output/application-gate.log" 2>&1 &
 app_pid=$!
 "$driver" --pid "$app_pid" --output "$output" --home "$gate_home" --database-gate
@@ -134,6 +138,7 @@ wait "$app_pid" 2>/dev/null || true
 app_pid=""
 
 # Settings 数据 group: migrate / export / restore against the seeded home.
+defaults write app.taskly.Taskly NSNavLastRootDirectory "$home"
 HOME="$home" "$app" >"$output/application-settings.log" 2>&1 &
 app_pid=$!
 "$driver" --pid "$app_pid" --output "$output" --home "$home" --database-settings

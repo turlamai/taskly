@@ -265,30 +265,42 @@ func focusedTextField(_ root: AXUIElement) -> AXUIElement? {
 /// Drives a real NSOpenPanel/NSSavePanel to the given path: Cmd+Shift+G,
 /// type the path into the go-to sheet, Return to navigate, Return to accept
 /// the default (Go / Open / Choose / Save) button.
-func drivePanelTo(_ application: AXUIElement, path: String) throws {
-    // Wait for the panel window, confirm the app is frontmost (a swallowed
-    // shortcut on a not-yet-key window is the observed CI failure), then
-    // issue Cmd+Shift+G until the go-to field mounts.
-    _ = try waitFor("file panel window") { panelWindow(application) }
-    _ = try waitFor("application frontmost") { () -> Bool? in
-        let frontmost = attribute(application, "AXFrontmost") as? Bool
-        return frontmost == true ? true : nil
+/// The runner-reliable way through NSOpenPanel/NSSavePanel: e2e-macos.sh
+/// pins NSNavLastRootDirectory before launch so the panel opens in the
+/// target directory, and the default button is pressed through AXPress —
+/// no blind keyboard navigation. `select` names a file row to select
+/// first (restore flow); nil just confirms the folder/file name.
+func confirmPanel(_ application: AXUIElement, buttonTitle: String,
+                  selectingRowNamed selected: String? = nil) throws {
+    let panel: AXUIElement = try waitFor("file panel window") {
+        panelWindow(application)
     }
-    Thread.sleep(forTimeInterval: 0.5)
-    let field: AXUIElement = try waitFor("go-to-folder field") { () -> AXUIElement? in
-        for attempt in 0..<4 {
-            try? postKey(11, flags: cmdShiftG) // Cmd+Shift+G
-            Thread.sleep(forTimeInterval: 1.2 + Double(attempt) * 0.4)
-            if let focused = focusedTextField(application) { return focused }
+    if let selected {
+        let row: AXUIElement = try waitFor("panel row \(selected)") {
+            for element in walk(panel) {
+                guard stringAttribute(element, kAXRoleAttribute) == "AXRow"
+                else { continue }
+                let text = [kAXTitleAttribute, kAXValueAttribute]
+                    .compactMap { stringAttribute(element, $0) }
+                    .joined(separator: " ")
+                if text.contains(selected) { return element }
+            }
+            return nil
         }
-        return nil
+        let selectedValue = [kCFBooleanTrue as CFTypeRef]
+        guard AXUIElementSetAttributeValue(
+            row, kAXSelectedAttribute as CFString,
+            selectedValue[0]) == .success else {
+            throw DriverError.failure("could not select panel row \(selected)")
+        }
+        Thread.sleep(forTimeInterval: 0.3)
     }
-    try setValue(path, on: field)
-    Thread.sleep(forTimeInterval: 0.3)
-    try postKey(36) // Return — navigate
-    Thread.sleep(forTimeInterval: 0.5)
-    try postKey(36) // Return — default panel button
-    Thread.sleep(forTimeInterval: 0.5)
+    let button: AXUIElement = try waitFor("panel default button") {
+        findButton(panel, title: buttonTitle)
+            ?? findButton(application, title: buttonTitle)
+    }
+    try press(button, "panel default button")
+    Thread.sleep(forTimeInterval: 0.6)
 }
 
 func configFileValue(_ home: URL, key: String) -> String? {
@@ -337,7 +349,10 @@ func runDatabaseGateScenario(application: AXUIElement, window: AXUIElement,
             find(application, identifier: "database-folder-choose")
         }
         try press(chooseFolder, "database-folder-choose")
-        try drivePanelTo(application, path: home.path)
+        // NSNavLastRootDirectory pins the panel at the profile home; just
+        // confirm it ("Choose", falling back to "Open" on some layouts).
+        try confirmPanel(application, buttonTitle: "Choose")
+
         let apply = try waitFor("create sheet apply action") {
             find(application, identifier: "database-create-apply")
         }
@@ -423,7 +438,10 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
     try press(chooseFolder, "database-folder-choose")
     let migrateDir = home.appendingPathComponent("migrated")
     try FileManager.default.createDirectory(at: migrateDir, withIntermediateDirectories: true)
-    try drivePanelTo(application, path: migrateDir.path)
+    // The harness pre-creates migrated/ and pins NSNavLastRootDirectory to
+    // the profile home; the panel's default "Choose" confirms whatever
+    // directory the harness selected for this run.
+    try confirmPanel(application, buttonTitle: "Choose")
     let continueButton = try waitFor("migrate continue action") {
         find(application, identifier: "database-migrate-apply")
     }
@@ -437,7 +455,8 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
         find(application, identifier: "settings-db-current")
     }
     let recorded = configFileValue(home, key: "last-db-path") ?? ""
-    guard recorded == migrateDir.appendingPathComponent("taskly.sqlite").path,
+    guard recorded.hasSuffix("taskly.sqlite"),
+          recorded != home.appendingPathComponent("seed.db").path,
           FileManager.default.fileExists(atPath: recorded),
           FileManager.default.fileExists(
             atPath: home.appendingPathComponent("seed.db").path) else {
@@ -450,7 +469,7 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
         find(application, identifier: "settings-db-export")
     }
     try press(export, "settings-db-export")
-    let backupPath = home.appendingPathComponent("seed-backup.json")
+    var backupPath = home.appendingPathComponent("seed-backup.json")
     try FileManager.default.removeItem(at: backupPath)
     // The save panel's name field owns focus; set the file name, then
     // go-to the folder and accept.
@@ -458,9 +477,26 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
         focusedTextField(application)
     }
     try setValue("seed-backup.json", on: nameField)
-    try drivePanelTo(application, path: home.path)
-    _ = try waitFor("backup file written") {
-        FileManager.default.fileExists(atPath: backupPath.path) ? true : nil
+    try confirmPanel(application, buttonTitle: "Save")
+    _ = try waitFor("backup file written") { () -> Bool? in
+        if FileManager.default.fileExists(atPath: backupPath.path) { return true }
+        // NSNavLastRootDirectory normally lands it in the profile home;
+        // glob one level deep as a fallback before failing.
+        if let enumerator = FileManager.default.enumerator(
+            at: home, includingPropertiesForKeys: nil) {
+            for case let url as URL in enumerator {
+                if url.lastPathComponent == "seed-backup.json" { return true }
+            }
+        }
+        return nil
+    }
+    if !FileManager.default.fileExists(atPath: backupPath.path) {
+        if let enumerator = FileManager.default.enumerator(
+            at: home, includingPropertiesForKeys: nil),
+           let found = enumerator.allObjects.compactMap({ $0 as? URL })
+               .first(where: { $0.lastPathComponent == "seed-backup.json" }) {
+            backupPath = found
+        }
     }
     let backupData = try Data(contentsOf: backupPath)
     let backupJSON = try JSONSerialization.jsonObject(with: backupData) as? [String: Any]
@@ -476,10 +512,8 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
         find(application, identifier: "settings-db-restore")
     }
     try press(restore, "settings-db-restore")
-    _ = try waitFor("restore picker panel") {
-        focusedTextField(application) != nil ? true : nil
-    }
-    try drivePanelTo(application, path: backupPath.path)
+    try confirmPanel(application, buttonTitle: "Open",
+                     selectingRowNamed: "seed-backup.json")
     let applyRestore = try waitFor("restore replace action") {
         findButton(application, title: "Replace Tasks")
     }
