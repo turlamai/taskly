@@ -111,12 +111,12 @@ func press(_ element: AXUIElement, _ description: String) throws {
         // click at the element's center. A sheet mid-layout reports empty
         // bounds, so wait briefly for the element to become clickable.
         var clickable = false
-        for _ in 0..<20 {
+        for _ in 0..<70 {
             if (try? clickPoint(element)) != nil {
                 clickable = true
                 break
             }
-            Thread.sleep(forTimeInterval: 0.1)
+            Thread.sleep(forTimeInterval: 0.15)
         }
         guard clickable else {
             throw DriverError.failure(
