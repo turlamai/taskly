@@ -596,8 +596,20 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
     try press(restore, "settings-db-restore")
     try confirmPanel(application, buttonTitle: "Open",
                      selectingRowNamed: "seed-backup.json")
-    let applyRestore = try waitFor("restore replace action") {
-        findButton(application, title: "Replace Tasks")
+    let applyRestore = try waitFor("restore replace action") { () -> AXUIElement? in
+        if let button = findButton(application, title: "Replace Tasks") {
+            return button
+        }
+        // Diagnostics: what buttons does the confirmation surface expose?
+        for element in walk(application)
+        where stringAttribute(element, kAXRoleAttribute) == "AXButton" {
+            let title = stringAttribute(element, kAXTitleAttribute)
+            if !title.isEmpty {
+                FileHandle.standardError.write(Data(
+                    "RESTORE-DUMP button=\(title)\n".utf8))
+            }
+        }
+        return nil
     }
     try press(applyRestore, "dbRestoreApply")
     _ = try waitFor("restore feedback reported") {
