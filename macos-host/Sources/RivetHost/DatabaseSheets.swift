@@ -208,6 +208,7 @@ struct DatabaseSheetView: View {
                     .accessibilityIdentifier("database-folder-choose")
                     Text(folder.isEmpty ? "—" : folder)
                         .font(.system(size: 12))
+                        .accessibilityIdentifier("database-folder-path")
                         .foregroundStyle(model.theme.secondaryText)
                         .lineLimit(1)
                         .truncationMode(.middle)

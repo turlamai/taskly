@@ -265,6 +265,18 @@ func focusedTextField(_ root: AXUIElement) -> AXUIElement? {
 /// Drives a real NSOpenPanel/NSSavePanel to the given path: Cmd+Shift+G,
 /// type the path into the go-to sheet, Return to navigate, Return to accept
 /// the default (Go / Open / Choose / Save) button.
+/// The panel's begin-completion writes the picked path back to the sheet
+/// asynchronously; pressing the sheet's apply button before that lands
+/// fails with "choose a location first" (observed as a CI flake).
+func waitForFolderApplied(_ application: AXUIElement) throws {
+    _ = try waitFor("folder path applied to the sheet") {
+        find(application, identifier: "database-folder-path").flatMap {
+            let text = elementText($0)
+            return (!text.isEmpty && text != "—") ? text : nil
+        }
+    }
+}
+
 /// The runner-reliable way through NSOpenPanel/NSSavePanel: e2e-macos.sh
 /// pins NSNavLastRootDirectory before launch so the panel opens in the
 /// target directory, and the default button is pressed through AXPress —
@@ -366,6 +378,7 @@ func runDatabaseGateScenario(application: AXUIElement, window: AXUIElement,
         // NSNavLastRootDirectory pins the panel at the profile home; just
         // confirm it ("Choose", falling back to "Open" on some layouts).
         try confirmPanel(application, buttonTitle: "Choose")
+        try waitForFolderApplied(application)
 
         let apply = try waitFor("create sheet apply action") {
             find(application, identifier: "database-create-apply")
@@ -456,6 +469,7 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
     // the profile home; the panel's default "Choose" confirms whatever
     // directory the harness selected for this run.
     try confirmPanel(application, buttonTitle: "Choose")
+    try waitForFolderApplied(application)
     let continueButton = try waitFor("migrate continue action") {
         find(application, identifier: "database-migrate-apply")
     }
@@ -502,7 +516,9 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
     }
     try press(export, "settings-db-export")
     var backupPath = home.appendingPathComponent("seed-backup.json")
-    try FileManager.default.removeItem(at: backupPath)
+    if FileManager.default.fileExists(atPath: backupPath.path) {
+        try FileManager.default.removeItem(at: backupPath)
+    }
     // The save panel's name field owns focus; set the file name, then
     // go-to the folder and accept.
     let nameField = try waitFor("save panel name field") {
