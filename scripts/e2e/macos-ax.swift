@@ -312,27 +312,27 @@ func confirmPanel(_ application: AXUIElement, buttonTitle: String,
         panelWindow(application)
     }
     if let selected {
-        let row: AXUIElement = try waitFor("panel row \(selected)") {
-            for element in walk(panel) {
-                guard stringAttribute(element, kAXRoleAttribute) == "AXRow"
-                else { continue }
-                // The file name lives in a child cell, not on the row —
-                // match any title/value text in the row's subtree.
-                if walk(element).contains(where: { node in
-                    [kAXTitleAttribute, kAXValueAttribute]
-                        .contains { stringAttribute(node, $0).contains(selected) }
-                }) { return element }
+        // The file browser is an AXList; pressing the file's entry opens
+        // (selects and confirms) it — no row/selection dance needed.
+        let entry: AXUIElement = try waitFor("panel entry \(selected)") {
+            walk(panel).first { element in
+                [kAXTitleAttribute, kAXValueAttribute]
+                    .contains { stringAttribute(element, $0).contains(selected) }
             }
-            dumpPanelRows(panel, lookingFor: selected)
-            return nil
         }
-        let selectedValue = [kCFBooleanTrue as CFTypeRef]
-        guard AXUIElementSetAttributeValue(
-            row, kAXSelectedAttribute as CFString,
-            selectedValue[0]) == .success else {
-            throw DriverError.failure("could not select panel row \(selected)")
+        try press(entry, "panel file entry")
+        // A press on a file entry both selects and opens it: the panel may
+        // already be gone. If it still shows, press its default button.
+        Thread.sleep(forTimeInterval: 0.8)
+        if panelWindow(application) != nil {
+            if let stable = find(panel, identifier: "OKButton")
+                ?? findButton(panel, title: buttonTitle)
+                ?? findButton(application, title: buttonTitle) {
+                try press(stable, "panel default button")
+            }
         }
-        Thread.sleep(forTimeInterval: 0.3)
+        Thread.sleep(forTimeInterval: 0.6)
+        return
     }
     let button: AXUIElement = try waitFor("panel default button") { () -> AXUIElement? in
         // NSOpenPanel/NSSavePanel expose stable identifiers: the confirming
