@@ -266,14 +266,19 @@ func focusedTextField(_ root: AXUIElement) -> AXUIElement? {
 /// type the path into the go-to sheet, Return to navigate, Return to accept
 /// the default (Go / Open / Choose / Save) button.
 func drivePanelTo(_ application: AXUIElement, path: String) throws {
-    // The go-to sheet can take a beat to mount its AX subtree (slow x64
-    // runners observed a swallowed first shortcut), so retry the shortcut
-    // until the field appears.
+    // Wait for the panel window, confirm the app is frontmost (a swallowed
+    // shortcut on a not-yet-key window is the observed CI failure), then
+    // issue Cmd+Shift+G until the go-to field mounts.
     _ = try waitFor("file panel window") { panelWindow(application) }
+    _ = try waitFor("application frontmost") { () -> Bool? in
+        (stringAttribute(application, kAXFocusedAttribute as String) == "1")
+            ? true : nil
+    }
+    Thread.sleep(forTimeInterval: 0.5)
     let field: AXUIElement = try waitFor("go-to-folder field") { () -> AXUIElement? in
-        for _ in 0..<3 {
+        for attempt in 0..<4 {
             try? postKey(11, flags: cmdShiftG) // Cmd+Shift+G
-            Thread.sleep(forTimeInterval: 1.0)
+            Thread.sleep(forTimeInterval: 1.2 + Double(attempt) * 0.4)
             if let focused = focusedTextField(application) { return focused }
         }
         return nil
