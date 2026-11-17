@@ -142,6 +142,28 @@ struct SettingsPaneView: View {
                     .accessibilityIdentifier("settings-data-feedback")
             }
         }
+        // The restore confirmation lives on the settings window: the user
+        // triggers it here, so the alert attaches where focus already is
+        // (the main-window variant was unreachable for keyboard and AX).
+        .alert(
+            model.t("dbRestorePreviewTitle"),
+            isPresented: Binding(
+                get: { model.restoreConfirmation != nil },
+                set: { if !$0 { model.restoreConfirmation = nil } })
+        ) {
+            Button(model.t("dbRestoreApply"), role: .destructive) {
+                model.restoreConfirmation.map { model.confirmRestore($0) }
+                model.restoreConfirmation = nil
+            }
+            .keyboardShortcut(.defaultAction)
+            Button(model.t("dialogCancel"), role: .cancel) {
+                model.restoreConfirmation = nil
+            }
+        } message: {
+            if let restore = model.restoreConfirmation {
+                Text(model.t("dbRestorePreviewBody", restore.taskCount, restore.listCount))
+            }
+        }
         .onChange(of: model.databaseName) { _, _ in report("") }
         .onChange(of: model.databasePath) { _, _ in report("") }
         // Live language switch works without extra wiring: every label comes

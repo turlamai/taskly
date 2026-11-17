@@ -71,32 +71,6 @@ struct MainWindowView: View {
         } message: {
             Text(model.confirmContext?.message ?? "")
         }
-        // An alert rather than a confirmationDialog: the dialog's attached
-        // buttons never report AX position/action, which locked both the
-        // e2e driver and assistive tooling out of the confirmation.
-        .alert(
-            model.t("dbRestorePreviewTitle"),
-            isPresented: Binding(
-                get: { model.restoreConfirmation != nil },
-                set: { if !$0 { model.restoreConfirmation = nil } })
-        ) {
-            // The default action is explicit: alert button order alone
-            // does not pin which one owns Return, and the restore flow
-            // (e2e and assistive tech alike) drives the confirmation with
-            // the keyboard.
-            Button(model.t("dbRestoreApply"), role: .destructive) {
-                model.restoreConfirmation.map { model.confirmRestore($0) }
-                model.restoreConfirmation = nil
-            }
-            .keyboardShortcut(.defaultAction)
-            Button(model.t("dialogCancel"), role: .cancel) {
-                model.restoreConfirmation = nil
-            }
-        } message: {
-            if let restore = model.restoreConfirmation {
-                Text(model.t("dbRestorePreviewBody", restore.taskCount, restore.listCount))
-            }
-        }
     }
 
     private var statusBar: some View {
