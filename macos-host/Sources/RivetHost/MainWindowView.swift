@@ -80,10 +80,15 @@ struct MainWindowView: View {
                 get: { model.restoreConfirmation != nil },
                 set: { if !$0 { model.restoreConfirmation = nil } })
         ) {
+            // The default action is explicit: alert button order alone
+            // does not pin which one owns Return, and the restore flow
+            // (e2e and assistive tech alike) drives the confirmation with
+            // the keyboard.
             Button(model.t("dbRestoreApply"), role: .destructive) {
                 model.restoreConfirmation.map { model.confirmRestore($0) }
                 model.restoreConfirmation = nil
             }
+            .keyboardShortcut(.defaultAction)
             Button(model.t("dialogCancel"), role: .cancel) {
                 model.restoreConfirmation = nil
             }
