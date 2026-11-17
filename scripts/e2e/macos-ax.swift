@@ -295,9 +295,23 @@ func confirmPanel(_ application: AXUIElement, buttonTitle: String,
         }
         Thread.sleep(forTimeInterval: 0.3)
     }
-    let button: AXUIElement = try waitFor("panel default button") {
-        findButton(panel, title: buttonTitle)
-            ?? findButton(application, title: buttonTitle)
+    let button: AXUIElement = try waitFor("panel default button") { () -> AXUIElement? in
+        // Title first ("Choose"/"Open"/"Save" vary by panel kind), then the
+        // panel's default button (subrole AXDefaultButton), then any panel
+        // button that exposes a press action with a non-cancel role.
+        if let named = findButton(panel, title: buttonTitle)
+            ?? findButton(application, title: buttonTitle) {
+            return named
+        }
+        for element in walk(panel) where stringAttribute(element, kAXRoleAttribute) == "AXButton" {
+            let subrole = stringAttribute(element, kAXSubroleAttribute)
+            let title = stringAttribute(element, kAXTitleAttribute)
+            if subrole == "AXDefaultButton" ||
+               title.lowercased().contains(buttonTitle.lowercased()) {
+                return element
+            }
+        }
+        return nil
     }
     try press(button, "panel default button")
     Thread.sleep(forTimeInterval: 0.6)
