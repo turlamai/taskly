@@ -293,8 +293,11 @@ func confirmPanel(_ application: AXUIElement, buttonTitle: String,
                 guard stringAttribute(element, kAXRoleAttribute) == "AXRow"
                 else { continue }
                 // The file name lives in a child cell, not on the row —
-                // match any text in the row's subtree.
-                if containsText(element, selected) { return element }
+                // match any title/value text in the row's subtree.
+                if walk(element).contains(where: { node in
+                    [kAXTitleAttribute, kAXValueAttribute]
+                        .contains { stringAttribute(node, $0).contains(selected) }
+                }) { return element }
             }
             return nil
         }
