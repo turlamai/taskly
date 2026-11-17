@@ -71,12 +71,14 @@ struct MainWindowView: View {
         } message: {
             Text(model.confirmContext?.message ?? "")
         }
-        .confirmationDialog(
+        // An alert rather than a confirmationDialog: the dialog's attached
+        // buttons never report AX position/action, which locked both the
+        // e2e driver and assistive tooling out of the confirmation.
+        .alert(
             model.t("dbRestorePreviewTitle"),
             isPresented: Binding(
                 get: { model.restoreConfirmation != nil },
-                set: { if !$0 { model.restoreConfirmation = nil } }),
-            titleVisibility: .visible
+                set: { if !$0 { model.restoreConfirmation = nil } })
         ) {
             Button(model.t("dbRestoreApply"), role: .destructive) {
                 model.restoreConfirmation.map { model.confirmRestore($0) }
