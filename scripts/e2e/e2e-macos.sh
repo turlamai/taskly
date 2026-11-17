@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'echo "E2E-TRACE failed at line $LINENO (exit=$?)" >&2' ERR
 
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 output="$repo/.rivet/acceptance/macos"
