@@ -282,6 +282,30 @@ func waitForFolderApplied(_ application: AXUIElement) throws {
 /// target directory, and the default button is pressed through AXPress —
 /// no blind keyboard navigation. `select` names a file row to select
 /// first (restore flow); nil just confirms the folder/file name.
+/// One-shot diagnostics for the restore row hunt: what the panel's
+/// outline actually exposes when the expected file row is missing.
+var panelRowsDumped = false
+func dumpPanelRows(_ panel: AXUIElement, lookingFor: String) {
+    guard !panelRowsDumped else { return }
+    panelRowsDumped = true
+    FileHandle.standardError.write(Data(
+        "PANEL-DUMP lookingFor=\(selected)\n".utf8))
+    var printed = 0
+    for element in walk(panel) where printed < 40 {
+        let role = stringAttribute(element, kAXRoleAttribute)
+        guard ["AXRow", "AXOutline", "AXTable", "AXList"].contains(role)
+        else { continue }
+        let text = walk(element)
+            .map { stringAttribute($0, kAXValueAttribute) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "|")
+        FileHandle.standardError.write(Data(
+            "PANEL-DUMP role=\(role) text=\(text.prefix(120))\n".utf8))
+        printed += 1
+    }
+    FileHandle.standardError.write(Data("PANEL-DUMP-END\n".utf8))
+}
+
 func confirmPanel(_ application: AXUIElement, buttonTitle: String,
                   selectingRowNamed selected: String? = nil) throws {
     let panel: AXUIElement = try waitFor("file panel window") {
@@ -299,6 +323,7 @@ func confirmPanel(_ application: AXUIElement, buttonTitle: String,
                         .contains { stringAttribute(node, $0).contains(selected) }
                 }) { return element }
             }
+            dumpPanelRows(panel, lookingFor: selected)
             return nil
         }
         let selectedValue = [kCFBooleanTrue as CFTypeRef]
