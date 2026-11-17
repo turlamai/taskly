@@ -602,6 +602,10 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
     _ = try waitFor("restore confirmation alert") {
         findButton(application, title: "Replace Tasks")
     }
+    // The alert hangs off the main window, but the settings window may be
+    // key — raise the host window so Return reaches the alert.
+    _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    Thread.sleep(forTimeInterval: 0.4)
     try postKey(36) // Return — default action
     Thread.sleep(forTimeInterval: 0.6)
     _ = try waitFor("restore feedback reported") {
