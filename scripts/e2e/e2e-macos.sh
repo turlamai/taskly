@@ -81,7 +81,7 @@ if kill -0 "$app_pid" 2>/dev/null; then
   echo "Taskly did not exit after the native termination request" >&2
   exit 1
 fi
-wait "$app_pid"
+wait "$app_pid" || true
 app_pid=""
 
 HOME="$home" "$app" >"$output/application-restart.log" 2>&1 &
@@ -108,7 +108,7 @@ defaults write app.taskly.Taskly NSNavLastRootDirectory "$gate_home"
 HOME="$gate_home" "$app" >"$output/application-gate.log" 2>&1 &
 app_pid=$!
 "$driver" --pid "$app_pid" --output "$output" --home "$gate_home" --database-gate
-wait "$app_pid"
+wait "$app_pid" || true
 app_pid=""
 
 # Recovery → 重试: the recorded database is missing at boot; the harness
