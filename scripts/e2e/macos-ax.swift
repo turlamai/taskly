@@ -320,17 +320,17 @@ func confirmPanel(_ application: AXUIElement, buttonTitle: String,
                     .contains { stringAttribute(element, $0).contains(selected) }
             }
         }
-        try press(entry, "panel file entry")
-        // A press on a file entry both selects and opens it: the panel may
-        // already be gone. If it still shows, press its default button.
-        Thread.sleep(forTimeInterval: 0.8)
-        if panelWindow(application) != nil {
-            if let stable = find(panel, identifier: "OKButton")
+        // The file-name leaf carries no AXPress; a real click selects it
+        // in the list. Then the default button confirms the open.
+        try postClick(entry, "panel file entry click", button: .left,
+                      downType: .leftMouseDown, upType: .leftMouseUp)
+        Thread.sleep(forTimeInterval: 0.5)
+        let okButton: AXUIElement = try waitFor("panel OK button") {
+            find(panel, identifier: "OKButton")
                 ?? findButton(panel, title: buttonTitle)
-                ?? findButton(application, title: buttonTitle) {
-                try press(stable, "panel default button")
-            }
+                ?? findButton(application, title: buttonTitle)
         }
+        try press(okButton, "panel default button")
         Thread.sleep(forTimeInterval: 0.6)
         return
     }
