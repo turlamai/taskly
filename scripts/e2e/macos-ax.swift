@@ -519,8 +519,9 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
     if FileManager.default.fileExists(atPath: backupPath.path) {
         try FileManager.default.removeItem(at: backupPath)
     }
-    // The save panel's name field owns focus; set the file name, then
-    // go-to the folder and accept.
+    // The save panel's name field owns focus; wait for the panel window,
+    // then set the file name and confirm through the default button.
+    _ = try waitFor("save panel window") { panelWindow(application) }
     let nameField = try waitFor("save panel name field") {
         focusedTextField(application)
     }
