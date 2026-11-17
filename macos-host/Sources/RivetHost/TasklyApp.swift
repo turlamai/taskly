@@ -131,8 +131,8 @@ struct TasklyCommands: Commands {
     }
 
     private func openDatabase() {
-        if let path = AppModel.pickDatabaseFile() {
-            model.openDatabase(path: path)
+        AppModel.pickDatabaseFile { [weak model] path in
+            if let path { model?.openDatabase(path: path) }
         }
     }
 

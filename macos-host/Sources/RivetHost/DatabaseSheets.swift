@@ -23,8 +23,12 @@ func databaseActionError(_ error: Error, _ model: AppModel,
 
 extension AppModel {
     /// §2a open/relocate: file dialog over `*.db *.sqlite *.sqlite3`.
+    /// Non-modal (`begin`): a `runModal` session locks the main thread and
+    /// makes the panel's AX subtree unreadable from outside — the e2e
+    /// driver (and accessibility tooling generally) can then neither find
+    /// nor press its buttons.
     @MainActor
-    static func pickDatabaseFile() -> String? {
+    static func pickDatabaseFile(completion: @escaping (String?) -> Void) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
@@ -34,21 +38,23 @@ extension AppModel {
             .init(filenameExtension: "sqlite") ?? .data,
             .init(filenameExtension: "sqlite3") ?? .data,
         ]
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        return url.path
+        panel.begin { response in
+            completion(response == .OK ? panel.url?.path : nil)
+        }
     }
 
     /// §2a create/migrate: folder dialog (the prototype's typed folder
-    /// entry is replaced by the platform picker).
+    /// entry is replaced by the platform picker). Non-modal — see above.
     @MainActor
-    static func pickFolder() -> String? {
+    static func pickFolder(completion: @escaping (String?) -> Void) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        return url.path
+        panel.begin { response in
+            completion(response == .OK ? panel.url?.path : nil)
+        }
     }
 }
 
@@ -111,8 +117,8 @@ struct DatabaseGateView: View {
             .accessibilityIdentifier("database-gate-create")
 
             Button(model.t("dbGateOpen")) {
-                if let path = AppModel.pickDatabaseFile() {
-                    model.openDatabase(path: path)
+                AppModel.pickDatabaseFile { path in
+                    if let path { model.openDatabase(path: path) }
                 }
             }
             .buttonStyle(.secondaryTaskly)
@@ -140,8 +146,8 @@ struct DatabaseGateView: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Button(model.t("dbRelocate")) {
-                    if let path = AppModel.pickDatabaseFile() {
-                        model.openDatabase(path: path)
+                    AppModel.pickDatabaseFile { path in
+                        if let path { model.openDatabase(path: path) }
                     }
                 }
                 .buttonStyle(.secondaryTaskly)
@@ -191,9 +197,11 @@ struct DatabaseSheetView: View {
                 fieldLabel(model.t("dbFolderLabel"))
                 HStack(spacing: 8) {
                     Button(model.t("dbFolderChoose")) {
-                        if let picked = AppModel.pickFolder() {
-                            folder = picked
-                            errorText = ""
+                        AppModel.pickFolder { picked in
+                            if let picked {
+                                folder = picked
+                                errorText = ""
+                            }
                         }
                     }
                     .buttonStyle(.secondaryTaskly)

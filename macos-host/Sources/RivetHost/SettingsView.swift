@@ -94,8 +94,8 @@ struct SettingsPaneView: View {
 
                 LabeledContent(model.t("dbSwitchLabel")) {
                     Button(model.t("dbOpenBtn")) {
-                        if let path = AppModel.pickDatabaseFile() {
-                            model.openDatabase(path: path)
+                        AppModel.pickDatabaseFile { path in
+                            if let path { model.openDatabase(path: path) }
                         }
                     }
                     .buttonStyle(.secondaryTaskly)
@@ -156,13 +156,16 @@ struct SettingsPaneView: View {
         panel.nameFieldStringValue = "taskly-backup-\(Date().timeIntervalSince1970).json"
         panel.allowedContentTypes = [.json]
         panel.title = model.t("dbSaveBackup")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        _Concurrency.Task {
-            do {
-                let count = try await model.exportBackup(to: url.path)
-                feedback = model.t("dbExported", Int(count))
-            } catch {
-                feedback = model.t("dbRestoreInvalid", AppModel.cleanError(error))
+        // Non-modal for AX readability (same reason as AppModel.pick*).
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            _Concurrency.Task { @MainActor in
+                do {
+                    let count = try await model.exportBackup(to: url.path)
+                    feedback = model.t("dbExported", Int(count))
+                } catch {
+                    feedback = model.t("dbRestoreInvalid", AppModel.cleanError(error))
+                }
             }
         }
     }
@@ -175,18 +178,20 @@ struct SettingsPaneView: View {
         panel.canChooseFiles = true
         panel.allowedContentTypes = [.json]
         panel.title = model.t("dbChooseBackup")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        _Concurrency.Task {
-            do {
-                let preview = try await model.previewBackup(at: url.path)
-                model.restoreConfirmation = RestoreConfirmation(
-                    path: url.path,
-                    taskCount: Int(preview.task_count),
-                    listCount: Int(preview.list_count),
-                    dbPathAtPreview: model.databasePath)
-                feedback = ""
-            } catch {
-                feedback = model.t("dbRestoreInvalid", AppModel.cleanError(error))
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            _Concurrency.Task { @MainActor in
+                do {
+                    let preview = try await model.previewBackup(at: url.path)
+                    model.restoreConfirmation = RestoreConfirmation(
+                        path: url.path,
+                        taskCount: Int(preview.task_count),
+                        listCount: Int(preview.list_count),
+                        dbPathAtPreview: model.databasePath)
+                    feedback = ""
+                } catch {
+                    feedback = model.t("dbRestoreInvalid", AppModel.cleanError(error))
+                }
             }
         }
     }
