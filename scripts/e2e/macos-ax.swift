@@ -311,17 +311,16 @@ func confirmPanel(_ application: AXUIElement, buttonTitle: String,
     let panel: AXUIElement = try waitFor("file panel window") {
         panelWindow(application)
     }
+    // The restore sheet (settings 数据 group) previews counts from the
+    // picked file; the sheet's own Replace button is driver-reachable, so
+    // the file panel only needs the file opened once.
     if let selected {
-        // The file browser is an AXList; pressing the file's entry opens
-        // (selects and confirms) it — no row/selection dance needed.
         let entry: AXUIElement = try waitFor("panel entry \(selected)") {
             walk(panel).first { element in
                 [kAXTitleAttribute, kAXValueAttribute]
                     .contains { stringAttribute(element, $0).contains(selected) }
             }
         }
-        // The file-name leaf carries no AXPress; a real click selects it
-        // in the list. Then the default button confirms the open.
         try postClick(entry, "panel file entry click", button: .left,
                       downType: .leftMouseDown, upType: .leftMouseUp)
         Thread.sleep(forTimeInterval: 0.5)
@@ -596,17 +595,12 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
     try press(restore, "settings-db-restore")
     try confirmPanel(application, buttonTitle: "Open",
                      selectingRowNamed: "seed-backup.json")
-    // The SwiftUI alert presents its first button as the default: its
-    // synthesized AX button carries no press action or position, so once
-    // the alert is visibly up, Return triggers Replace Tasks.
-    _ = try waitFor("restore confirmation alert") {
-        findButton(application, title: "Replace Tasks")
+    // The restore sheet (same mechanism migrate drives) shows the preview
+    // counts and carries the driver-reachable Replace button.
+    let replaceButton = try waitFor("restore sheet replace action") {
+        find(application, identifier: "database-restore-apply")
     }
-    // The alert attaches to the settings window — the same window the
-    // restore action ran from, so it already holds key focus and Return
-    // reaches its default action directly.
-    try postKey(36) // Return — default action
-    Thread.sleep(forTimeInterval: 0.6)
+    try press(replaceButton, "database-restore-apply")
     _ = try waitFor("restore feedback reported") {
         find(application, identifier: "settings-data-feedback") != nil ? true : nil
     }

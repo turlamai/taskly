@@ -141,9 +141,9 @@ final class AppModel {
     var listEditSheet: ListEditContext?
     var confirmContext: ConfirmContext?
     var aboutVisible = false
-    /// §2a database dialogs (create / migrate) and the restore confirmation.
+    /// §2a database dialogs (create / migrate / restore) — one two-step
+    /// sheet mechanism across the settings 数据 group.
     var databaseSheet: DatabaseSheetContext?
-    var restoreConfirmation: RestoreConfirmation?
 
     // Updater (shared/spec/UPDATE.md)
     var updateSheetVisible = false
@@ -586,17 +586,17 @@ final class AppModel {
     /// §2a settings 数据 group feedback line (export/restore outcomes).
     var dataFeedbackMessage = ""
 
-    func confirmRestore(_ confirmation: RestoreConfirmation) {
-        guard confirmation.dbPathAtPreview == databasePath else {
+    func confirmRestore(path: String, taskCount: Int, dbPathAtPreview: String) {
+        guard dbPathAtPreview == databasePath else {
             dataFeedbackMessage = i18n.t("dbRestoreStale")
             flashStatus(i18n.t("dbRestoreStale"))
             return
         }
         _Concurrency.Task {
             do {
-                try await restoreBackup(from: confirmation.path)
+                try await restoreBackup(from: path)
                 dataFeedbackMessage = t(
-                    "dbRestored", confirmation.taskCount)
+                    "dbRestored", taskCount)
             } catch {
                 dataFeedbackMessage = t(
                     "dbRestoreInvalid", Self.cleanError(error))
@@ -1387,28 +1387,18 @@ struct ListEditContext: Identifiable {
     let mode: Mode
 }
 
-/// §2a database dialog payload: the create flow (folder + name) and the
-/// first step of the migrate flow (target folder; confirmation happens in
-/// the sheet itself).
+/// §2a database dialog payload: create, migrate and restore — one sheet
+/// mechanism; multi-step flows confirm inside the sheet.
 struct DatabaseSheetContext: Identifiable {
     enum Mode {
         case create
         case migrate
+        case restore(path: String, taskCount: Int, listCount: Int,
+                     dbPathAtPreview: String)
     }
 
     let id = UUID()
     let mode: Mode
-}
-
-/// §2a restore confirmation payload: preview counts + the selected file.
-/// `dbPathAtPreview` carries the stale-selection guard (PRODUCT-SPEC §2a:
-/// if the active database changed between preview and confirm, refuse).
-struct RestoreConfirmation: Identifiable {
-    let id = UUID()
-    let path: String
-    let taskCount: Int
-    let listCount: Int
-    let dbPathAtPreview: String
 }
 
 /// Confirmation dialog payload.

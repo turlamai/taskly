@@ -174,19 +174,51 @@ struct DatabaseSheetView: View {
     @State private var errorText = ""
     @State private var working = false
 
-    private var isCreate: Bool { context.mode == .create }
+    private var isCreate: Bool {
+        if case .create = context.mode { return true }
+        return false
+    }
+    private var isRestore: Bool {
+        if case .restore = context.mode { return true }
+        return false
+    }
+    /// Restore payload (nil outside the restore mode).
+    private var restorePayload: (path: String, taskCount: Int,
+                                 listCount: Int, dbPathAtPreview: String)? {
+        if case .restore(let path, let taskCount, let listCount,
+                         let dbPathAtPreview) = context.mode {
+            return (path, taskCount, listCount, dbPathAtPreview)
+        }
+        return nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(isCreate ? model.t("dbCreateTitle") : model.t("dbMigrateTitle"))
+            Text(sheetTitle)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(model.theme.onSurface)
-            Text(isCreate ? model.t("dbCreateDesc") : model.t("dbMigrateDesc"))
+            Text(sheetDescription)
                 .font(.system(size: 13))
                 .foregroundStyle(model.theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !confirming {
+            if isRestore {
+                // §2a restore preview: counts + the file, then the explicit
+                // replace. Same single-confirmation mechanism migrate uses.
+                if let payload = restorePayload {
+                    Text(model.t("dbRestorePreviewBody",
+                                 payload.taskCount, payload.listCount))
+                        .font(.system(size: 13))
+                        .foregroundStyle(model.theme.onSurface)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("database-restore-confirm-text")
+                    Text(payload.path)
+                        .font(.system(size: 11))
+                        .foregroundStyle(model.theme.tertiaryText)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                }
+            } else if !confirming {
                 if isCreate {
                     fieldLabel(model.t("dbNameLabel"))
                     TextField(model.t("dbNameDefault"), text: $name)
@@ -241,8 +273,7 @@ struct DatabaseSheetView: View {
                     .buttonStyle(.primaryTaskly)
                     .disabled(working)
                     .keyboardShortcut(.defaultAction)
-                    .accessibilityIdentifier(isCreate
-                        ? "database-create-apply" : "database-migrate-apply")
+                    .accessibilityIdentifier(applyIdentifier)
             }
         }
         .padding(20)
@@ -257,10 +288,26 @@ struct DatabaseSheetView: View {
         URL(fileURLWithPath: folder).appendingPathComponent("taskly.sqlite").path
     }
 
+    private var sheetTitle: String {
+        if isRestore { return model.t("dbRestorePreviewTitle") }
+        return isCreate ? model.t("dbCreateTitle") : model.t("dbMigrateTitle")
+    }
+
+    private var sheetDescription: String {
+        if isRestore { return model.t("dbDataNote") }
+        return isCreate ? model.t("dbCreateDesc") : model.t("dbMigrateDesc")
+    }
+
     private var applyTitle: String {
-        isCreate
+        if isRestore { return model.t("dbRestoreApply") }
+        return isCreate
             ? model.t("dbApplyCreate")
             : (confirming ? model.t("dbConfirmMigrate") : model.t("dbApplyMigrate"))
+    }
+
+    private var applyIdentifier: String {
+        if isRestore { return "database-restore-apply" }
+        return isCreate ? "database-create-apply" : "database-migrate-apply"
     }
 
     private func fieldLabel(_ text: String) -> some View {
@@ -274,7 +321,21 @@ struct DatabaseSheetView: View {
     }
 
     private func apply() {
-        if isCreate {
+        if isRestore, let payload = restorePayload {
+            working = true
+            _Concurrency.Task {
+                do {
+                    model.confirmRestore(path: payload.path,
+                                         taskCount: payload.taskCount,
+                                         dbPathAtPreview: payload.dbPathAtPreview)
+                    dismiss()
+                } catch {
+                    errorText = databaseActionError(error, model,
+                                                    fallback: "dbRestoreInvalid")
+                    working = false
+                }
+            }
+        } else if isCreate {
             let cleanName = name.trimmingCharacters(in: .whitespaces)
             if cleanName.isEmpty || cleanName.range(of: #"[\\/:*?"<>|]"#) != nil {
                 errorText = model.t("dbErrBadName")

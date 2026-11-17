@@ -142,28 +142,6 @@ struct SettingsPaneView: View {
                     .accessibilityIdentifier("settings-data-feedback")
             }
         }
-        // The restore confirmation lives on the settings window: the user
-        // triggers it here, so the alert attaches where focus already is
-        // (the main-window variant was unreachable for keyboard and AX).
-        .alert(
-            model.t("dbRestorePreviewTitle"),
-            isPresented: Binding(
-                get: { model.restoreConfirmation != nil },
-                set: { if !$0 { model.restoreConfirmation = nil } })
-        ) {
-            Button(model.t("dbRestoreApply"), role: .destructive) {
-                model.restoreConfirmation.map { model.confirmRestore($0) }
-                model.restoreConfirmation = nil
-            }
-            .keyboardShortcut(.defaultAction)
-            Button(model.t("dialogCancel"), role: .cancel) {
-                model.restoreConfirmation = nil
-            }
-        } message: {
-            if let restore = model.restoreConfirmation {
-                Text(model.t("dbRestorePreviewBody", restore.taskCount, restore.listCount))
-            }
-        }
         .onChange(of: model.databaseName) { _, _ in report("") }
         .onChange(of: model.databasePath) { _, _ in report("") }
         // Live language switch works without extra wiring: every label comes
@@ -193,8 +171,9 @@ struct SettingsPaneView: View {
         }
     }
 
-    /// §2a two-step restore: pick → core preview (counts) → confirmation
-    /// dialog presented from the main window.
+    /// §2a two-step restore: pick → core preview (counts) → the same
+    /// sheet mechanism migrate uses (its confirm buttons are driver- and
+    /// AX-reachable).
     private func pickBackup() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false
@@ -206,12 +185,11 @@ struct SettingsPaneView: View {
             _Concurrency.Task { @MainActor in
                 do {
                     let preview = try await model.previewBackup(at: url.path)
-                    model.restoreConfirmation = RestoreConfirmation(
-                        path: url.path,
-                        taskCount: Int(preview.task_count),
-                        listCount: Int(preview.list_count),
-                        dbPathAtPreview: model.databasePath)
-                    feedback = ""
+                    model.databaseSheet = DatabaseSheetContext(
+                        mode: .restore(path: url.path,
+                                       taskCount: Int(preview.task_count),
+                                       listCount: Int(preview.list_count),
+                                       dbPathAtPreview: model.databasePath))
                 } catch {
                     model.dataFeedbackMessage = model.t(
                         "dbRestoreInvalid", AppModel.cleanError(error))
