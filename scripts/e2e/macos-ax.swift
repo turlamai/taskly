@@ -108,7 +108,21 @@ func press(_ element: AXUIElement, _ description: String) throws {
     if result != .success {
         // Some custom-styled SwiftUI buttons (inside sheets) do not expose
         // the press action (-25204 ActionUnsupported). Fall back to a real
-        // click at the element's center.
+        // click at the element's center. A sheet mid-layout reports empty
+        // bounds, so wait briefly for the element to become clickable.
+        var clickable = false
+        for _ in 0..<20 {
+            if (try? clickPoint(element)) != nil {
+                clickable = true
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        guard clickable else {
+            throw DriverError.failure(
+                "AXPress failed for \(description): \(result.rawValue) " +
+                "(no clickable bounds)")
+        }
         try postClick(element, description, button: .left,
                       downType: .leftMouseDown, upType: .leftMouseUp)
     }
