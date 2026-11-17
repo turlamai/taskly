@@ -310,6 +310,13 @@ func confirmPanel(_ application: AXUIElement, buttonTitle: String,
     Thread.sleep(forTimeInterval: 0.6)
 }
 
+func elementText(_ element: AXUIElement) -> String {
+    return [kAXTitleAttribute, kAXValueAttribute, kAXDescriptionAttribute]
+        .map { stringAttribute(element, $0) }
+        .filter { !$0.isEmpty }
+        .joined(separator: " ")
+}
+
 func configFileValue(_ home: URL, key: String) -> String? {
     let configURL = home.appendingPathComponent(".taskly/config.ini")
     guard let text = try? String(contentsOf: configURL, encoding: .utf8) else {
@@ -458,6 +465,24 @@ func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
     }
     _ = confirmText
     try press(continueButton, "database-migrate-confirm")
+    // The RPC may fail with an actionable error anchored inside the sheet;
+    // surface it verbatim instead of failing on the assertion alone.
+    var migrateError = ""
+    for _ in 0..<20 {
+        if let errorNode = find(application, identifier: "database-error"),
+           !elementText(errorNode).isEmpty {
+            migrateError = elementText(errorNode)
+            break
+        }
+        // Success signal: the sheet dismissed and the identity reloaded.
+        if find(application, identifier: "database-migrate-apply") == nil {
+            break
+        }
+        Thread.sleep(forTimeInterval: 0.5)
+    }
+    if !migrateError.isEmpty {
+        throw DriverError.failure("migrate RPC error: \(migrateError)")
+    }
     _ = try waitFor("settings window after migrate") {
         find(application, identifier: "settings-db-current")
     }
