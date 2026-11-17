@@ -583,15 +583,23 @@ final class AppModel {
     /// §2a restore: replaces lists + tasks in one transaction. The
     /// confirmation dialog calls this with the previewed file; the
     /// stale-selection guard refuses when the active database changed.
+    /// §2a settings 数据 group feedback line (export/restore outcomes).
+    var dataFeedbackMessage = ""
+
     func confirmRestore(_ confirmation: RestoreConfirmation) {
         guard confirmation.dbPathAtPreview == databasePath else {
+            dataFeedbackMessage = i18n.t("dbRestoreStale")
             flashStatus(i18n.t("dbRestoreStale"))
             return
         }
         _Concurrency.Task {
             do {
                 try await restoreBackup(from: confirmation.path)
+                dataFeedbackMessage = t(
+                    "dbRestored", confirmation.taskCount)
             } catch {
+                dataFeedbackMessage = t(
+                    "dbRestoreInvalid", Self.cleanError(error))
                 flashStatus(t("dbRestoreInvalid", Self.cleanError(error)))
             }
         }

@@ -164,7 +164,8 @@ struct SettingsPaneView: View {
                     let count = try await model.exportBackup(to: url.path)
                     feedback = model.t("dbExported", Int(count))
                 } catch {
-                    feedback = model.t("dbRestoreInvalid", AppModel.cleanError(error))
+                    model.dataFeedbackMessage = model.t(
+                        "dbRestoreInvalid", AppModel.cleanError(error))
                 }
             }
         }
@@ -190,7 +191,8 @@ struct SettingsPaneView: View {
                         dbPathAtPreview: model.databasePath)
                     feedback = ""
                 } catch {
-                    feedback = model.t("dbRestoreInvalid", AppModel.cleanError(error))
+                    model.dataFeedbackMessage = model.t(
+                        "dbRestoreInvalid", AppModel.cleanError(error))
                 }
             }
         }
