@@ -289,7 +289,7 @@ func dumpPanelRows(_ panel: AXUIElement, lookingFor: String) {
     guard !panelRowsDumped else { return }
     panelRowsDumped = true
     FileHandle.standardError.write(Data(
-        "PANEL-DUMP lookingFor=\(selected)\n".utf8))
+        "PANEL-DUMP lookingFor=\(lookingFor)\n".utf8))
     var printed = 0
     for element in walk(panel) where printed < 40 {
         let role = stringAttribute(element, kAXRoleAttribute)
