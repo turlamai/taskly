@@ -271,8 +271,8 @@ func drivePanelTo(_ application: AXUIElement, path: String) throws {
     // issue Cmd+Shift+G until the go-to field mounts.
     _ = try waitFor("file panel window") { panelWindow(application) }
     _ = try waitFor("application frontmost") { () -> Bool? in
-        (stringAttribute(application, kAXFocusedAttribute as String) == "1")
-            ? true : nil
+        let frontmost = attribute(application, "AXFrontmost") as? Bool
+        return frontmost == true ? true : nil
     }
     Thread.sleep(forTimeInterval: 0.5)
     let field: AXUIElement = try waitFor("go-to-folder field") { () -> AXUIElement? in
