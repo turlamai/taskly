@@ -59,8 +59,18 @@ cleanup() {
     wait "$app_pid" 2>/dev/null || true
   fi
   if [[ -n "$installed_application" ]]; then
+    # "Data preserved" means the user's recorded database still exists —
+    # the profile's db file name is whatever the scenarios recorded
+    # (tasks.db in the classic flow, seed.db/taskly.sqlite in the §2a
+    # lifecycle scenarios), never a hard-coded name.
     data_preserved=false
-    [[ -f "$home/.taskly/tasks.db" ]] && data_preserved=true
+    recorded_db="$(grep -E '^last-db-path' "$home/.taskly/config.ini" 2>/dev/null \
+      | cut -d'=' -f2- | sed 's/^ *//')"
+    if [[ -n "$recorded_db" ]]; then
+      [[ -f "$recorded_db" ]] && data_preserved=true
+    else
+      [[ -f "$home/.taskly/tasks.db" ]] && data_preserved=true
+    fi
     rm -rf "$installed_application"
     application_removed=false
     [[ ! -e "$installed_application" ]] && application_removed=true
