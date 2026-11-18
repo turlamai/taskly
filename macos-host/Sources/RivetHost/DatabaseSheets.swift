@@ -322,19 +322,12 @@ struct DatabaseSheetView: View {
 
     private func apply() {
         if isRestore, let payload = restorePayload {
-            working = true
-            _Concurrency.Task {
-                do {
-                    model.confirmRestore(path: payload.path,
-                                         taskCount: payload.taskCount,
-                                         dbPathAtPreview: payload.dbPathAtPreview)
-                    dismiss()
-                } catch {
-                    errorText = databaseActionError(error, model,
-                                                    fallback: "dbRestoreInvalid")
-                    working = false
-                }
-            }
+            // confirmRestore is synchronous fire-and-forget: outcomes land
+            // in the settings feedback line (stale guard, RPC failures).
+            model.confirmRestore(path: payload.path,
+                                 taskCount: payload.taskCount,
+                                 dbPathAtPreview: payload.dbPathAtPreview)
+            dismiss()
         } else if isCreate {
             let cleanName = name.trimmingCharacters(in: .whitespaces)
             if cleanName.isEmpty || cleanName.range(of: #"[\\/:*?"<>|]"#) != nil {

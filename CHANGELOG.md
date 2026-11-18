@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.13] - 2026-11-18
+
 ### Added
 - Database lifecycle (PRODUCT-SPEC §2a, all platforms): a startup gate —
   create a database in a folder of your choice or open an existing one —
