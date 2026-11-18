@@ -1,8 +1,8 @@
 # AGENTS.md
 
-## Authorization decision before implementation
+## Current owner decision — 2026-11-18 quality-first
 
-Decision `2026-10-auth-1`: Offline perpetual entitlement plus a bounded update/feature window; no activation lease or device cap. Read the complete [local authorization decision](https://github.com/turlamai/taskly/pull/60) and its Chinese counterpart before commercial, trial, update-eligibility or credential work. Record this decision revision and the source/policy SHAs actually read in the PR/handoff. Refresh at each bounded slice; existing agent conversations do not receive this change automatically. Follow the existing product contract and implementation issue; do not activate a payment gate merely because a plan exists.
+This is a **non-commercial development product**. The previous 2026-10 authorization, pricing, trial, Pro and Permit/Commerce rollout decisions are canceled. Do not implement or restore checkout, activation, subscription, paid feature gates, trial expiry or update-entitlement windows. Keep source licenses, release-signature verification, privacy protections and tested data migration intact. Focus only on real product functionality, native platform parity, recovery, clear bilingual READMEs and honest website status. Read the [current family policy](https://github.com/turlamai/turlamai.github.io/blob/master/PORTFOLIO.md) before every development slice.
 
 ## Required policy discovery at each slice
 
@@ -132,9 +132,7 @@ taskly/
 
 ## 组合定位（Portfolio placement）
 
-- 2026-10-v2：Taskly 是首个消费买断主力；完整官方桌面版，14 天试用，首购含 12 个月更新，续购可选。不把提醒、自然语言输入或 CLI 拆成多个收费项。
-- 具体价格、试用到期的数据出口与开卖门禁以 [PRICING.md](PRICING.md) 为唯一权威；此前 Pro 候选与价格发布限制均已被替代。组合策略见 [PORTFOLIO](https://github.com/turlamai/turlamai.github.io/blob/master/PORTFOLIO.md)。
-- 当前开发中、没有实际用户；先完成 #58 与现有 acceptance，不因此给开发预览即时加收费墙。不售未交付手机平台，不修改 BUSL 源码权利。
+本产品目前是 **2026-11-18 质量与交付优先的非收费开发项目**。不重新引入旧版价格、购买、试用、Pro 或 Permit/Commerce 门禁；保持现行源码许可与更新签名安全。当前权威为 [产品组合策略](https://github.com/turlamai/turlamai.github.io/blob/master/PORTFOLIO.zh-CN.md)，不是已经删除的产品定价文件。
 
 ## Documentation languages
 
