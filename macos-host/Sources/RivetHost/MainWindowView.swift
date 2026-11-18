@@ -6,20 +6,28 @@ struct MainWindowView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                if model.isSidebarVisible {
-                    SidebarView()
-                        .frame(width: Palette.sidebarWidth)
-                    Divider()
-                        .overlay(model.theme.divider)
-                }
-                TaskPaneView()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Group {
+            if model.launchState == .none {
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        if model.isSidebarVisible {
+                            SidebarView()
+                                .frame(width: Palette.sidebarWidth)
+                            Divider()
+                                .overlay(model.theme.divider)
+                        }
+                        TaskPaneView()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            Divider().overlay(model.theme.divider)
-            statusBar
+                    Divider().overlay(model.theme.divider)
+                    statusBar
+                }
+            } else {
+                // §2a: the welcome / recovery gate replaces the task UI
+                // entirely while no database is open.
+                DatabaseGateView()
+            }
         }
         .background(model.theme.background)
         .frame(minWidth: 760, minHeight: 520)
@@ -27,6 +35,11 @@ struct MainWindowView: View {
             get: { model.listEditSheet },
             set: { model.listEditSheet = $0 })) { context in
             ListEditSheet(context: context)
+        }
+        .sheet(item: Binding(
+            get: { model.databaseSheet },
+            set: { model.databaseSheet = $0 })) { context in
+            DatabaseSheetView(context: context)
         }
         .sheet(isPresented: Binding(
             get: { model.aboutVisible },
@@ -75,19 +88,47 @@ struct MainWindowView: View {
     }
 }
 
-/// 2×2 smart-view tiles + My Lists section (PRODUCT-SPEC §3).
+/// 2×2 smart-view tiles + My Lists section + database identity footer
+/// (PRODUCT-SPEC §3, §2a).
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                smartTiles
-                myLists
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    smartTiles
+                    myLists
+                }
+                .padding(12)
             }
-            .padding(12)
+            databaseIdentity
         }
         .background(model.theme.sidebar)
+    }
+
+    /// §2a sidebar footer: the database display name plus the
+    /// managed-by-you note (prototype `database-identity`).
+    private var databaseIdentity: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(model.databaseName.isEmpty
+                 ? model.t("dbCurrentNone") : model.databaseName)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(model.theme.onSurface)
+                .lineLimit(1)
+            Text(model.t("sidebarDbManaged"))
+                .font(.system(size: 12))
+                .foregroundStyle(model.theme.secondaryText)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .top) {
+            Divider().overlay(model.theme.divider)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("database-identity")
     }
 
     private var smartTiles: some View {

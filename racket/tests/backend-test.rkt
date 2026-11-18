@@ -6,8 +6,12 @@
 (require rackunit
          racket/file
          racket/path
+         racket/string
+         rivet/backend
          (submod "../taskly/backend.rkt" rpcs)
          "../taskly/config.rkt"
+         "../taskly/errors.rkt"
+         "../taskly/model.rkt"
          "../taskly/paths.rkt"
          "../taskly/service.rkt")
 
@@ -65,6 +69,94 @@
                    (path->string (path->complete-path remembered-db)))
      (check-equal? (resolve-database-path)
                    (path->complete-path remembered-db))
+     ;; An unregistered database takes its file stem as the display name.
+     (check-equal? (config-ref (read-config) "last-db-name") "remembered")
+
+     ;; §2a: opening must never create a replacement for a missing file and
+     ;; must refuse a foreign file — the gate's recovery flow depends on it.
+     (check-exn
+      exn:fail:taskly?
+      (lambda ()
+        (open_database (path->string (build-path temp-root "absent.db")))))
+     (define foreign-file (build-path temp-root "foreign.db"))
+     (call-with-output-file foreign-file
+       (lambda (out) (displayln "definitely not sqlite" out)))
+     (check-exn
+      exn:fail:taskly?
+      (lambda () (open_database (path->string foreign-file))))
+
+     ;; Exclusive create (PRODUCT-SPEC §2a): the gate flow records the file
+     ;; and its entered display name; a second create on the same target is
+     ;; rejected before writing anything.
+     (define create-dir (build-path temp-root "created"))
+     (define created-snapshot (create_database (path->string create-dir) "Gate Home"))
+     (check-equal? (length (record-ref created-snapshot 'tasks)) 0)
+     (check-equal? (config-ref (read-config) "last-db-path")
+                   (path->string (build-path create-dir "taskly.sqlite")))
+     (check-equal? (config-ref (read-config) "last-db-name") "Gate Home")
+     ;; Reopening the same file keeps the entered display name.
+     (open_database (path->string (build-path create-dir "taskly.sqlite")))
+     (check-equal? (config-ref (read-config) "last-db-name") "Gate Home")
+     (check-exn
+      exn:fail:taskly?
+      (lambda () (create_database (path->string create-dir) "Again")))
+     (check-exn
+      exn:fail:taskly?
+      (lambda () (create_database (path->string create-dir) "bad/name")))
+
+     ;; §2a default-list + recorded accelerator settings round-trip and
+     ;; survive the config writer's key list.
+     (set_setting "default-list-id" "3")
+     (check-equal? (get_setting "default-list-id") "3")
+     (check-equal? (config-ref (read-config) "default-list-id") "3")
+     (check-exn exn:fail? (lambda () (set_setting "default-list-id" "soon")))
+     (set_setting "global-quick-add" "ctrl+alt+space")
+     (check-equal? (get_setting "global-quick-add") "ctrl+alt+space")
+     (check-equal? (config-ref (read-config) "global-quick-add") "ctrl+alt+space")
+
+     ;; §2a backup lifecycle: export writes taskly-backup v1 (pretty-printed,
+     ;; parseable), preview counts it, restore replaces lists + tasks.
+     (define gate-service (open-taskly-service (build-path create-dir "taskly.sqlite")))
+     (define gate-list (service-add-list! gate-service "Gate List" #:icon "⭐"))
+     (service-add-task! gate-service "exported task"
+                        #:list-id (todo-list-id gate-list)
+                        #:due-date "2026-09-20")
+     (close-taskly-service gate-service)
+     (open_database (path->string (build-path create-dir "taskly.sqlite")))
+     (define backup-path (build-path temp-root "backup.json"))
+     (check-equal? (export_backup (path->string backup-path)) 1)
+     (define backup-preview (preview_backup (path->string backup-path)))
+     (check-equal? (record-ref backup-preview 'format) "taskly-backup")
+     (check-equal? (record-ref backup-preview 'version) 1)
+     (check-equal? (record-ref backup-preview 'list-count) 2
+                   "the default list plus Gate List")
+     (check-equal? (record-ref backup-preview 'task-count) 1)
+     (check-true (string-contains? (file->string backup-path) "\n  \"format\": \"taskly-backup\"")
+                 "the backup file is 2-space pretty-printed")
+     ;; Restore replaces the open database's content in one transaction.
+     (restore_backup (path->string backup-path))
+     (define restored-service (open-taskly-service (build-path create-dir "taskly.sqlite")))
+     (check-equal? (length (service-lists restored-service)) 2)
+     (check-equal? (length (service-tasks restored-service)) 1)
+     (close-taskly-service restored-service)
+     (check-exn
+      exn:fail:taskly?
+      (lambda () (preview_backup (path->string foreign-file)))
+      "a foreign file is rejected as an invalid backup")
+
+     ;; §2a migrate: two RPCs above the core copy primitive; success switches
+     ;; the recorded location, failure keeps the source.
+     (define migrate-dir (build-path temp-root "migrated-gate"))
+     (define migrated-snapshot (migrate_database (path->string migrate-dir)))
+     (check-equal? (length (record-ref migrated-snapshot 'tasks)) 1)
+     (check-equal? (config-ref (read-config) "last-db-path")
+                   (path->string (build-path migrate-dir "taskly.sqlite")))
+     (check-true (file-exists? (build-path create-dir "taskly.sqlite"))
+                 "the source file stays in place after a successful migrate")
+     (check-exn
+      exn:fail:taskly?
+      (lambda () (migrate_database (path->string create-dir)))
+      "an occupied target folder is rejected")
 
      ;; A legacy underscore key survives a config rewrite (pre-0.x files),
      ;; and the new key wins over it when both exist.

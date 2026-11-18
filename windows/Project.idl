@@ -7,8 +7,11 @@ namespace RivetHost
     }
 
     // PRODUCT-SPEC §8: the settings surface. Owns the three preference
-    // controls only; state and persistence stay in MainWindow, which
-    // subscribes to the Committed events and applies/saves each change.
+    // controls plus the §2a 新任务/数据 groups; state and persistence stay
+    // in MainWindow, which subscribes to the Committed/DataAction events
+    // and applies/saves each change. MainWindow pushes the current
+    // database/lists snapshot in through SyncDatabaseState (same split as
+    // the preference rows).
     runtimeclass SettingsWindow : Microsoft.UI.Xaml.Window
     {
         SettingsWindow();
@@ -22,6 +25,21 @@ namespace RivetHost
         // Follow the app theme ("system"/"light"/"dark").
         void ApplyAppTheme(String theme);
 
+        // PRODUCT-SPEC §2a: push the current database identity + lists so
+        // the 新任务 (default list) and 数据 groups render live state.
+        // No events fire; the caller keeps ownership of persistence.
+        void SyncDatabaseState(String databaseName, String databasePath,
+                               Boolean connected,
+                               Windows.Foundation.Collections.IVectorView<Int64> listIds,
+                               Windows.Foundation.Collections.IVectorView<String> listNames,
+                               Int64 defaultListId, String quickAdd);
+        // Status line under the 数据 group (export/restore/migrate outcomes).
+        void SetDataFeedback(String message);
+        // §2a restore step 2: the explicit replacement confirmation, hosted
+        // in the settings window (the surface the user acted on). Resolves
+        // true only for the confirm button.
+        Windows.Foundation.IAsyncOperation<Boolean> ConfirmRestoreAsync(String body);
+
         String SelectedLanguage { get; };
         String SelectedTheme { get; };
         Boolean AutoCheckUpdatesOn { get; };
@@ -29,5 +47,13 @@ namespace RivetHost
         event Windows.Foundation.TypedEventHandler<SettingsWindow, Object> LanguageCommitted;
         event Windows.Foundation.TypedEventHandler<SettingsWindow, Object> ThemeCommitted;
         event Windows.Foundation.TypedEventHandler<SettingsWindow, Object> AutoCheckCommitted;
+        // Object carries a boxed String action token:
+        // "reveal" | "migrate" | "open" | "create" | "export" | "restore".
+        event Windows.Foundation.TypedEventHandler<SettingsWindow, Object> DataActionRequested;
+        // Object carries a boxed Int64: the chosen default list id (0 = none).
+        event Windows.Foundation.TypedEventHandler<SettingsWindow, Object> DefaultListCommitted;
+        // Object carries a boxed String: the recorded combo, the "ctrl+alt+space"
+        // reset value, or "" for clear — recorded but never registered (§2a).
+        event Windows.Foundation.TypedEventHandler<SettingsWindow, Object> QuickAddCommitted;
     }
 }

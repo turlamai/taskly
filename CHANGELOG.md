@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Database lifecycle (PRODUCT-SPEC §2a, all platforms): a startup gate —
+  create a database in a folder of your choice or open an existing one —
+  replaces the silent `~/.taskly/tasks.db` default. When the recorded
+  database cannot be found, a recovery block offers Relocate and Retry and
+  never creates a replacement automatically. Settings gains a Data group
+  (current database with Finder/Explorer reveal, move location, open
+  another, create, export JSON, restore backup with preview + explicit
+  confirmation) and a New Tasks group (quick-add default list; global
+  quick-add records a combination without registering it with the OS).
+  Creation is exclusive and atomic (`taskly.sqlite`); migration is
+  all-or-nothing and leaves the source file in place; backups use the
+  human-readable `taskly-backup` v1 format (DATA-FORMAT §9). The sidebar
+  shows the database identity; the task detail layer reorganizes per the
+  2026-11-15 prototype checkpoint — title, date, notes and list stay
+  visible while time, priority, tags, subtasks and URL live behind
+  disclosure controls that open when the field holds a value.
+
 ### Changed
+- Opening a database through the GUI no longer creates a missing file
+  (the CLI keeps its open-or-create semantics): a missing or foreign file
+  raises an actionable error so the recovery gate can offer relocate.
 - The updater now runs on `rivet/distribution`'s managed `make-updater` state
   machine: candidate selection, the download worker, the stall/total
   watchdog, cancellation and the terminal state are shared family code.

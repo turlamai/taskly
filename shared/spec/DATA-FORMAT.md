@@ -118,15 +118,68 @@ sides trimmed; keys case-insensitive. Writer emits two fixed header lines:
 
 | Key | Meaning | Default |
 |---|---|---|
-| `last-db-path` | last opened DB — written by `open_database` on success, read at startup by `default_database` (read also accepts legacy `last_db_path`, which rewrites must carry through) | — |
+| `last-db-path` | last opened DB — written by `open_database`/`create_database`/`migrate_database` on success, read at startup (read also accepts legacy `last_db_path`, which rewrites must carry through). **Empty/absent = no database chosen → hosts show the startup gate (PRODUCT-SPEC §2a); it is never silently defaulted** for the gate flow. The CLI keeps its own `--db` → default fallback | — |
+| `last-db-name` | display name of the current database — written by `create_database` (entered name), `open_database` (file stem when unregistered); sidebar identity and Settings 数据 group read it | — |
 | `language` | `zh` / `en` | `zh` |
 | `theme` | `system` / `light` / `dark`; Windows applies it before the first window paint | `system` |
 | `last-selected-list-id` | int as string; unparseable → 0 | `0` |
+| `default-list-id` | int as string; quick-add target when no list is selected (PRODUCT-SPEC §2a 新任务 group); unparseable or dangling → fall back to the first list | `0` |
+| `global-quick-add` | recorded accelerator string (e.g. `⌃⌥Space`); display-only — **not registered with the OS** in this slice | — |
 | `last-update-check` | unix seconds of the last auto-update check (UPDATE.md throttle) | `0` |
 | `auto-check-updates` | `1`/`0` — whether the silent update checks run (UPDATE.md) | `1` |
+
+Filename conventions (PRODUCT-SPEC §2a): `create_database` and
+`migrate_database` build their target as `<folder>/taskly.sqlite` —
+exclusive, atomic, rejecting any existing target; open/relocate accept
+`*.db *.sqlite *.sqlite3` and must not create missing files (the CLI's
+`--db` open-or-create semantics are unchanged).
 
 ## 8. Conformance
 
 Each platform's test suite must: create a fresh DB and assert the schema
 above; open a fixture DB written by another platform and round-trip every
 column; migrate a `user_version=0..4` fixture to 5 idempotently.
+
+## 9. Backup JSON (`taskly-backup` v1)
+
+Human-readable, UTF-8, 2-space pretty-printed. `export_backup` writes it;
+`preview_backup` validates and counts it; `restore_backup` replaces the
+current database's lists and tasks with it in **one transaction** (task
+IDs are reassigned by the database, list references are re-mapped through
+the restored lists; `created_at` values are preserved verbatim).
+
+```json
+{
+  "format": "taskly-backup",
+  "version": 1,
+  "exportedAt": "2026-11-15T20:51:31+08:00",
+  "lists": [
+    { "id": 1, "name": "工作", "icon": "📋", "color": -16745729 }
+  ],
+  "tasks": [
+    {
+      "listId": 1,
+      "text": "整理读书笔记",
+      "completed": false,
+      "dueDate": "2026-11-15",
+      "dueTime": "14:00",
+      "notes": "第三章",
+      "createdAt": "2026-11-15T09:00:00+08:00",
+      "priority": 2,
+      "tags": ["读书"],
+      "subtasks": [{ "text": "摘录要点", "done": true }],
+      "url": ""
+    }
+  ]
+}
+```
+
+Validation (`preview_backup` / `restore_backup`, PRODUCT-SPEC §2a):
+`format` == `taskly-backup`, `version` == 1, `lists` and `tasks` arrays
+present, ≤10 000 tasks and ≤5 MB file size, every task carries the fields
+above (`url` may be `""` = absent; optional scalars nullable; list ids,
+names and icon/color shapes valid; every task `listId` must reference a
+list in the same file). Any violation rejects the whole file — no partial
+restore, current data untouched. Restore drops the current database's
+lists and tasks first; the default list is **not** re-seeded (the backup's
+lists are authoritative).

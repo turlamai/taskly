@@ -49,6 +49,15 @@ enum UpdatePhase: Equatable {
     case failed
 }
 
+/// Launch surface shown instead of the task UI while no database is open
+/// (PRODUCT-SPEC §2a): the welcome gate, or the recovery gate when the
+/// recorded database could not be opened. `none` = normal task UI.
+enum LaunchState: Equatable {
+    case none
+    case welcome
+    case recovery(path: String)
+}
+
 /// Application state: embedded-backend lifecycle, settings, lists, current
 /// view, tasks, status line. All data flows through the typed RivetAPI;
 /// every backend mutation publishes `changed`, which re-reads the snapshot.
@@ -76,6 +85,17 @@ final class AppModel {
     var currentView: SmartView = .all
     var showCompleted = false
     var isConnected = false
+    /// §2a launch surface (welcome / recovery gates) — meaningful while no
+    /// database is open; `.none` once a database is connected or explicitly
+    /// closed (close keeps the existing not-connected task UI).
+    var launchState: LaunchState = .none
+    /// §2a database identity: the sidebar footer and settings 数据 group.
+    var databaseName = ""
+    var databasePath = ""
+    /// §2a 新任务 group: quick-add default list (0 = unset → first list)
+    /// and the recorded global quick-add accelerator (display-only).
+    var defaultListId: Int64 = 0
+    var globalQuickAdd = ""
 
     // UI state
     /// Selected rows (Reminders-style: click selects, ⌘ toggles, ⇧ extends).
@@ -121,6 +141,9 @@ final class AppModel {
     var listEditSheet: ListEditContext?
     var confirmContext: ConfirmContext?
     var aboutVisible = false
+    /// §2a database dialogs (create / migrate / restore) — one two-step
+    /// sheet mechanism across the settings 数据 group.
+    var databaseSheet: DatabaseSheetContext?
 
     // Updater (shared/spec/UPDATE.md)
     var updateSheetVisible = false
@@ -222,26 +245,34 @@ final class AppModel {
         }
     }
 
-    /// Settings → open default database → restore selection.
+    /// Settings → launch surface (§2a) or open the recorded database →
+    /// restore selection.
     private func bootstrap() async {
         guard let api else { return }
         do {
             let settings = try await api.get_settings()
             i18n.setLanguage(settings.language)
             applyTheme(settings.theme)
+            defaultListId = settings.default_list_id
             refreshStatusPersistent()
-
-            let path = try await api.default_database()
-            let snapshot = try await api.open_database(path: path)
-            isConnected = true
-            absorb(snapshot)
-            restoreSelection(settings.last_selected_list_id)
-            refreshStatusPersistent()
-            flashStatus(i18n.t("statusDatabaseConnected"))
-            reminder?.start()
+            if let stored = try? await api.get_setting(key: "global-quick-add") {
+                globalQuickAdd = stored
+            }
             if let stored = try? await api.get_setting(key: "auto-check-updates") {
                 autoCheckUpdates = stored != "0"
             }
+
+            // §2a startup: an empty last-db-path is the welcome gate; a
+            // recorded path is opened, and its failure is the recovery gate.
+            // No default storage folder is ever silently assigned.
+            let recorded = ((try? await api.get_setting(key: "last-db-path")) ?? "")
+                .trimmingCharacters(in: .whitespaces)
+            if recorded.isEmpty {
+                launchState = .welcome
+            } else {
+                attemptOpen(recorded, recoveryOnFailure: true)
+            }
+            reminder?.start()
             autoCheckForUpdates()
             UpdateService.sweepStaleWorkDirs()
         } catch {
@@ -449,8 +480,14 @@ final class AppModel {
         return (try? await api.acknowledge_reminder(token: token, phase: phase)) ?? false
     }
 
-    /// Open (creating when absent) a database file in place.
+    /// Open a database file in place (§2a: never creates — the core refuses
+    /// missing/foreign files). `recoveryOnFailure` moves the launch surface
+    /// to the recovery gate instead of flashing a status line.
     func openDatabase(path: String) {
+        attemptOpen(path, recoveryOnFailure: false)
+    }
+
+    private func attemptOpen(_ path: String, recoveryOnFailure: Bool) {
         guard let api else { return }
         abandonStagedDelete()
         databaseGeneration += 1
@@ -460,15 +497,153 @@ final class AppModel {
                 let snapshot = try await api.open_database(path: path)
                 guard generation == databaseGeneration else { return }
                 isConnected = true
+                launchState = .none
                 absorb(snapshot)
                 let settings = try? await api.get_settings()
                 restoreSelection(settings?.last_selected_list_id ?? 0)
+                databaseName = settings?.database_name ?? ""
+                databasePath = settings?.database_path ?? path
                 refreshStatusPersistent()
                 flashStatus(i18n.t("statusDatabaseConnected"))
                 reminder?.resetSession()
             } catch {
-                flashStatus("\(error)")
+                guard generation == databaseGeneration else { return }
+                isConnected = false
+                if recoveryOnFailure {
+                    launchState = .recovery(path: path)
+                } else {
+                    flashStatus(t("dbErrOpenFailed", Self.cleanError(error)))
+                }
             }
+        }
+    }
+
+    /// §2a recovery gate: re-attempt the recorded path (disk reconnected,
+    /// file restored in place).
+    func retryRecordedDatabase() {
+        if case .recovery(let path) = launchState {
+            attemptOpen(path, recoveryOnFailure: true)
+        }
+    }
+
+    /// §2a create flow: exclusive create at <folder>/taskly.sqlite, opened
+    /// on success. Throws so the create sheet can anchor the actionable
+    /// error to the dialog.
+    func createDatabase(folder: String, name: String) async throws {
+        guard let api else { return }
+        abandonStagedDelete()
+        databaseGeneration += 1
+        let generation = databaseGeneration
+        let snapshot = try await api.create_database(folder: folder, name: name)
+        guard generation == databaseGeneration else { return }
+        isConnected = true
+        launchState = .none
+        absorb(snapshot)
+        let settings = try? await api.get_settings()
+        restoreSelection(settings?.last_selected_list_id ?? 0)
+        databaseName = settings?.database_name ?? name
+        databasePath = settings?.database_path ?? folder
+        refreshStatusPersistent()
+        flashStatus(t("dbCreated", databaseName))
+        reminder?.resetSession()
+    }
+
+    /// §2a two-step migrate (the caller already confirmed): all-or-nothing,
+    /// the source file stays in place.
+    func migrateDatabase(folder: String) async throws {
+        guard let api else { return }
+        abandonStagedDelete()
+        databaseGeneration += 1
+        let generation = databaseGeneration
+        let snapshot = try await api.migrate_database(folder: folder)
+        guard generation == databaseGeneration else { return }
+        absorb(snapshot)
+        if let settings = try? await api.get_settings() {
+            databaseName = settings.database_name
+            databasePath = settings.database_path
+        }
+        flashStatus(i18n.t("dbMigrated"))
+    }
+
+    /// §2a backup export; the caller shows the returned task count.
+    func exportBackup(to path: String) async throws -> Int64 {
+        guard let api else { return 0 }
+        let count = try await api.export_backup(path: path)
+        flashStatus(t("dbExported", Int(count)))
+        return count
+    }
+
+    func previewBackup(at path: String) async throws -> RivetTypes.BackupPreview {
+        guard let api else {
+            throw HostError.missingRuntimeLayout("backend not started")
+        }
+        return try await api.preview_backup(path: path)
+    }
+
+    /// §2a restore: replaces lists + tasks in one transaction. The
+    /// confirmation dialog calls this with the previewed file; the
+    /// stale-selection guard refuses when the active database changed.
+    /// §2a settings 数据 group feedback line (export/restore outcomes).
+    var dataFeedbackMessage = ""
+
+    func confirmRestore(path: String, taskCount: Int, dbPathAtPreview: String) {
+        guard dbPathAtPreview == databasePath else {
+            dataFeedbackMessage = i18n.t("dbRestoreStale")
+            flashStatus(i18n.t("dbRestoreStale"))
+            return
+        }
+        _Concurrency.Task {
+            do {
+                try await restoreBackup(from: path)
+                dataFeedbackMessage = t(
+                    "dbRestored", taskCount)
+            } catch {
+                dataFeedbackMessage = t(
+                    "dbRestoreInvalid", Self.cleanError(error))
+                flashStatus(t("dbRestoreInvalid", Self.cleanError(error)))
+            }
+        }
+    }
+
+    private func restoreBackup(from path: String) async throws {
+        guard let api else { return }
+        abandonStagedDelete()
+        databaseGeneration += 1
+        let generation = databaseGeneration
+        let snapshot = try await api.restore_backup(path: path)
+        guard generation == databaseGeneration else { return }
+        absorb(snapshot)
+        reload()
+        if let settings = try? await api.get_settings() {
+            databaseName = settings.database_name
+            databasePath = settings.database_path
+        }
+        flashStatus(t("dbRestored", snapshot.tasks.count))
+    }
+
+    /// §2a reveal: the platform file manager shows the current database
+    /// file, Finder-selecting it.
+    func revealDatabaseFolder() {
+        guard !databasePath.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(
+            [URL(fileURLWithPath: databasePath)])
+    }
+
+    /// §2a 新任务 group: quick-add default list and the recorded
+    /// global-quick-add accelerator (display-only — never registered).
+    func setDefaultList(_ id: Int64) {
+        defaultListId = id
+        guard let api else { return }
+        _Concurrency.Task {
+            _ = try? await api.set_setting(key: "default-list-id", value: String(id))
+        }
+    }
+
+    func setGlobalQuickAdd(_ combo: String) {
+        globalQuickAdd = combo
+        guard let api else { return }
+        _Concurrency.Task {
+            _ = try? await api.set_setting(key: "global-quick-add", value: combo)
         }
     }
 
@@ -481,6 +656,7 @@ final class AppModel {
             _ = try? await api.close_database()
             guard generation == databaseGeneration else { return }
             isConnected = false
+            launchState = .none
             reminder?.stop()
             lists = []
             tasks = []
@@ -764,6 +940,10 @@ final class AppModel {
         let listId: Int64
         if let id = currentView.listId {
             listId = id
+        } else if defaultListId != 0,
+                  lists.contains(where: { $0.id == defaultListId }) {
+            // §2a: the configured default list wins when no list is selected.
+            listId = defaultListId
         } else if let first = lists.first {
             listId = first.id
         } else {
@@ -1201,6 +1381,20 @@ struct ListEditContext: Identifiable {
     enum Mode {
         case create
         case edit(RivetTypes.TodoList)
+    }
+
+    let id = UUID()
+    let mode: Mode
+}
+
+/// §2a database dialog payload: create, migrate and restore — one sheet
+/// mechanism; multi-step flows confirm inside the sheet.
+struct DatabaseSheetContext: Identifiable {
+    enum Mode {
+        case create
+        case migrate
+        case restore(path: String, taskCount: Int, listCount: Int,
+                     dbPathAtPreview: String)
     }
 
     let id = UUID()

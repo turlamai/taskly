@@ -124,25 +124,16 @@ struct TasklyCommands: Commands {
         String(model.t("taskListInputHint").drop(while: { $0 == "+" || $0 == " " }))
     }
 
+    /// §2a create flow: folder picker + name entry (the create sheet owns
+    /// both steps and the exclusive-create error handling).
     private func newDatabase() {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "tasks"
-        panel.allowedContentTypes = [
-            .init(filenameExtension: "db") ?? .data
-        ]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.openDatabase(path: url.path)
+        model.databaseSheet = DatabaseSheetContext(mode: .create)
     }
 
     private func openDatabase() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.allowedContentTypes = [
-            .init(filenameExtension: "db") ?? .data
-        ]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.openDatabase(path: url.path)
+        AppModel.pickDatabaseFile { [weak model] path in
+            if let path { model?.openDatabase(path: path) }
+        }
     }
 
     private func confirmClose() {

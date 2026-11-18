@@ -16,6 +16,39 @@
     {
       "fields": [
         {
+          "name": "format",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "version",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "list-count",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        },
+        {
+          "name": "task-count",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
+          }
+        }
+      ],
+      "name": "BackupPreview"
+    },
+    {
+      "fields": [
+        {
           "name": "text",
           "type": {
             "kind": "scalar",
@@ -116,6 +149,20 @@
           "type": {
             "kind": "scalar",
             "name": "String"
+          }
+        },
+        {
+          "name": "database-name",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "default-list-id",
+          "type": {
+            "kind": "scalar",
+            "name": "Int64"
           }
         }
       ],
@@ -596,6 +643,29 @@
     {
       "arguments": [
         {
+          "name": "folder",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "name",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "create_database",
+      "result": {
+        "kind": "record",
+        "name": "Snapshot"
+      }
+    },
+    {
+      "arguments": [
+        {
           "name": "name",
           "type": {
             "kind": "scalar",
@@ -672,6 +742,22 @@
     {
       "arguments": [
         {
+          "name": "path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "export_backup",
+      "result": {
+        "kind": "scalar",
+        "name": "Int64"
+      }
+    },
+    {
+      "arguments": [
+        {
           "name": "key",
           "type": {
             "kind": "scalar",
@@ -729,6 +815,22 @@
     {
       "arguments": [
         {
+          "name": "folder",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "migrate_database",
+      "result": {
+        "kind": "record",
+        "name": "Snapshot"
+      }
+    },
+    {
+      "arguments": [
+        {
           "name": "path",
           "type": {
             "kind": "scalar",
@@ -777,6 +879,22 @@
     {
       "arguments": [
         {
+          "name": "path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "preview_backup",
+      "result": {
+        "kind": "record",
+        "name": "BackupPreview"
+      }
+    },
+    {
+      "arguments": [
+        {
           "name": "startup",
           "type": {
             "kind": "scalar",
@@ -791,6 +909,22 @@
           "name": "ReminderDecision"
         },
         "kind": "list"
+      }
+    },
+    {
+      "arguments": [
+        {
+          "name": "path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "restore_backup",
+      "result": {
+        "kind": "record",
+        "name": "Snapshot"
       }
     },
     {

@@ -111,11 +111,35 @@ struct MainWindow : MainWindowT<MainWindow> {
   void OnSettingsAutoCheckChanged(
       winrt::RivetHost::SettingsWindow const&,
       winrt::Windows::Foundation::IInspectable const&);
+  // §2a 新任务/数据 groups: the settings window reports the user's actions
+  // through the same Committed-event pattern as the preference rows.
+  void OnSettingsDataAction(
+      winrt::RivetHost::SettingsWindow const&,
+      winrt::Windows::Foundation::IInspectable const&);
+  void OnSettingsDefaultListChanged(
+      winrt::RivetHost::SettingsWindow const&,
+      winrt::Windows::Foundation::IInspectable const&);
+  void OnSettingsQuickAddCommitted(
+      winrt::RivetHost::SettingsWindow const&,
+      winrt::Windows::Foundation::IInspectable const&);
   void SyncAutoCheckSetting(bool on);
   winrt::RivetHost::SettingsWindow settings_window_{nullptr};
 
+  // §2a launch surface handlers (welcome/recovery gate buttons).
+  void OnGateCreate(winrt::Windows::Foundation::IInspectable const&,
+                    Microsoft::UI::Xaml::RoutedEventArgs const&);
+  void OnGateOpen(winrt::Windows::Foundation::IInspectable const&,
+                  Microsoft::UI::Xaml::RoutedEventArgs const&);
+  void OnRecoveryRelocate(winrt::Windows::Foundation::IInspectable const&,
+                          Microsoft::UI::Xaml::RoutedEventArgs const&);
+  void OnRecoveryRetry(winrt::Windows::Foundation::IInspectable const&,
+                       Microsoft::UI::Xaml::RoutedEventArgs const&);
+
 private:
   enum class ViewKind { Today, Planned, All, Completed, List };
+  // §2a launch surface: None = normal task UI; Welcome = no database
+  // recorded; Recovery = the recorded database failed to open.
+  enum class LaunchState { None, Welcome, Recovery };
 
   // PRODUCT-SPEC §8 app accelerators (Ctrl+1…4 / Ctrl+N / Ctrl+F /
   // Ctrl+Shift+C / Ctrl+Shift+N / Ctrl+O). They reuse the command paths
@@ -190,8 +214,24 @@ private:
       std::function<void(std::wstring const&)> on_ok);
 
   winrt::fire_and_forget ReloadTasksAsync();
-  winrt::fire_and_forget OpenDefaultDatabaseAsync();
-  winrt::fire_and_forget OpenDatabaseAsync(std::wstring const& path);
+  // §2a startup: read `last-db-path` — empty shows the welcome gate, a
+  // recorded path is opened (its failure becomes the recovery gate).
+  winrt::fire_and_forget BootstrapDatabaseAsync();
+  // §2a open in place (never creates). `recovery_on_failure` moves the
+  // launch surface to the recovery gate instead of flashing a status line.
+  winrt::fire_and_forget AttemptOpenAsync(std::wstring const& path,
+                                          bool recovery_on_failure);
+  // Shared open/create success path: apply the snapshot, restore the last
+  // selection and leave the gate. Identity refresh chains separately.
+  void FinishDatabaseOpened(rivet_app::Snapshot const& snapshot);
+  // Re-reads settings for database name/path/default list after a lifecycle
+  // success (open/create/migrate/restore) and refreshes identity surfaces.
+  winrt::fire_and_forget RefreshDatabaseIdentityFromBackendAsync();
+  void RefreshDatabaseIdentity();
+  void ShowGate(LaunchState state);
+  void ShowTaskUi();
+  void ApplyWindowTitle();
+  void OpenDatabaseAsync(std::wstring const& path);
   winrt::fire_and_forget AddTaskAsync(std::wstring const& text,
                                        std::int64_t target_list_id);
   winrt::fire_and_forget ToggleTaskAsync(std::int64_t id, bool completed);
@@ -221,6 +261,21 @@ private:
   winrt::fire_and_forget SaveSettingAsync(std::string const& key, std::string const& value);
   winrt::fire_and_forget RunSearchAsync(std::wstring const& keyword);
   winrt::fire_and_forget RunQuickAddPreview(std::wstring const& text);
+
+  // §2a database lifecycle dialogs/flows (create / migrate / backup).
+  winrt::fire_and_forget PickFolderAsync(
+      std::function<void(std::wstring const& folder)> on_picked);
+  winrt::fire_and_forget ShowCreateDatabaseDialogAsync();
+  winrt::fire_and_forget ShowMigrateDatabaseDialogAsync();
+  winrt::fire_and_forget ShowExportBackupAsync();
+  winrt::fire_and_forget ShowRestoreBackupAsync();
+  winrt::fire_and_forget ConfirmRestoreThenApply(std::wstring const& body);
+  void RevealDatabaseFolder();
+  void ReportDataFeedback(std::wstring const& message);
+  void SyncSettingsDatabaseState();
+  // Core error → actionable i18n copy (DatabaseSheets.swift parity).
+  std::wstring DatabaseActionError(std::exception const& error,
+                                   char const* fallback_key);
 
   // Row context-menu handlers
   void OnRenameList(winrt::Windows::Foundation::IInspectable const&,
@@ -353,6 +408,21 @@ private:
   std::int64_t update_download_start_{0};
   bool database_connected_{false};
   bool notifications_disabled_{false};
+  // §2a database lifecycle state (AppModel parity): launch surface, identity
+  // for the sidebar footer/title, 新任务 defaults, and a monotonic token so
+  // a lifecycle callback belonging to database A can never mutate database B.
+  LaunchState launch_state_{LaunchState::None};
+  std::wstring database_name_;
+  std::wstring database_path_;
+  std::int64_t default_list_id_{0};
+  std::wstring global_quick_add_;
+  std::wstring recovery_path_;
+  std::uint64_t database_generation_{0};
+  // Restore two-step: the previewed file and the database selected at
+  // preview time — confirmation refuses when the active database changed.
+  std::wstring pending_restore_path_;
+  std::wstring pending_restore_db_path_;
+  std::wstring last_feedback_db_path_;
 };
 
 }  // namespace winrt::RivetHost::implementation

@@ -105,8 +105,26 @@ func writeJSON(_ value: Any, to url: URL) throws {
 
 func press(_ element: AXUIElement, _ description: String) throws {
     let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
-    guard result == .success else {
-        throw DriverError.failure("AXPress failed for \(description): \(result.rawValue)")
+    if result != .success {
+        // Some custom-styled SwiftUI buttons (inside sheets) do not expose
+        // the press action (-25204 ActionUnsupported). Fall back to a real
+        // click at the element's center. A sheet mid-layout reports empty
+        // bounds, so wait briefly for the element to become clickable.
+        var clickable = false
+        for _ in 0..<70 {
+            if (try? clickPoint(element)) != nil {
+                clickable = true
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.15)
+        }
+        guard clickable else {
+            throw DriverError.failure(
+                "AXPress failed for \(description): \(result.rawValue) " +
+                "(no clickable bounds)")
+        }
+        try postClick(element, description, button: .left,
+                      downType: .leftMouseDown, upType: .leftMouseUp)
     }
 }
 
@@ -145,14 +163,24 @@ func setValue(_ value: String, on element: AXUIElement) throws {
 }
 
 func postKey(_ keyCode: CGKeyCode) throws {
+    try postKey(keyCode, flags: [])
+}
+
+/// Modifier-combined key event (Cmd+Shift+G go-to-folder, Cmd+, settings…).
+func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags) throws {
     guard let source = CGEventSource(stateID: .hidSystemState),
           let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
           let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
         throw DriverError.failure("could not create keyboard event")
     }
+    keyDown.flags = flags
+    keyUp.flags = flags
     keyDown.post(tap: .cghidEventTap)
     keyUp.post(tap: .cghidEventTap)
 }
+
+let cmdShiftG: CGEventFlags = [.maskCommand, .maskShift]
+let cmdOnly: CGEventFlags = [.maskCommand]
 
 func clickPoint(_ element: AXUIElement) throws -> CGPoint {
     guard let positionRaw = attribute(element, kAXPositionAttribute),
@@ -202,6 +230,392 @@ func leftClick(_ element: AXUIElement, _ description: String) throws {
 var diagnosticApplication: AXUIElement?
 var diagnosticOutput: URL?
 
+// ---- §2a database-lifecycle scenario helpers -----------------------------
+
+/// The NSOpenPanel/NSSavePanel presents as a dialog window of the app.
+/// Waiting for it before sending shortcuts is what makes the go-to flow
+/// deterministic: a swallowed press otherwise times out on the go-to field.
+func panelWindow(_ application: AXUIElement) -> AXUIElement? {
+    for element in walk(application) {
+        let role = stringAttribute(element, kAXRoleAttribute)
+        guard role == "AXWindow" || role == "AXSheet" else { continue }
+        let subrole = stringAttribute(element, kAXSubroleAttribute)
+        let title = stringAttribute(element, kAXTitleAttribute)
+        if subrole == "AXDialog" ||
+            ["open", "choose", "save", "打开", "选择", "保存"]
+            .contains(where: { title.lowercased().contains($0) }) {
+            return element
+        }
+    }
+    return nil
+}
+
+/// The focused editable text field of the frontmost sheet/panel (the
+/// go-to-folder field takes focus the moment the shortcut lands).
+func focusedTextField(_ root: AXUIElement) -> AXUIElement? {
+    for element in walk(root) {
+        let role = stringAttribute(element, kAXRoleAttribute)
+        guard role == "AXTextField" else { continue }
+        let focused = stringAttribute(element, kAXFocusedAttribute)
+        if focused == "1" { return element }
+    }
+    return nil
+}
+
+/// Drives a real NSOpenPanel/NSSavePanel to the given path: Cmd+Shift+G,
+/// type the path into the go-to sheet, Return to navigate, Return to accept
+/// the default (Go / Open / Choose / Save) button.
+/// The panel's begin-completion writes the picked path back to the sheet
+/// asynchronously; pressing the sheet's apply button before that lands
+/// fails with "choose a location first" (observed as a CI flake).
+func waitForFolderApplied(_ application: AXUIElement) throws {
+    _ = try waitFor("folder path applied to the sheet") {
+        find(application, identifier: "database-folder-path").flatMap {
+            let text = elementText($0)
+            return (!text.isEmpty && text != "—") ? text : nil
+        }
+    }
+}
+
+/// The runner-reliable way through NSOpenPanel/NSSavePanel: e2e-macos.sh
+/// pins NSNavLastRootDirectory before launch so the panel opens in the
+/// target directory, and the default button is pressed through AXPress —
+/// no blind keyboard navigation. `select` names a file row to select
+/// first (restore flow); nil just confirms the folder/file name.
+/// One-shot diagnostics for the restore row hunt: what the panel's
+/// outline actually exposes when the expected file row is missing.
+var panelRowsDumped = false
+func dumpPanelRows(_ panel: AXUIElement, lookingFor: String) {
+    guard !panelRowsDumped else { return }
+    panelRowsDumped = true
+    FileHandle.standardError.write(Data(
+        "PANEL-DUMP lookingFor=\(lookingFor)\n".utf8))
+    var printed = 0
+    for element in walk(panel) where printed < 40 {
+        let role = stringAttribute(element, kAXRoleAttribute)
+        guard ["AXRow", "AXOutline", "AXTable", "AXList"].contains(role)
+        else { continue }
+        let text = walk(element)
+            .map { stringAttribute($0, kAXValueAttribute) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "|")
+        FileHandle.standardError.write(Data(
+            "PANEL-DUMP role=\(role) text=\(text.prefix(120))\n".utf8))
+        printed += 1
+    }
+    FileHandle.standardError.write(Data("PANEL-DUMP-END\n".utf8))
+}
+
+func confirmPanel(_ application: AXUIElement, buttonTitle: String,
+                  selectingRowNamed selected: String? = nil) throws {
+    let panel: AXUIElement = try waitFor("file panel window") {
+        panelWindow(application)
+    }
+    // The restore sheet (settings 数据 group) previews counts from the
+    // picked file; the sheet's own Replace button is driver-reachable, so
+    // the file panel only needs the file opened once.
+    if let selected {
+        let entry: AXUIElement = try waitFor("panel entry \(selected)") {
+            walk(panel).first { element in
+                [kAXTitleAttribute, kAXValueAttribute]
+                    .contains { stringAttribute(element, $0).contains(selected) }
+            }
+        }
+        try postClick(entry, "panel file entry click", button: .left,
+                      downType: .leftMouseDown, upType: .leftMouseUp)
+        Thread.sleep(forTimeInterval: 0.5)
+        let okButton: AXUIElement = try waitFor("panel OK button") {
+            find(panel, identifier: "OKButton")
+                ?? findButton(panel, title: buttonTitle)
+                ?? findButton(application, title: buttonTitle)
+        }
+        try press(okButton, "panel default button")
+        Thread.sleep(forTimeInterval: 0.6)
+        return
+    }
+    let button: AXUIElement = try waitFor("panel default button") { () -> AXUIElement? in
+        // NSOpenPanel/NSSavePanel expose stable identifiers: the confirming
+        // button is always OKButton (title varies: Open/Choose/Save) and
+        // Cancel is CancelButton. Title lookup stays as the fallback.
+        if let stable = find(panel, identifier: "OKButton") { return stable }
+        if let named = findButton(panel, title: buttonTitle)
+            ?? findButton(application, title: buttonTitle) {
+            return named
+        }
+        return nil
+    }
+    try press(button, "panel default button")
+    Thread.sleep(forTimeInterval: 0.6)
+}
+
+func elementText(_ element: AXUIElement) -> String {
+    return [kAXTitleAttribute, kAXValueAttribute, kAXDescriptionAttribute]
+        .map { stringAttribute(element, $0) }
+        .filter { !$0.isEmpty }
+        .joined(separator: " ")
+}
+
+func configFileValue(_ home: URL, key: String) -> String? {
+    let configURL = home.appendingPathComponent(".taskly/config.ini")
+    guard let text = try? String(contentsOf: configURL, encoding: .utf8) else {
+        return nil
+    }
+    for line in text.split(separator: "\n") {
+        let parts = line.split(separator: "=", maxSplits: 1)
+        if parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == key {
+            return parts[1].trimmingCharacters(in: .whitespaces)
+        }
+    }
+    return nil
+}
+
+func openSettings(_ application: AXUIElement) throws {
+    try postKey(43, flags: cmdOnly) // , — ⌘, opens the settings window (§8)
+    _ = try waitFor("settings window") {
+        find(application, identifier: "settings-db-current")
+    }
+}
+
+/// The §2a gate scenarios (--database-gate / --database-recovery-retry),
+/// each running against a dedicated profile prepared by e2e-macos.sh.
+func runDatabaseGateScenario(application: AXUIElement, window: AXUIElement,
+                             output: URL, home: URL, mode: String) throws {
+    if mode == "gate" {
+        // Welcome gate visible before any task UI.
+        _ = try waitFor("welcome gate headline") {
+            find(window, identifier: "database-gate-title")
+        }
+        let create = try waitFor("welcome gate create action") {
+            find(window, identifier: "database-gate-create")
+        }
+        _ = try waitFor("welcome gate open action") {
+            find(window, identifier: "database-gate-open")
+        }
+        // Exclusive create: folder + name through the create sheet.
+        try press(create, "database-gate-create")
+        let nameField = try waitFor("create sheet name field") {
+            find(application, identifier: "database-name-field")
+        }
+        try setValue("Gate Acceptance", on: nameField)
+        let chooseFolder = try waitFor("create sheet folder chooser") {
+            find(application, identifier: "database-folder-choose")
+        }
+        try press(chooseFolder, "database-folder-choose")
+        // NSNavLastRootDirectory pins the panel at the profile home; just
+        // confirm it ("Choose", falling back to "Open" on some layouts).
+        try confirmPanel(application, buttonTitle: "Choose")
+        try waitForFolderApplied(application)
+
+        let apply = try waitFor("create sheet apply action") {
+            find(application, identifier: "database-create-apply")
+        }
+        try press(apply, "database-create-apply")
+        _ = try waitFor("task UI after create") {
+            find(window, identifier: "quick-add")
+        }
+        _ = try waitFor("sidebar database identity") {
+            find(window, identifier: "database-identity")
+        }
+        // The created file is the recorded database.
+        let recorded = configFileValue(home, key: "last-db-path") ?? ""
+        guard recorded.hasSuffix("taskly.sqlite"),
+              FileManager.default.fileExists(atPath: recorded) else {
+            throw DriverError.failure("create did not record the database: \(recorded)")
+        }
+        try writeJSON([
+            "platform": "macos",
+            "scenario": "database-gate-create",
+            "assertions": [
+                "welcome gate replaces the task UI with no database recorded",
+                "create flow opened the create sheet and the native folder panel",
+                "create produced taskly.sqlite and recorded it as the last database",
+                "sidebar database identity is visible after create",
+            ],
+        ], to: output.appendingPathComponent("database-gate.json"))
+    } else {
+        // Recovery: the recorded database file is missing until the harness
+        // restores it; 重试 re-attempts the recorded path.
+        _ = try waitFor("recovery block headline") {
+            containsStaticText(window, "Can't find your last database") ||
+            containsStaticText(window, "找不到上次的数据库") ? true : nil
+        }
+        _ = try waitFor("recovery recorded path shown") {
+            find(window, identifier: "database-recovery-path")
+        }
+        let retry = try waitFor("recovery retry action") {
+            find(window, identifier: "database-recovery-retry")
+        }
+        // Retry in a loop: while the file is still absent every attempt
+        // returns to the recovery block; once the harness restores the file
+        // the next retry reconnects.
+        var connected = false
+        for _ in 0..<40 {
+            try press(retry, "database-recovery-retry")
+            Thread.sleep(forTimeInterval: 0.5)
+            if find(window, identifier: "quick-add") != nil {
+                connected = true
+                break
+            }
+            if find(window, identifier: "database-recovery-retry") == nil {
+                connected = find(window, identifier: "quick-add") != nil
+                break
+            }
+        }
+        guard connected else {
+            throw DriverError.failure("retry never reconnected the restored database")
+        }
+        try writeJSON([
+            "platform": "macos",
+            "scenario": "database-recovery",
+            "assertions": [
+                "missing recorded database shows the recovery block with the recorded path",
+                "no replacement database is created automatically",
+                "重试 reconnects once the file is restored in place",
+            ],
+        ], to: output.appendingPathComponent("database-recovery.json"))
+    }
+}
+
+/// §2a settings 数据 group: migrate / export / restore against the
+/// connected database (profile seeded by e2e-macos.sh).
+func runDatabaseSettingsScenario(application: AXUIElement, window: AXUIElement,
+                                 output: URL, home: URL) throws {
+    try openSettings(application)
+    let migrate = try waitFor("settings migrate action") {
+        find(application, identifier: "settings-db-migrate")
+    }
+    try press(migrate, "settings-db-migrate")
+    let chooseFolder = try waitFor("migrate sheet folder chooser") {
+        find(application, identifier: "database-folder-choose")
+    }
+    try press(chooseFolder, "database-folder-choose")
+    let migrateDir = home.appendingPathComponent("migrated")
+    try FileManager.default.createDirectory(at: migrateDir, withIntermediateDirectories: true)
+    // The harness pre-creates migrated/ and pins NSNavLastRootDirectory to
+    // the profile home; the panel's default "Choose" confirms whatever
+    // directory the harness selected for this run.
+    try confirmPanel(application, buttonTitle: "Choose")
+    try waitForFolderApplied(application)
+    let continueButton = try waitFor("migrate continue action") {
+        find(application, identifier: "database-migrate-apply")
+    }
+    try press(continueButton, "database-migrate-apply")
+    let confirmText = try waitFor("migrate confirmation text") {
+        find(application, identifier: "database-migrate-confirm-text")
+    }
+    _ = confirmText
+    try press(continueButton, "database-migrate-confirm")
+    // The RPC may fail with an actionable error anchored inside the sheet;
+    // surface it verbatim instead of failing on the assertion alone.
+    var migrateError = ""
+    for _ in 0..<20 {
+        if let errorNode = find(application, identifier: "database-error"),
+           !elementText(errorNode).isEmpty {
+            migrateError = elementText(errorNode)
+            break
+        }
+        // Success signal: the sheet dismissed and the identity reloaded.
+        if find(application, identifier: "database-migrate-apply") == nil {
+            break
+        }
+        Thread.sleep(forTimeInterval: 0.5)
+    }
+    if !migrateError.isEmpty {
+        throw DriverError.failure("migrate RPC error: \(migrateError)")
+    }
+    _ = try waitFor("settings window after migrate") {
+        find(application, identifier: "settings-db-current")
+    }
+    let recorded = configFileValue(home, key: "last-db-path") ?? ""
+    guard recorded.hasSuffix("taskly.sqlite"),
+          recorded != home.appendingPathComponent("seed.db").path,
+          FileManager.default.fileExists(atPath: recorded),
+          FileManager.default.fileExists(
+            atPath: home.appendingPathComponent("seed.db").path) else {
+        throw DriverError.failure(
+            "migrate did not switch the recorded location (recorded: \(recorded))")
+    }
+
+    // Backup export through the save panel; the file must be taskly-backup v1.
+    let export = try waitFor("settings export action") {
+        find(application, identifier: "settings-db-export")
+    }
+    try press(export, "settings-db-export")
+    var backupPath = home.appendingPathComponent("seed-backup.json")
+    if FileManager.default.fileExists(atPath: backupPath.path) {
+        try FileManager.default.removeItem(at: backupPath)
+    }
+    // The save panel's name field owns focus; wait for the panel window,
+    // then set the file name and confirm through the default button.
+    _ = try waitFor("save panel window") { panelWindow(application) }
+    let nameField = try waitFor("save panel name field") { () -> AXUIElement? in
+        guard let panel = panelWindow(application) else { return nil }
+        // The save panel's name field: its only editable text field (focus
+        // flags proved unreliable on runners).
+        return walk(panel).first { element in
+            let role = stringAttribute(element, kAXRoleAttribute)
+            return role == "AXTextField" || role == "AXComboBox"
+        }
+    }
+    try setValue("seed-backup.json", on: nameField)
+    try confirmPanel(application, buttonTitle: "Save")
+    _ = try waitFor("backup file written") { () -> Bool? in
+        if FileManager.default.fileExists(atPath: backupPath.path) { return true }
+        // NSNavLastRootDirectory normally lands it in the profile home;
+        // glob one level deep as a fallback before failing.
+        if let enumerator = FileManager.default.enumerator(
+            at: home, includingPropertiesForKeys: nil) {
+            for case let url as URL in enumerator {
+                if url.lastPathComponent == "seed-backup.json" { return true }
+            }
+        }
+        return nil
+    }
+    if !FileManager.default.fileExists(atPath: backupPath.path) {
+        if let enumerator = FileManager.default.enumerator(
+            at: home, includingPropertiesForKeys: nil),
+           let found = enumerator.allObjects.compactMap({ $0 as? URL })
+               .first(where: { $0.lastPathComponent == "seed-backup.json" }) {
+            backupPath = found
+        }
+    }
+    let backupData = try Data(contentsOf: backupPath)
+    let backupJSON = try JSONSerialization.jsonObject(with: backupData) as? [String: Any]
+    guard (backupJSON?["format"] as? String) == "taskly-backup",
+          (backupJSON?["version"] as? Int) == 1,
+          let tasks = backupJSON?["tasks"] as? [[String: Any]], !tasks.isEmpty else {
+        throw DriverError.failure("export did not write a taskly-backup v1 file")
+    }
+
+    // Restore: preview → explicit confirmation → replaced (identical file,
+    // so the observable outcome is the confirmation + a live database).
+    let restore = try waitFor("settings restore action") {
+        find(application, identifier: "settings-db-restore")
+    }
+    try press(restore, "settings-db-restore")
+    try confirmPanel(application, buttonTitle: "Open",
+                     selectingRowNamed: "seed-backup.json")
+    // The restore sheet (same mechanism migrate drives) shows the preview
+    // counts and carries the driver-reachable Replace button.
+    let replaceButton = try waitFor("restore sheet replace action") {
+        find(application, identifier: "database-restore-apply")
+    }
+    try press(replaceButton, "database-restore-apply")
+    _ = try waitFor("restore feedback reported") {
+        find(application, identifier: "settings-data-feedback") != nil ? true : nil
+    }
+
+    try writeJSON([
+        "platform": "macos",
+        "scenario": "database-settings",
+        "assertions": [
+            "migrate moved the recorded location and left the source file in place",
+            "export wrote a taskly-backup v1 JSON file with tasks",
+            "restore required the explicit confirmation and completed",
+        ],
+    ], to: output.appendingPathComponent("database-settings.json"))
+}
+
 do {
     let arguments = CommandLine.arguments
     guard let pidIndex = arguments.firstIndex(of: "--pid"), pidIndex + 1 < arguments.count,
@@ -221,6 +635,39 @@ do {
     }
     _ = AXUIElementSetAttributeValue(application, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
     _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+
+    // §2a scenario dispatch: the lifecycle flows run against dedicated
+    // profiles prepared by e2e-macos.sh (--home points at the profile).
+    if let homeIndex = arguments.firstIndex(of: "--home"), homeIndex + 1 < arguments.count {
+        let home = URL(fileURLWithPath: arguments[homeIndex + 1], isDirectory: true)
+        if arguments.contains("--database-gate") {
+            try runDatabaseGateScenario(application: application, window: window,
+                                        output: output, home: home, mode: "gate")
+            guard let running = NSRunningApplication(processIdentifier: pid),
+                  running.terminate() else {
+                throw DriverError.failure("gate scenario application rejected termination")
+            }
+            exit(0)
+        }
+        if arguments.contains("--database-recovery-retry") {
+            try runDatabaseGateScenario(application: application, window: window,
+                                        output: output, home: home, mode: "recovery")
+            guard let running = NSRunningApplication(processIdentifier: pid),
+                  running.terminate() else {
+                throw DriverError.failure("recovery scenario application rejected termination")
+            }
+            exit(0)
+        }
+        if arguments.contains("--database-settings") {
+            try runDatabaseSettingsScenario(application: application, window: window,
+                                            output: output, home: home)
+            guard let running = NSRunningApplication(processIdentifier: pid),
+                  running.terminate() else {
+                throw DriverError.failure("settings scenario application rejected termination")
+            }
+            exit(0)
+        }
+    }
 
     if arguments.contains("--verify-restart") {
         _ = try waitFor("persisted task after application restart") {
@@ -266,6 +713,11 @@ do {
     let taskTitle: AXUIElement = try waitFor("identified task title") {
         findTaskTitle(window, text: "Acceptance task")
     }
+    // The row insert animates (0.15 s ease-out). Grabbing the info button
+    // mid-animation hands the press a stale AX reference that lands on the
+    // title's tap gesture and expands the inline editor instead. Let the
+    // layout settle before pressing row controls.
+    Thread.sleep(forTimeInterval: 0.8)
     let taskIdentifier = stringAttribute(taskTitle, kAXIdentifierAttribute)
     guard let taskID = taskIdentifier.split(separator: "-").last.map(String.init) else {
         throw DriverError.failure("task title had no stable id: \(taskIdentifier)")

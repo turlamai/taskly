@@ -144,6 +144,93 @@ char const* kFallbackZhKeys[] = {
     "updateAppImageHint",     "更新已就位，重启 Taskly 即可切换到新版本。",
     "updateRestartNow",       "重启并更新",
     "aboutLicense",           "以 GNU AGPL-3.0 授权发布",
+    // §2a database lifecycle + settings 新任务/数据 groups (shared/i18n
+    // single source; this compiled-in copy keeps tr() byte-usable when the
+    // staged JSON is missing).
+    "dbApplyCreate",          "创建并打开",
+    "dbApplyMigrate",         "继续",
+    "dbApplyOpen",            "打开",
+    "dbChooseBackup",         "选择备份文件",
+    "dbChooseFolder",         "选择文件夹",
+    "dbConfirmMigrate",       "确认迁移",
+    "dbCreateBtn",            "创建…",
+    "dbCreateDesc",           "选择存储位置，Taskly 会在该文件夹内创建 taskly.sqlite，成功后进入空白任务列表。",
+    "dbCreateTitle",          "创建数据库",
+    "dbCreated",              "已创建数据库：{0}",
+    "dbCurrentLabel",         "当前数据库",
+    "dbCurrentNone",          "尚未打开数据库",
+    "dbDataNote",             "数据库由你持有，不绑定账号或云服务。",
+    "dbErrBadExtension",      "请选择以 .sqlite、.sqlite3 或 .db 结尾的数据库文件。",
+    "dbErrBadName",           "请填写名称，且不要包含 / \\ : * ? \" < > |。",
+    "dbErrCreateFailed",      "无法创建数据库：{0}。未创建任何文件。",
+    "dbErrExists",            "这个位置已有数据库。请更换位置，或取消后选择“打开已有数据库”。不会覆盖原有内容。",
+    "dbErrMigrateFailed",     "迁移未完成：{0}。原位置和任务保持不变，可以重试。",
+    "dbErrNoPath",            "请选择一个位置。当前数据库保持不变。",
+    "dbErrNotTaskly",         "该文件不是 Taskly 数据库。",
+    "dbErrOpenFailed",        "无法打开数据库：{0}。当前数据库保持不变。",
+    "dbErrTargetOccupied",    "目标位置已有另一个数据库。请另选位置，不会覆盖它。",
+    "dbErrTargetSame",        "目标与当前位置相同，请选择另一个文件夹。",
+    "dbExportBtn",            "导出 JSON",
+    "dbExportHelp",           "导出当前库的全部清单与任务",
+    "dbExportLabel",          "备份与导出",
+    "dbExported",             "已导出 {0} 条任务。",
+    "dbFileLabel",            "数据库文件",
+    "dbFolderChoose",         "选择文件夹…",
+    "dbFolderLabel",          "保存文件夹",
+    "dbGateBody",             "选择自己的文件夹，创建任务数据库。也可以打开已有数据库，继续记录。",
+    "dbGateCreate",           "创建数据库",
+    "dbGateOpen",             "打开已有数据库…",
+    "dbGatePrinciple",        "无需绑定账号或云服务。数据的位置与同步方式由你管理。",
+    "dbGateTitle",            "任务有归处，位置由你定。",
+    "dbLocationHelp",         "位置由你选择，迁移时保留全部任务",
+    "dbLocationLabel",        "存储位置",
+    "dbMigrateBtn",           "迁移位置…",
+    "dbMigrateConfirmText",   "从：{0}\n迁移到：{1}\n\n全部任务随数据库保留。只有成功后才切换位置；失败时保留原位置。",
+    "dbMigrateDesc",          "先选择目标文件夹，再确认迁移。只有成功后才切换位置；失败时原位置保持不变。",
+    "dbMigrateTitle",         "迁移数据库",
+    "dbMigrated",             "数据库已迁移到新位置。",
+    "dbMissingPathFallback",  "上次记录的数据库位置不可用。",
+    "dbNameDefault",          "我的任务",
+    "dbNameLabel",            "数据库名称",
+    "dbNewHelp",              "选择自己的文件夹，从空白开始",
+    "dbNewLabel",             "新建数据库",
+    "dbOpenBtn",              "打开已有…",
+    "dbOpenDesc",             "选择一个 Taskly 数据库文件；打开后记录该位置。",
+    "dbOpenTitle",            "打开已有数据库",
+    "dbPathNone",             "创建或打开数据库后显示位置",
+    "dbReconnectTitle",       "重新连接你的数据库",
+    "dbRecoveryBody",         "文件可能已移动，或所在磁盘尚未连接。重新定位原文件即可继续，不会自动新建或覆盖。",
+    "dbRecoveryTitle",        "找不到上次的数据库",
+    "dbRelocate",             "重新定位…",
+    "dbRelocateDesc",         "重新选择原来的数据库文件；不会创建替代数据库。",
+    "dbRelocateTitle",        "重新定位数据库",
+    "dbRelocated",            "已重新连接原数据库。",
+    "dbRestoreApply",         "替换当前任务",
+    "dbRestoreBtn",           "选择备份…",
+    "dbRestoreHelp",          "先查看备份内容，再确认替换当前库",
+    "dbRestoreInvalid",       "未恢复：{0}。当前任务保持不变。",
+    "dbRestoreLabel",         "恢复备份",
+    "dbRestorePreviewBody",   "此备份包含 {0} 条任务、{1} 个清单。恢复会替换当前数据库中的全部任务，无法撤销。建议先导出当前数据。",
+    "dbRestorePreviewTitle",  "恢复备份",
+    "dbRestoreStale",         "当前数据库已改变，未恢复备份。请重新选择备份。",
+    "dbRestored",             "已恢复 {0} 条任务到当前数据库。",
+    "dbRetry",                "重试",
+    "dbReveal",               "所在文件夹…",
+    "dbSaveBackup",           "保存备份",
+    "dbSwitchHelp",           "当前数据库保留，打开另一个继续使用",
+    "dbSwitchLabel",          "切换数据库",
+    "defaultListHelp",        "快速添加的任务会进入这里",
+    "defaultListLabel",       "默认清单",
+    "globalQuickAddHelp",     "仅记录组合键，不注册系统快捷键",
+    "globalQuickAddLabel",    "全局快速添加",
+    "settingsGroupData",      "数据",
+    "settingsGroupNewTasks",  "新任务",
+    "shortcutClear",          "清除",
+    "shortcutNeedModifier",   "请搭配 ⌘、⌃ 或 ⌥ 使用",
+    "shortcutNone",           "未设置",
+    "shortcutRecording",      "按下组合键…",
+    "shortcutReset",          "恢复默认",
+    "sidebarDbManaged",       "数据库由你管理",
     "aboutWebsite",           "访问官网",
     "aboutReportIssue",       "问题反馈",
     "updateCopyError",        "复制错误信息",
@@ -246,6 +333,91 @@ char const* kFallbackEnKeys[] = {
     "updateAppImageHint",     "The update is in place — restart Taskly to switch to the new version.",
     "updateRestartNow",       "Restart and update",
     "aboutLicense",           "Released under the GNU AGPL-3.0",
+    // §2a database lifecycle + settings New Tasks/Data groups.
+    "dbApplyCreate",          "Create and Open",
+    "dbApplyMigrate",         "Continue",
+    "dbApplyOpen",            "Open",
+    "dbChooseBackup",         "Choose Backup File",
+    "dbChooseFolder",         "Choose Folder",
+    "dbConfirmMigrate",       "Confirm Migration",
+    "dbCreateBtn",            "Create…",
+    "dbCreateDesc",           "Choose a location — Taskly creates taskly.sqlite inside it and opens an empty task list.",
+    "dbCreateTitle",          "Create Database",
+    "dbCreated",              "Database created: {0}",
+    "dbCurrentLabel",         "Current Database",
+    "dbCurrentNone",          "No database open",
+    "dbDataNote",             "You own the database — no account, no cloud service.",
+    "dbErrBadExtension",      "Choose a file ending in .sqlite, .sqlite3 or .db.",
+    "dbErrBadName",           "Enter a name without / \\ : * ? \" < > |.",
+    "dbErrCreateFailed",      "Could not create the database: {0}. Nothing was written.",
+    "dbErrExists",            "A database already exists there. Pick another location, or cancel and use Open Existing Database — existing content is never overwritten.",
+    "dbErrMigrateFailed",     "Migration did not finish: {0}. The original location and tasks are unchanged; you can retry.",
+    "dbErrNoPath",            "Choose a location first. The current database stays unchanged.",
+    "dbErrNotTaskly",         "That file is not a Taskly database.",
+    "dbErrOpenFailed",        "Could not open the database: {0}. The current database stays unchanged.",
+    "dbErrTargetOccupied",    "The target location holds another database. Pick a different location — it will not be overwritten.",
+    "dbErrTargetSame",        "The target equals the current location. Choose another folder.",
+    "dbExportBtn",            "Export JSON",
+    "dbExportHelp",           "Export every list and task of the current database",
+    "dbExportLabel",          "Backup & Export",
+    "dbExported",             "Exported {0} tasks.",
+    "dbFileLabel",            "Database File",
+    "dbFolderChoose",         "Choose Folder…",
+    "dbFolderLabel",          "Save Folder",
+    "dbGateBody",             "Create a task database in a folder of your choice, or open an existing database and pick up where you left off.",
+    "dbGateCreate",           "Create Database",
+    "dbGateOpen",             "Open Existing Database…",
+    "dbGatePrinciple",        "No account, no cloud service. The location and sync of your data stay under your control.",
+    "dbGateTitle",            "Every task needs a home — and you choose where.",
+    "dbLocationHelp",         "You choose the location; migrating keeps every task",
+    "dbLocationLabel",        "Location",
+    "dbMigrateBtn",           "Move Location…",
+    "dbMigrateConfirmText",   "From: {0}\nTo: {1}\n\nAll tasks move with the database. The location switches only on success; the original stays on failure.",
+    "dbMigrateDesc",          "Pick a target folder, then confirm. The location switches only on success; the original stays untouched on failure.",
+    "dbMigrateTitle",         "Migrate Database",
+    "dbMigrated",             "Database moved to the new location.",
+    "dbMissingPathFallback",  "The last recorded database location is unavailable.",
+    "dbNameDefault",          "My Tasks",
+    "dbNameLabel",            "Database Name",
+    "dbNewHelp",              "Pick your own folder and start blank",
+    "dbNewLabel",             "New Database",
+    "dbOpenBtn",              "Open Existing…",
+    "dbOpenDesc",             "Choose a Taskly database file; the location is remembered once opened.",
+    "dbOpenTitle",            "Open Database",
+    "dbPathNone",             "Location shows after you create or open a database",
+    "dbReconnectTitle",       "Reconnect your database",
+    "dbRecoveryBody",         "The file may have moved, or its disk is not connected yet. Relocate the original file to continue — nothing is created or overwritten automatically.",
+    "dbRecoveryTitle",        "Can't find your last database",
+    "dbRelocate",             "Relocate…",
+    "dbRelocateDesc",         "Pick the original database file again; no replacement database is created.",
+    "dbRelocateTitle",        "Relocate Database",
+    "dbRelocated",            "Reconnected to the original database.",
+    "dbRestoreApply",         "Replace Tasks",
+    "dbRestoreBtn",           "Choose Backup…",
+    "dbRestoreHelp",          "Review the backup first, then confirm the replacement",
+    "dbRestoreInvalid",       "Not restored: {0}. Current tasks are unchanged.",
+    "dbRestoreLabel",         "Restore Backup",
+    "dbRestorePreviewBody",   "This backup holds {0} tasks across {1} lists. Restoring replaces every task in the current database and cannot be undone. Export your current data first.",
+    "dbRestorePreviewTitle",  "Restore Backup",
+    "dbRestoreStale",         "The current database changed — the backup was not restored. Choose the backup again.",
+    "dbRestored",             "Restored {0} tasks into the current database.",
+    "dbRetry",                "Retry",
+    "dbReveal",               "Reveal Folder…",
+    "dbSaveBackup",           "Save Backup",
+    "dbSwitchHelp",           "The current database is kept; open another to continue",
+    "dbSwitchLabel",          "Switch Database",
+    "defaultListHelp",        "Quick-added tasks land here",
+    "defaultListLabel",       "Default List",
+    "globalQuickAddHelp",     "Records the combination; not registered as a system shortcut",
+    "globalQuickAddLabel",    "Global Quick Add",
+    "settingsGroupData",      "Data",
+    "settingsGroupNewTasks",  "New Tasks",
+    "shortcutClear",          "Clear",
+    "shortcutNeedModifier",   "Combine with ⌘/Ctrl or ⌥/Alt",
+    "shortcutNone",           "Not Set",
+    "shortcutRecording",      "Press keys…",
+    "shortcutReset",          "Reset",
+    "sidebarDbManaged",       "Managed by you",
     "aboutWebsite",           "Website",
     "aboutReportIssue",       "Report an Issue",
     "updateCopyError",        "Copy error",
@@ -452,6 +624,11 @@ Palette const& system_palette();
 
 enum class ViewKind { Today, Planned, All, Completed, List };
 
+// §2a launch surface shown instead of the task UI while no database is
+// open: the welcome gate, or the recovery gate when the recorded
+// database could not be opened. `None` = normal task UI.
+enum class LaunchSurface { None, Welcome, Recovery };
+
 // Anchored task-detail layer state (§5b); defined after the editor section.
 struct TaskDetail;
 
@@ -528,6 +705,23 @@ struct AppState {
   // Native reminder transport only. Eligibility, startup summarization,
   // per-database de-duplication and handoff acknowledgement live in the core.
   bool notifications_disabled{false};
+
+  // §2a database lifecycle (PRODUCT-SPEC §2a / macOS AppModel parity):
+  // launch surface + recovery path, an explicit connected flag so the 2 s
+  // poll and `changed` events stay quiet while no database is open, the
+  // full-window gate widgets, and the sidebar database identity.
+  LaunchSurface launch{LaunchSurface::None};
+  std::string recovery_path;
+  bool database_open{false};
+  GtkWidget* gate_layer{nullptr};
+  GtkLabel* gate_title{nullptr};
+  GtkLabel* gate_body{nullptr};
+  GtkLabel* gate_principle{nullptr};
+  GtkWidget* gate_welcome_box{nullptr};
+  GtkWidget* gate_recovery_box{nullptr};
+  GtkLabel* gate_recovery_path{nullptr};
+  GtkLabel* database_identity_name{nullptr};
+  GtkLabel* database_identity_note{nullptr};
 };
 
 AppState g_state;
@@ -555,6 +749,24 @@ void stage_delete_tasks(std::vector<std::int64_t> const& ids);
 void undo_staged_delete();
 void refresh_persistent_status();
 void set_view(ViewKind kind);
+void attempt_open_database(std::string const& path, bool recovery_on_failure);
+void show_create_database_dialog();
+void refresh_database_identity();
+void refresh_settings_data_group();
+void hide_gate();
+void show_welcome_gate();
+void show_recovery_gate(std::string const& path);
+void apply_database_identity();
+std::string exception_text(std::exception_ptr error);
+std::string map_lifecycle_error(std::string const& detail, bool for_create);
+void absorb_database_snapshot(rivet_app::Snapshot const& snapshot);
+void reveal_database_folder();
+void confirm_dialog_with_label(char const* title, char const* body,
+                               char const* accept_label,
+                               std::function<void()> on_ok);void show_file_chooser(char const* title, GtkFileChooserAction action,
+                       char const* accept_label,
+                       std::vector<std::string> const& patterns,
+                       std::function<void(std::string const&)> on_picked);
 
 // ---------------------------------------------------------------------------
 // UI dispatch (completions/events arrive on the backend reader thread)
@@ -925,6 +1137,13 @@ void apply_css(Palette const& p) {
   css += ".dot-neutral { background: " + std::string(p.divider) + "; }\n";
   css += ".row-dot { border-radius: 4px; min-width: 8px; min-height: 8px; }\n";
   css += ".empty-icon { font-size: 48px; }\n";
+  css += ".database-gate { background: " + std::string(p.background) + "; }\n";
+  css += ".gate-wordmark { font-size: 28px; font-weight: 700; color: " + std::string(p.accent) + "; }\n";
+  css += ".gate-title { font-size: 20px; font-weight: 600; color: " + std::string(p.text) + "; }\n";
+  css += ".gate-body { font-size: 13px; color: " + std::string(p.secondary) + "; }\n";
+  css += ".gate-principle { font-size: 12px; color: " + std::string(p.muted) + "; }\n";
+  css += ".gate-path { font-family: monospace; font-size: 12px; color: " + std::string(p.secondary) + "; }\n";
+  css += ".database-identity-name { font-size: 13px; font-weight: 600; color: " + std::string(p.text) + "; }\n";
   gtk_css_provider_load_from_string(provider, css.c_str());
   gtk_style_context_add_provider_for_display(
       gdk_display_get_default(), GTK_STYLE_PROVIDER(provider),
@@ -1243,7 +1462,9 @@ bool same_visible_task_rows(std::vector<rivet_app::Task> const& left,
 }
 
 void reload_snapshot() {
-  if (g_state.api == nullptr) return;
+  // §2a: while the gate holds the window (no database open) there is no
+  // session to poll; hitting the RPC would only flash backend errors.
+  if (g_state.api == nullptr || !g_state.database_open) return;
   auto expected = false;
   if (!g_state.reload_in_flight.compare_exchange_strong(
           expected, true, std::memory_order_release,
@@ -2006,7 +2227,46 @@ void confirm_dialog(char const* title, char const* body,
   gtk_window_present(GTK_WINDOW(dialog));
 }
 
+// Confirm dialog whose accept label is caller-chosen (§2a migrate /
+// restore confirmations carry their own verb).
+void confirm_dialog_with_label(char const* title, char const* body,
+                               char const* accept_label,
+                               std::function<void()> on_ok) {
+  auto* dialog = gtk_dialog_new_with_buttons(
+      title, g_state.window,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT),
+      tr("dialogCancel").c_str(), GTK_RESPONSE_CANCEL, nullptr);
+  auto* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  auto* label = gtk_label_new(body);
+  gtk_label_set_wrap(GTK_LABEL(label), TRUE);
+  gtk_widget_set_margin_top(label, 12);
+  gtk_widget_set_margin_bottom(label, 6);
+  gtk_widget_set_margin_start(label, 12);
+  gtk_widget_set_margin_end(label, 12);
+  gtk_box_append(GTK_BOX(content), label);
+  auto* apply = gtk_button_new_with_label(accept_label);
+  gtk_dialog_add_action_widget(GTK_DIALOG(dialog), apply,
+                               GTK_RESPONSE_ACCEPT);
+  auto* const callback = new std::function<void()>(std::move(on_ok));
+  g_object_set_data_full(
+      G_OBJECT(dialog), "confirm-on-ok", callback,
+      +[](gpointer data) { delete static_cast<std::function<void()>*>(data); });
+  g_signal_connect(
+      dialog, "response",
+      G_CALLBACK(+[](GtkDialog* dialog_box, gint response, gpointer) {
+        if (response == GTK_RESPONSE_ACCEPT) {
+          auto const* on_ok = static_cast<std::function<void()>*>(
+              g_object_get_data(G_OBJECT(dialog_box), "confirm-on-ok"));
+          (*on_ok)();
+        }
+        gtk_window_destroy(GTK_WINDOW(dialog_box));
+      }),
+      nullptr);
+  gtk_window_present(GTK_WINDOW(dialog));
+}
+
 // Same About content as the macOS and Windows hosts: tagline, license,
+
 // and two links — website plus the issue tracker. GtkAboutDialog cannot
 // carry a second link, so the family layout is built on a plain dialog;
 // GtkLinkButton opens the URI through the system browser itself.
@@ -2676,6 +2936,23 @@ GtkWidget* detail_field_box(GtkWidget* parent, char const* text_en,
   return box;
 }
 
+// Prototype detail disclosure: the optional fields (time, priority, tags,
+// subtasks, URL) each collapse behind a GtkExpander whose label widget is
+// the field caption (task-detail.html's <details> per field). A field
+// holding a value auto-expands on load; empty ones stay collapsed.
+void detail_disclosure(GtkWidget* parent, char const* text_en,
+                       char const* text_zh, GtkWidget* content,
+                       bool expanded) {
+  auto* expander = gtk_expander_new(nullptr);
+  auto* caption = gtk_label_new(g_state.language == "en" ? text_en : text_zh);
+  gtk_label_set_xalign(GTK_LABEL(caption), 0.0f);
+  gtk_widget_add_css_class(caption, "detail-caption");
+  gtk_expander_set_label_widget(GTK_EXPANDER(expander), caption);
+  gtk_expander_set_child(GTK_EXPANDER(expander), content);
+  gtk_expander_set_expanded(GTK_EXPANDER(expander), expanded);
+  gtk_box_append(GTK_BOX(parent), expander);
+}
+
 void detail_close() {
   auto* detail = g_state.open_detail;
   if (detail == nullptr) return;
@@ -3109,8 +3386,9 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   gtk_box_append(GTK_BOX(date_column), date_row);
   gtk_box_append(GTK_BOX(schedule), date_column);
   detail->date_box = date_column;
+  // §2a detail disclosure: time collapses behind its caption expander
+  // (prototype <details> per field); a stored value auto-expands it.
   auto* time_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
-  detail_field_caption(time_column, "Time", "时间");
   detail->time = GTK_ENTRY(gtk_entry_new());
   gtk_accessible_update_property(
       GTK_ACCESSIBLE(detail->time), GTK_ACCESSIBLE_PROPERTY_LABEL,
@@ -3122,9 +3400,10 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
                             : "");
   gtk_widget_set_hexpand(GTK_WIDGET(detail->time), TRUE);
   gtk_box_append(GTK_BOX(time_column), GTK_WIDGET(detail->time));
-  gtk_box_append(GTK_BOX(schedule), time_column);
   detail->time_box = time_column;
   gtk_box_append(GTK_BOX(fields), schedule);
+  detail_disclosure(fields, "Time", "时间", time_column,
+                    stored->due_time.has_value());
   auto on_schedule_changed = +[](GtkEntry*, gpointer user_data) {
     detail_queue_text_save(static_cast<TaskDetail*>(user_data),
                            DetailField::Date);
@@ -3151,8 +3430,13 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
                              static_cast<guint>(
                                  stored->priority < 0 ? 0 : stored->priority));
   gtk_widget_set_hexpand(GTK_WIDGET(detail->priority), TRUE);
-  detail->priority_box = detail_field_box(fields, "Priority", "优先级",
-                                          GTK_WIDGET(detail->priority));
+  {
+    auto* prio_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    gtk_box_append(GTK_BOX(prio_box), GTK_WIDGET(detail->priority));
+    detail->priority_box = prio_box;
+    detail_disclosure(fields, "Priority", "优先级", prio_box,
+                      stored->priority != 0);
+  }
   g_signal_connect_data(
       detail->priority, "notify::selected",
       G_CALLBACK(+[](GObject*, GParamSpec*, gpointer user_data) {
@@ -3165,7 +3449,6 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
 
   // Tags.
   auto* tags_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
-  detail_field_caption(tags_column, "Tags", "标签");
   detail->tags_box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 6));
   gtk_box_append(GTK_BOX(tags_column), GTK_WIDGET(detail->tags_box));
   detail->tag_add = GTK_ENTRY(gtk_entry_new());
@@ -3176,14 +3459,14 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
                                  tr("tagAddPlaceholder").c_str());
   gtk_widget_set_hexpand(GTK_WIDGET(detail->tag_add), TRUE);
   gtk_box_append(GTK_BOX(tags_column), GTK_WIDGET(detail->tag_add));
-  gtk_box_append(GTK_BOX(fields), tags_column);
   detail->tags_box_outer = tags_column;
+  detail_disclosure(fields, "Tags", "标签", tags_column,
+                    !detail->tags.empty());
   g_signal_connect(detail->tag_add, "activate",
                    G_CALLBACK(detail_on_tag_add_activate), detail);
 
   // Subtasks.
   auto* subtasks_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
-  detail_field_caption(subtasks_column, "Subtasks", "子任务");
   detail->subtasks_box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 6));
   gtk_box_append(GTK_BOX(subtasks_column), GTK_WIDGET(detail->subtasks_box));
   detail->subtask_add = GTK_ENTRY(gtk_entry_new());
@@ -3194,8 +3477,9 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
                                  tr("subtaskAddPlaceholder").c_str());
   gtk_widget_set_hexpand(GTK_WIDGET(detail->subtask_add), TRUE);
   gtk_box_append(GTK_BOX(subtasks_column), GTK_WIDGET(detail->subtask_add));
-  gtk_box_append(GTK_BOX(fields), subtasks_column);
   detail->subtasks_box_outer = subtasks_column;
+  detail_disclosure(fields, "Subtasks", "子任务", subtasks_column,
+                    !detail->subtasks.empty());
   g_signal_connect(detail->subtask_add, "activate",
                    G_CALLBACK(detail_on_subtask_add_activate), detail);
 
@@ -3240,8 +3524,13 @@ void open_task_detail(std::int64_t id, GtkWidget* anchor) {
   gtk_editable_set_text(GTK_EDITABLE(detail->url),
                         stored->url.has_value() ? stored->url->c_str() : "");
   gtk_widget_set_hexpand(GTK_WIDGET(detail->url), TRUE);
-  detail->url_box = detail_field_box(fields, "URL", "链接",
-                                     GTK_WIDGET(detail->url));
+  {
+    auto* url_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    gtk_box_append(GTK_BOX(url_box), GTK_WIDGET(detail->url));
+    detail->url_box = url_box;
+    detail_disclosure(fields, "URL", "链接", url_box,
+                      stored->url.has_value());
+  }
   g_signal_connect(detail->url, "activate",
                    G_CALLBACK(+[](GtkEntry*, gpointer user_data) {
                      auto* detail = detail_for(user_data);
@@ -4472,41 +4761,18 @@ void on_action_list_edit(GSimpleAction*, GVariant* parameter, gpointer) {
 }
 
 void on_menu_new_database(GSimpleAction*, GVariant*, gpointer) {
-  prompt_dialog(tr("menuNewDatabase").c_str(),
-                tr("dialogInputListName").c_str(), "",
-                [](std::string const& path) {
-                  if (!path.empty()) open_database_at(path);
-                });
+  // §2a / §8: New Database is the create flow (folder picker + name
+  // entry, exclusive taskly.sqlite) — not a bare path prompt.
+  show_create_database_dialog();
 }
 
 void on_menu_open_database(GSimpleAction*, GVariant*, gpointer) {
-  auto* chooser = gtk_file_chooser_native_new(
-      tr("menuOpenDatabase").c_str(), g_state.window,
-      GTK_FILE_CHOOSER_ACTION_OPEN, tr("dialogConfirm").c_str(),
-      tr("dialogCancel").c_str());
-  auto* filter = gtk_file_filter_new();
-  gtk_file_filter_add_pattern(filter, "*.db");
-  gtk_file_filter_add_pattern(filter, "*.sqlite");
-  gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(chooser), filter);
-  g_object_unref(filter);
-  g_signal_connect(
-      chooser, "response",
-      G_CALLBACK(+[](GtkNativeDialog* native, gint response, gpointer) {
-        if (response == GTK_RESPONSE_ACCEPT) {
-          auto* file = gtk_file_chooser_get_file(GTK_FILE_CHOOSER(native));
-          if (file != nullptr) {
-            gchar* path = g_file_get_path(file);
-            if (path != nullptr) {
-              open_database_at(path);
-              g_free(path);
-            }
-            g_object_unref(file);
-          }
-        }
-        g_object_unref(native);
-      }),
-      nullptr);
-  gtk_native_dialog_show(GTK_NATIVE_DIALOG(chooser));
+  // §2a open: *.db *.sqlite *.sqlite3, never creates; a failure keeps
+  // the current database and flashes the actionable message.
+  show_file_chooser(
+      tr("menuOpenDatabase").c_str(), GTK_FILE_CHOOSER_ACTION_OPEN,
+      tr("dbApplyOpen").c_str(), {"*.db", "*.sqlite", "*.sqlite3"},
+      [](std::string const& path) { open_database_at(path); });
 }
 
 void on_menu_close_database(GSimpleAction*, GVariant*, gpointer) {
@@ -4520,6 +4786,13 @@ void on_menu_close_database(GSimpleAction*, GVariant*, gpointer) {
       g_state.current_counts = {};
       g_state.view = ViewKind::Today;
       g_state.view_list_id = 0;
+      // §2a: with no database open the identity falls back to
+      // dbCurrentNone and the title drops the name.
+      g_state.database_open = false;
+      g_state.settings.database_path.clear();
+      g_state.settings.database_name.clear();
+      refresh_settings_data_group();
+      apply_database_identity();
       rebuild_sidebar();
       rebuild_task_list();
       refresh_persistent_status();
@@ -4576,6 +4849,315 @@ GtkWidget* g_settings_theme{nullptr};
 GtkWidget* g_settings_auto{nullptr};
 bool g_settings_filling{false};
 
+// §2a settings groups (新任务 / 数据): widgets and their captions so a
+// language switch retranslates everything through refresh_settings_dialog.
+GtkWidget* g_settings_db_reveal{nullptr};
+GtkWidget* g_settings_db_migrate{nullptr};
+GtkWidget* g_settings_db_open{nullptr};
+GtkWidget* g_settings_db_create{nullptr};
+GtkWidget* g_settings_db_export{nullptr};
+GtkWidget* g_settings_db_restore{nullptr};
+GtkLabel* g_settings_db_current{nullptr};
+GtkLabel* g_settings_db_feedback{nullptr};
+GtkLabel* g_settings_db_note{nullptr};
+GtkDropDown* g_settings_default_list{nullptr};
+GtkButton* g_settings_quick_add_recorder{nullptr};
+std::vector<std::int64_t> g_settings_list_ids;
+bool g_quick_add_recording{false};
+std::string g_global_quick_add;
+struct SettingsCaption {
+  GtkWidget* widget;
+  char const* key;
+  char const* help_key;  // nullptr = no tooltip
+  bool is_button;
+};
+std::vector<SettingsCaption> g_settings_captions;
+
+void refresh_quick_add_recorder() {
+  if (g_settings_quick_add_recorder == nullptr) return;
+  gtk_button_set_label(
+      g_settings_quick_add_recorder,
+      g_quick_add_recording ? tr("shortcutRecording").c_str()
+                            : (g_global_quick_add.empty()
+                                   ? tr("shortcutNone").c_str()
+                                   : g_global_quick_add.c_str()));
+}
+
+// §2a sidebar identity + window title from local state; pure UI refresh,
+// safe before the backend connects (labels are null then).
+void apply_database_identity() {
+  std::string name;
+  if (g_state.database_open) {
+    name = g_state.settings.database_name.empty()
+               ? std::filesystem::path(g_state.settings.database_path)
+                     .filename()
+                     .string()
+               : g_state.settings.database_name;
+  }
+  if (g_state.database_identity_name != nullptr) {
+    gtk_label_set_text(
+        g_state.database_identity_name,
+        (g_state.database_open ? name : tr("dbCurrentNone")).c_str());
+  }
+  if (g_state.database_identity_note != nullptr) {
+    gtk_label_set_text(g_state.database_identity_note,
+                       tr("sidebarDbManaged").c_str());
+  }
+  if (g_state.window != nullptr) {
+    std::string const title =
+        (g_state.database_open && !name.empty()) ? "Taskly — " + name
+                                                 : std::string("Taskly");
+    gtk_window_set_title(GTK_WINDOW(g_state.window), title.c_str());
+  }
+}
+
+// §2a: pull the current database identity from the backend and refresh
+// the sidebar footer, window title and the settings 数据 group.
+void refresh_database_identity() {
+  if (g_state.api == nullptr) return;
+  g_state.api->get_settings_async(
+      [](rivet_app::Result<rivet_app::Settings> result) {
+        if (!result.succeeded()) return;
+        auto const settings = result.get();
+        dispatch_ui([settings] {
+          g_state.settings = settings;
+          apply_database_identity();
+          refresh_settings_data_group();
+        });
+      });
+}
+
+// Settings 数据 group presentation; safe to call while the dialog is
+// closed (every widget pointer is null then) and after every lifecycle RPC.
+void refresh_settings_data_group() {
+  if (g_settings_dialog == nullptr) return;
+  if (g_settings_db_current != nullptr) {
+    std::string text;
+    if (g_state.database_open &&
+        !g_state.settings.database_path.empty()) {
+      text = g_state.settings.database_name.empty()
+                 ? std::filesystem::path(g_state.settings.database_path)
+                       .filename()
+                       .string()
+                 : g_state.settings.database_name;
+      text += "\n" + g_state.settings.database_path;
+    } else {
+      text = tr("dbCurrentNone");
+    }
+    gtk_label_set_text(g_settings_db_current, text.c_str());
+  }
+  gboolean const has_db = g_state.database_open &&
+                          !g_state.settings.database_path.empty();
+  for (auto* button : {g_settings_db_reveal, g_settings_db_migrate,
+                       g_settings_db_export, g_settings_db_restore}) {
+    if (button != nullptr) {
+      gtk_widget_set_sensitive(button, has_db);
+    }
+  }
+  if (g_settings_default_list != nullptr) {
+    g_settings_filling = true;
+    auto* string_list = gtk_string_list_new(nullptr);
+    g_settings_list_ids.clear();
+    for (auto const& list : g_state.lists) {
+      gtk_string_list_append(
+          GTK_STRING_LIST(string_list),
+          (list.icon.value_or("") + " " + list.name).c_str());
+      g_settings_list_ids.push_back(list.id);
+    }
+    gtk_drop_down_set_model(g_settings_default_list,
+                            G_LIST_MODEL(string_list));
+    g_object_unref(string_list);
+    guint selected = 0;
+    for (guint i = 0; i < g_settings_list_ids.size(); ++i) {
+      if (g_settings_list_ids[i] == g_state.settings.default_list_id) {
+        selected = i;
+      }
+    }
+    gtk_drop_down_set_selected(
+        g_settings_default_list,
+        g_settings_list_ids.empty() ? GTK_INVALID_LIST_POSITION : selected);
+    g_settings_filling = false;
+  }
+  refresh_quick_add_recorder();
+}
+
+void set_settings_feedback(std::string const& message, bool is_error) {
+  if (g_settings_db_feedback != nullptr) {
+    gtk_label_set_text(g_settings_db_feedback, message.c_str());
+    if (is_error) {
+      gtk_widget_add_css_class(GTK_WIDGET(g_settings_db_feedback),
+                               "detail-error");
+    } else {
+      gtk_widget_remove_css_class(GTK_WIDGET(g_settings_db_feedback),
+                                  "detail-error");
+    }
+  }
+  flash_status(message);
+}
+
+void refresh_settings_captions() {
+  for (auto const& caption : g_settings_captions) {
+    if (caption.widget == nullptr) continue;
+    if (caption.is_button) {
+      gtk_button_set_label(GTK_BUTTON(caption.widget),
+                           tr(caption.key).c_str());
+    } else {
+      gtk_label_set_text(GTK_LABEL(caption.widget), tr(caption.key).c_str());
+    }
+    if (caption.help_key != nullptr) {
+      gtk_widget_set_tooltip_text(caption.widget,
+                                  tr(caption.help_key).c_str());
+    }
+  }
+}
+
+// §2a reveal via the shared identity helper.
+void on_settings_reveal_clicked(GtkButton*, gpointer) {
+  reveal_database_folder();
+}
+
+// §2a migrate (two-step): pick the target folder, then confirm with the
+// from → to text before the all-or-nothing core call.
+void run_migrate_flow() {
+  if (g_state.api == nullptr || !g_state.database_open) return;
+  show_file_chooser(
+      tr("dbMigrateTitle").c_str(),
+      GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
+      tr("dbChooseFolder").c_str(), {},
+      [](std::string const& folder) {
+        auto const from = g_state.settings.database_path;
+        auto const to = folder + "/taskly.sqlite";
+        confirm_dialog_with_label(
+            tr("dbConfirmMigrate").c_str(),
+            format_positional(tr("dbMigrateConfirmText"), from, to).c_str(),
+            tr("dbApplyMigrate").c_str(),
+            [folder] {
+              if (g_state.api == nullptr) return;
+              g_state.api->migrate_database_async(
+                  folder,
+                  [](rivet_app::Result<rivet_app::Snapshot> result) {
+                    dispatch_ui([result = std::move(result)]() mutable {
+                      if (g_state.api == nullptr ||
+                          g_state.shutting_down.load(
+                              std::memory_order_acquire)) {
+                        return;
+                      }
+                      if (!result.succeeded()) {
+                        flash_status(map_lifecycle_error(
+                            exception_text(result.error), false));
+                        return;
+                      }
+                      absorb_database_snapshot(result.get());
+                      refresh_database_identity();
+                      flash_status(tr("dbMigrated"));
+                    });
+                  });
+            });
+      });
+}
+
+// §2a backup export: taskly-backup v1 at a user-chosen path, task count
+// reported on the settings status line.
+void run_export_flow() {
+  if (g_state.api == nullptr || !g_state.database_open) return;
+  show_file_chooser(
+      tr("dbExportLabel").c_str(), GTK_FILE_CHOOSER_ACTION_SAVE,
+      tr("dbSaveBackup").c_str(), {"*.json"},
+      [](std::string const& path) {
+        if (g_state.api == nullptr) return;
+        g_state.api->export_backup_async(
+            path,
+            [](rivet_app::Result<std::int64_t> result) {
+              dispatch_ui([result = std::move(result)]() mutable {
+                if (g_state.api == nullptr) return;
+                if (!result.succeeded()) {
+                  set_settings_feedback(exception_text(result.error), true);
+                  return;
+                }
+                set_settings_feedback(
+                    format_positional(tr("dbExported"),
+                                      std::to_string(result.get())),
+                    false);
+              });
+            });
+      });
+}
+
+// §2a restore (two-step): preview counts, explicit confirmation, then the
+// single-transaction replace. The confirmation binds to the database
+// selected at preview time; a changed database refuses with dbRestoreStale.
+void run_restore_flow() {
+  if (g_state.api == nullptr || !g_state.database_open) return;
+  show_file_chooser(
+      tr("dbChooseBackup").c_str(), GTK_FILE_CHOOSER_ACTION_OPEN,
+      tr("dbChooseBackup").c_str(), {"*.json"},
+      [](std::string const& path) {
+        if (g_state.api == nullptr) return;
+        g_state.api->preview_backup_async(
+            path,
+            [path](rivet_app::Result<rivet_app::BackupPreview> result) {
+              dispatch_ui(
+                  [path, result = std::move(result)]() mutable {
+                    if (g_state.api == nullptr) return;
+                    if (!result.succeeded()) {
+                      set_settings_feedback(
+                          format_positional(tr("dbRestoreInvalid"),
+                                            exception_text(result.error)),
+                          true);
+                      return;
+                    }
+                    auto const preview = result.get();
+                    auto const db_path_at_preview =
+                        g_state.settings.database_path;
+                    confirm_dialog_with_label(
+                        tr("dbRestorePreviewTitle").c_str(),
+                        format_positional(
+                            tr("dbRestorePreviewBody"),
+                            std::to_string(preview.task_count),
+                            std::to_string(preview.list_count))
+                            .c_str(),
+                        tr("dbRestoreApply").c_str(),
+                        [path, db_path_at_preview] {
+                          if (g_state.api == nullptr) return;
+                          if (g_state.settings.database_path !=
+                              db_path_at_preview) {
+                            set_settings_feedback(tr("dbRestoreStale"),
+                                                  true);
+                            return;
+                          }
+                          g_state.api->restore_backup_async(
+                              path,
+                              [](rivet_app::Result<rivet_app::Snapshot>
+                                     result) {
+                                dispatch_ui(
+                                    [result = std::move(result)]() mutable {
+                                      if (g_state.api == nullptr) return;
+                                      if (!result.succeeded()) {
+                                        set_settings_feedback(
+                                            format_positional(
+                                                tr("dbRestoreInvalid"),
+                                                exception_text(
+                                                    result.error)),
+                                            true);
+                                        return;
+                                      }
+                                      auto const snapshot = result.get();
+                                      absorb_database_snapshot(snapshot);
+                                      refresh_database_identity();
+                                      set_settings_feedback(
+                                          format_positional(
+                                              tr("dbRestored"),
+                                              std::to_string(
+                                                  snapshot.tasks.size())),
+                                          false);
+                                    });
+                              });
+                        });
+                  });
+            });
+      });
+}
+
 void refresh_settings_dialog() {
   if (g_settings_dialog == nullptr) {
     return;
@@ -4606,7 +5188,11 @@ void refresh_settings_dialog() {
   gtk_check_button_set_active(GTK_CHECK_BUTTON(g_settings_auto),
                               g_auto_check_updates);
   g_settings_filling = false;
+  refresh_settings_captions();
+  refresh_settings_data_group();
 }
+
+void show_launch_gate(LaunchSurface surface);
 
 void show_settings_dialog() {
   if (g_settings_dialog != nullptr) {
@@ -4642,6 +5228,260 @@ void show_settings_dialog() {
   gtk_grid_attach(GTK_GRID(grid), theme, 1, 1, 1, 1);
   auto* auto_check = gtk_check_button_new();
   gtk_grid_attach(GTK_GRID(grid), auto_check, 0, 2, 2, 1);
+
+  // ------------------- 新任务 / New Tasks group (§2a) -------------------
+  {
+    auto* section = gtk_label_new(tr("settingsGroupNewTasks").c_str());
+    gtk_widget_set_halign(section, GTK_ALIGN_START);
+    gtk_widget_add_css_class(section, "section-caption");
+    gtk_grid_attach(GTK_GRID(grid), section, 0, 3, 2, 1);
+    g_settings_captions.push_back({section, "settingsGroupNewTasks", nullptr, false});
+  }
+  {
+    auto* caption = gtk_label_new(tr("defaultListLabel").c_str());
+    gtk_widget_set_halign(caption, GTK_ALIGN_START);
+    gtk_widget_set_tooltip_text(caption, tr("defaultListHelp").c_str());
+    gtk_grid_attach(GTK_GRID(grid), caption, 0, 4, 1, 1);
+    g_settings_captions.push_back({caption, "defaultListLabel", "defaultListHelp", false});
+    auto* default_list = GTK_DROP_DOWN(gtk_drop_down_new(nullptr, nullptr));
+    gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(default_list), 1, 4, 1, 1);
+    g_settings_default_list = default_list;
+  }
+  {
+    auto* caption = gtk_label_new(tr("globalQuickAddLabel").c_str());
+    gtk_widget_set_halign(caption, GTK_ALIGN_START);
+    gtk_widget_set_tooltip_text(caption, tr("globalQuickAddHelp").c_str());
+    gtk_grid_attach(GTK_GRID(grid), caption, 0, 5, 1, 1);
+    g_settings_captions.push_back({caption, "globalQuickAddLabel", "globalQuickAddHelp", false});
+    auto* recorder_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    auto* recorder = gtk_button_new_with_label("");
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(recorder), GTK_ACCESSIBLE_PROPERTY_LABEL,
+        "settings-quick-add-recorder", -1);
+    gtk_box_append(GTK_BOX(recorder_box), recorder);
+    auto* reset = gtk_button_new_with_label(tr("shortcutReset").c_str());
+    gtk_widget_add_css_class(reset, "flat");
+    gtk_box_append(GTK_BOX(recorder_box), reset);
+    g_settings_captions.push_back({reset, "shortcutReset", nullptr, true});
+    auto* clear = gtk_button_new_with_label(tr("shortcutClear").c_str());
+    gtk_widget_add_css_class(clear, "flat");
+    gtk_box_append(GTK_BOX(recorder_box), clear);
+    g_settings_captions.push_back({clear, "shortcutClear", nullptr, true});
+    gtk_grid_attach(GTK_GRID(grid), recorder_box, 1, 5, 1, 1);
+    g_settings_quick_add_recorder = GTK_BUTTON(recorder);
+    g_signal_connect(
+        recorder, "clicked",
+        G_CALLBACK(+[](GtkButton*, gpointer) {
+          g_quick_add_recording = true;
+          refresh_quick_add_recorder();
+        }),
+        nullptr);
+    // Reset = the prototype default combo; Clear = none. Recorded combos
+    // are display-only in this slice (never registered with the OS).
+    g_signal_connect(
+        reset, "clicked",
+        G_CALLBACK(+[](GtkButton*, gpointer) {
+          g_quick_add_recording = false;
+          g_global_quick_add = "ctrl+alt+space";
+          save_setting("global-quick-add", g_global_quick_add);
+          refresh_quick_add_recorder();
+        }),
+        nullptr);
+    g_signal_connect(
+        clear, "clicked",
+        G_CALLBACK(+[](GtkButton*, gpointer) {
+          g_quick_add_recording = false;
+          g_global_quick_add.clear();
+          save_setting("global-quick-add", "");
+          refresh_quick_add_recorder();
+        }),
+        nullptr);
+  }
+
+  // --------------------- 数据 / Data group (§2a) ---------------------
+  {
+    auto* section = gtk_label_new(tr("settingsGroupData").c_str());
+    gtk_widget_set_halign(section, GTK_ALIGN_START);
+    gtk_widget_add_css_class(section, "section-caption");
+    gtk_grid_attach(GTK_GRID(grid), section, 0, 6, 2, 1);
+    g_settings_captions.push_back({section, "settingsGroupData", nullptr, false});
+  }
+  {
+    auto* caption = gtk_label_new(tr("dbCurrentLabel").c_str());
+    gtk_widget_set_halign(caption, GTK_ALIGN_START);
+    gtk_grid_attach(GTK_GRID(grid), caption, 0, 7, 1, 1);
+    g_settings_captions.push_back({caption, "dbCurrentLabel", nullptr, false});
+    auto* current_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    auto* current = gtk_label_new("");
+    gtk_label_set_xalign(GTK_LABEL(current), 0.0f);
+    gtk_label_set_ellipsize(GTK_LABEL(current), PANGO_ELLIPSIZE_MIDDLE);
+    gtk_widget_set_hexpand(current, TRUE);
+    gtk_box_append(GTK_BOX(current_row), current);
+    auto* reveal = gtk_button_new_with_label(tr("dbReveal").c_str());
+    gtk_box_append(GTK_BOX(current_row), reveal);
+    g_settings_captions.push_back({reveal, "dbReveal", nullptr, true});
+    gtk_grid_attach(GTK_GRID(grid), current_row, 1, 7, 1, 1);
+    g_settings_db_current = GTK_LABEL(current);
+    g_settings_db_reveal = reveal;
+    g_signal_connect(reveal, "clicked",
+                     G_CALLBACK(on_settings_reveal_clicked), nullptr);
+  }
+  struct DataButtonRow {
+    char const* caption_key;
+    char const* help_key;
+    char const* button_key;
+    int row;
+  };
+  static DataButtonRow const data_rows[] = {
+      {"dbLocationLabel", "dbLocationHelp", "dbMigrateBtn", 8},
+      {"dbSwitchLabel", "dbSwitchHelp", "dbOpenBtn", 9},
+      {"dbNewLabel", "dbNewHelp", "dbCreateBtn", 10},
+      {"dbExportLabel", "dbExportHelp", "dbExportBtn", 11},
+      {"dbRestoreLabel", "dbRestoreHelp", "dbRestoreBtn", 12},
+  };
+  for (auto const& row_spec : data_rows) {
+    auto* caption = gtk_label_new(tr(row_spec.caption_key).c_str());
+    gtk_widget_set_halign(caption, GTK_ALIGN_START);
+    if (row_spec.help_key != nullptr) {
+      gtk_widget_set_tooltip_text(caption, tr(row_spec.help_key).c_str());
+    }
+    gtk_grid_attach(GTK_GRID(grid), caption, 0, row_spec.row, 1, 1);
+    g_settings_captions.push_back({caption, row_spec.caption_key, row_spec.help_key, false});
+  }
+  auto* migrate = gtk_button_new_with_label(tr("dbMigrateBtn").c_str());
+  gtk_grid_attach(GTK_GRID(grid), migrate, 1, 8, 1, 1);
+  g_settings_captions.push_back({migrate, "dbMigrateBtn", nullptr, true});
+  auto* open_db = gtk_button_new_with_label(tr("dbOpenBtn").c_str());
+  gtk_grid_attach(GTK_GRID(grid), open_db, 1, 9, 1, 1);
+  g_settings_captions.push_back({open_db, "dbOpenBtn", nullptr, true});
+  auto* create_db = gtk_button_new_with_label(tr("dbCreateBtn").c_str());
+  gtk_grid_attach(GTK_GRID(grid), create_db, 1, 10, 1, 1);
+  g_settings_captions.push_back({create_db, "dbCreateBtn", nullptr, true});
+  auto* export_db = gtk_button_new_with_label(tr("dbExportBtn").c_str());
+  gtk_grid_attach(GTK_GRID(grid), export_db, 1, 11, 1, 1);
+  g_settings_captions.push_back({export_db, "dbExportBtn", nullptr, true});
+  auto* restore_db = gtk_button_new_with_label(tr("dbRestoreBtn").c_str());
+  gtk_grid_attach(GTK_GRID(grid), restore_db, 1, 12, 1, 1);
+  g_settings_captions.push_back({restore_db, "dbRestoreBtn", nullptr, true});
+  g_settings_db_migrate = migrate;
+  g_settings_db_open = open_db;
+  g_settings_db_create = create_db;
+  g_settings_db_export = export_db;
+  g_settings_db_restore = restore_db;
+  auto* feedback = gtk_label_new("");
+  gtk_label_set_wrap(GTK_LABEL(feedback), TRUE);
+  gtk_label_set_xalign(GTK_LABEL(feedback), 0.0f);
+  gtk_accessible_update_property(
+      GTK_ACCESSIBLE(feedback), GTK_ACCESSIBLE_PROPERTY_LABEL,
+      "settings-data-feedback", -1);
+  gtk_grid_attach(GTK_GRID(grid), feedback, 0, 13, 2, 1);
+  g_settings_db_feedback = GTK_LABEL(feedback);
+  auto* note = gtk_label_new(tr("dbDataNote").c_str());
+  gtk_widget_add_css_class(note, "meta-text");
+  gtk_label_set_wrap(GTK_LABEL(note), TRUE);
+  gtk_label_set_xalign(GTK_LABEL(note), 0.0f);
+  gtk_grid_attach(GTK_GRID(grid), note, 0, 14, 2, 1);
+  g_settings_db_note = GTK_LABEL(note);
+  g_settings_captions.push_back({note, "dbDataNote", nullptr, false});
+
+  // Default list selection persists immediately; quick-add targeting
+  // follows it per §4.
+  g_signal_connect(
+      g_settings_default_list, "notify::selected",
+      G_CALLBACK(+[](GObject*, GParamSpec*, gpointer) {
+        if (g_settings_filling) return;
+        auto const selected =
+            gtk_drop_down_get_selected(g_settings_default_list);
+        if (selected == GTK_INVALID_LIST_POSITION ||
+            static_cast<std::size_t>(selected) >= g_settings_list_ids.size()) {
+          return;
+        }
+        auto const id = g_settings_list_ids[
+            static_cast<std::size_t>(selected)];
+        g_state.settings.default_list_id = id;
+        save_setting("default-list-id", std::to_string(id));
+      }),
+      nullptr);
+  g_signal_connect(
+      migrate, "clicked",
+      G_CALLBACK(+[](GtkButton*, gpointer) { run_migrate_flow(); }), nullptr);
+  g_signal_connect(
+      open_db, "clicked",
+      G_CALLBACK(+[](GtkButton*, gpointer) {
+        on_menu_open_database(nullptr, nullptr, nullptr);
+      }),
+      nullptr);
+  g_signal_connect(
+      create_db, "clicked",
+      G_CALLBACK(+[](GtkButton*, gpointer) {
+        show_create_database_dialog();
+      }),
+      nullptr);
+  g_signal_connect(
+      export_db, "clicked",
+      G_CALLBACK(+[](GtkButton*, gpointer) { run_export_flow(); }), nullptr);
+  g_signal_connect(
+      restore_db, "clicked",
+      G_CALLBACK(+[](GtkButton*, gpointer) { run_restore_flow(); }), nullptr);
+
+  // Global quick-add recorder: capture the next combo carrying Ctrl or
+  // Alt while recording; Escape cancels. Recorded but never registered.
+  {
+    auto* recorder_keys = gtk_event_controller_key_new();
+    g_signal_connect(
+        recorder_keys, "key-pressed",
+        G_CALLBACK(+[](GtkEventControllerKey*, guint keyval, guint,
+                       GdkModifierType state, gpointer) -> gboolean {
+          if (!g_quick_add_recording) return FALSE;
+          if (keyval == GDK_KEY_Escape) {
+            g_quick_add_recording = false;
+            refresh_quick_add_recorder();
+            return TRUE;
+          }
+          switch (keyval) {
+            case GDK_KEY_Shift_L:
+            case GDK_KEY_Shift_R:
+            case GDK_KEY_Control_L:
+            case GDK_KEY_Control_R:
+            case GDK_KEY_Meta_L:
+            case GDK_KEY_Meta_R:
+            case GDK_KEY_Alt_L:
+            case GDK_KEY_Alt_R:
+            case GDK_KEY_Super_L:
+            case GDK_KEY_Super_R:
+            case GDK_KEY_Hyper_L:
+            case GDK_KEY_Hyper_R:
+            case GDK_KEY_ISO_Level3_Shift:
+              return TRUE;  // bare modifier — keep waiting
+            default:
+              break;
+          }
+          if ((state & (GDK_CONTROL_MASK | GDK_ALT_MASK)) == 0) {
+            set_settings_feedback(tr("shortcutNeedModifier"), true);
+            return TRUE;
+          }
+          auto const* raw = gdk_keyval_name(keyval);
+          if (raw == nullptr) return TRUE;
+          std::string key = raw;
+          std::transform(key.begin(), key.end(), key.begin(),
+                         [](unsigned char c) {
+                           return static_cast<char>(std::tolower(c));
+                         });
+          std::string combo;
+          if ((state & GDK_CONTROL_MASK) != 0) combo += "ctrl+";
+          if ((state & GDK_ALT_MASK) != 0) combo += "alt+";
+          if ((state & GDK_SHIFT_MASK) != 0) combo += "shift+";
+          combo += key;
+          g_quick_add_recording = false;
+          g_global_quick_add = combo;
+          save_setting("global-quick-add", combo);
+          refresh_quick_add_recorder();
+          return TRUE;
+        }),
+        nullptr);
+    gtk_widget_add_controller(GTK_WIDGET(dialog), recorder_keys);
+  }
+
   g_settings_dialog = dialog;
   g_settings_lang_caption = lang_caption;
   g_settings_theme_caption = theme_caption;
@@ -4700,6 +5540,19 @@ void show_settings_dialog() {
         g_settings_lang = nullptr;
         g_settings_theme = nullptr;
         g_settings_auto = nullptr;
+        g_settings_db_reveal = nullptr;
+        g_settings_db_migrate = nullptr;
+        g_settings_db_open = nullptr;
+        g_settings_db_create = nullptr;
+        g_settings_db_export = nullptr;
+        g_settings_db_restore = nullptr;
+        g_settings_db_current = nullptr;
+        g_settings_db_feedback = nullptr;
+        g_settings_db_note = nullptr;
+        g_settings_default_list = nullptr;
+        g_settings_quick_add_recorder = nullptr;
+        g_quick_add_recording = false;
+        g_settings_captions.clear();
       }),
       nullptr);
   refresh_settings_dialog();
@@ -4806,6 +5659,14 @@ void apply_language() {
            ? tr("sidebarHide")
            : tr("sidebarShow"))
           .c_str());
+  // §2a surfaces: gate copy, settings groups and the database identity.
+  if (g_state.gate_layer != nullptr &&
+      gtk_widget_get_visible(g_state.gate_layer)) {
+    show_launch_gate(g_state.launch);
+  }
+  refresh_settings_captions();
+  refresh_quick_add_recorder();
+  apply_database_identity();
   rebuild_sidebar();
   rebuild_task_list();
   refresh_persistent_status();
@@ -4891,10 +5752,15 @@ void on_quick_plus_clicked(GtkButton*, gpointer) {
   on_quick_add_activate(g_state.quick_add, nullptr);
 }
 
-// Quick-add target list: the selected list, else the first list
-// (PRODUCT-SPEC §4); none → taskCreateListFirst error.
+// Quick-add target list: the selected list, else the configured default
+// list (§2a 新任务 group, config `default-list-id`) while it still
+// resolves to an existing list, else the first list (PRODUCT-SPEC §4);
+// none → taskCreateListFirst error.
 std::optional<std::int64_t> quick_add_target_list() {
   if (g_state.view == ViewKind::List) return g_state.view_list_id;
+  auto const* default_list =
+      find_by_id(g_state.lists, g_state.settings.default_list_id);
+  if (default_list != nullptr) return default_list->id;
   if (!g_state.lists.empty()) return g_state.lists.front().id;
   return std::nullopt;
 }
@@ -5021,56 +5887,383 @@ gboolean on_window_key_pressed(GtkEventControllerKey*, guint keyval,
 // Data flow
 // ---------------------------------------------------------------------------
 
-void open_database_at(std::string const& path) {
+// ---------------------------------------------------------------------------
+// Database lifecycle (PRODUCT-SPEC §2a; mirrors macOS AppModel.swift):
+// the Racket core owns file operations, this host owns the gate, dialogs,
+// reveal and error presentation. Nothing is ever created, replaced or
+// switched automatically.
+// ---------------------------------------------------------------------------
+
+std::string exception_text(std::exception_ptr error) {
+  try {
+    std::rethrow_exception(error);
+  } catch (std::exception const& e) {
+    return e.what();
+  } catch (...) {
+    return "unknown backend failure";
+  }
+}
+
+// Shared absorption of every lifecycle success (open / create / migrate /
+// restore): refresh the view model, restore the selection, drop the gate
+// and follow the recorded identity.
+void absorb_database_snapshot(rivet_app::Snapshot const& snapshot) {
+  g_state.suppressed_delete_ids.clear();
+  g_state.current_counts = snapshot.counts;
+  g_state.lists = snapshot.lists;
+  g_state.tasks = snapshot.tasks;
+  g_state.database_open = true;
+  // Restore the last-selected list when it still exists; stale settings
+  // fall back to the All view (macOS M4).
+  auto const restored = g_state.settings.last_selected_list_id;
+  if (restored > 0 && find_by_id(g_state.lists, restored) != nullptr) {
+    g_state.view = ViewKind::List;
+    g_state.view_list_id = restored;
+  } else {
+    g_state.view = ViewKind::All;
+    g_state.view_list_id = 0;
+  }
+  g_state.launch = LaunchSurface::None;
+  hide_gate();
+  refresh_database_identity();
+  refresh_settings_data_group();
+  rebuild_sidebar();
+  if (g_state.view == ViewKind::List) {
+    // open_database returns an ALL-view snapshot. Wait for the
+    // authoritative selected-list query before showing rows under the
+    // restored named list's heading.
+    g_state.tasks.clear();
+    rebuild_task_list();
+    reload_snapshot();
+  } else {
+    rebuild_task_list();
+  }
+  refresh_persistent_status();
+  // The lifecycle RPC created a fresh shared reminder session.
+  check_reminders(true);
+}
+
+// §2a open: never creates — the core refuses missing/foreign files. With
+// `recovery_on_failure` a failure moves the launch surface to the recovery
+// gate (startup open of the recorded path, retry, relocate); otherwise the
+// current database stays and the failure flashes as an actionable message
+// (menu / gate open).
+void attempt_open_database(std::string const& path,
+                           bool recovery_on_failure) {
   if (g_state.api == nullptr || path.empty()) return;
   if (!g_state.staged_delete_ids.empty()) undo_staged_delete();
   g_state.api->open_database_async(
-      path, [path](rivet_app::Result<rivet_app::Snapshot> result) {
-        on_result(std::move(result),
-                  [path](rivet_app::Snapshot const& snapshot) {
-                    g_state.suppressed_delete_ids.clear();
-                    g_state.current_counts = snapshot.counts;
-                    g_state.lists = snapshot.lists;
-                    g_state.tasks = snapshot.tasks;
-                    // Restore the last-selected list when it still exists;
-                    // stale settings fall back to the All view (macOS M4).
-                    auto const restored =
-                        g_state.settings.last_selected_list_id;
-                    if (restored > 0 &&
-                        find_by_id(g_state.lists, restored) != nullptr) {
-                      g_state.view = ViewKind::List;
-                      g_state.view_list_id = restored;
-                    } else {
-                      g_state.view = ViewKind::All;
-                      g_state.view_list_id = 0;
-                    }
-                    rebuild_sidebar();
-                    if (g_state.view == ViewKind::List) {
-                      // open_database returns an ALL-view snapshot. Wait for
-                      // the authoritative selected-list query before showing
-                      // rows under the restored named list's heading.
-                      g_state.tasks.clear();
-                      rebuild_task_list();
-                      reload_snapshot();
-                    } else {
-                      rebuild_task_list();
-                    }
-                    refresh_persistent_status();
-                    // open_database created a fresh shared reminder session.
-                    check_reminders(true);
-                  });
+      path,
+      [path, recovery_on_failure](
+          rivet_app::Result<rivet_app::Snapshot> result) {
+        dispatch_ui([path, recovery_on_failure,
+                     result = std::move(result)]() mutable {
+          if (g_state.api == nullptr ||
+              g_state.shutting_down.load(std::memory_order_acquire)) {
+            return;
+          }
+          if (!result.succeeded()) {
+            auto const detail = exception_text(result.error);
+            if (recovery_on_failure) {
+              show_recovery_gate(path);
+            } else {
+              flash_status(format_positional(tr("dbErrOpenFailed"), detail));
+            }
+            return;
+          }
+          absorb_database_snapshot(result.get());
+          flash_status(tr("statusDatabaseConnected"));
+        });
       });
 }
 
-void open_default_database() {
+void open_database_at(std::string const& path) {
+  attempt_open_database(path, /*recovery_on_failure=*/false);
+}
+
+// §2a launch gate (welcome / recovery) — covers the main window's content
+// area while no database is open; the recorded path is shown verbatim and
+// the two recovery actions never create or switch anything automatically.
+void show_launch_gate(LaunchSurface surface) {
+  if (g_state.gate_layer == nullptr) return;
+  g_state.launch = surface;
+  bool const recovery = surface == LaunchSurface::Recovery;
+  gtk_label_set_text(
+      g_state.gate_title,
+      tr(recovery ? "dbRecoveryTitle" : "dbGateTitle").c_str());
+  gtk_label_set_text(
+      g_state.gate_body,
+      tr(recovery ? "dbRecoveryBody" : "dbGateBody").c_str());
+  gtk_label_set_text(g_state.gate_principle,
+                     tr("dbGatePrinciple").c_str());
+  gtk_label_set_text(g_state.gate_recovery_path,
+                     g_state.recovery_path.c_str());
+  gtk_widget_set_visible(g_state.gate_welcome_box, !recovery);
+  gtk_widget_set_visible(g_state.gate_recovery_box, recovery);
+  gtk_widget_set_visible(g_state.gate_layer, TRUE);
+}
+
+void hide_gate() {
+  if (g_state.gate_layer != nullptr) {
+    gtk_widget_set_visible(g_state.gate_layer, FALSE);
+  }
+}
+
+void show_welcome_gate() { show_launch_gate(LaunchSurface::Welcome); }
+
+void show_recovery_gate(std::string const& path) {
+  g_state.recovery_path = path;
+  show_launch_gate(LaunchSurface::Recovery);
+}
+
+// §2a reveal: the platform file manager opens the current database's
+// folder (xdg-open; the file itself is not selected on this platform).
+void reveal_database_folder() {
+  if (g_state.settings.database_path.empty()) return;
+  auto folder = std::filesystem::path(g_state.settings.database_path);
+  std::error_code ec;
+  if (!std::filesystem::is_directory(folder, ec)) {
+    folder = folder.parent_path();
+  }
+  if (folder.empty()) folder = ".";
+  gchar* argv[] = {(gchar*)"xdg-open", (gchar*)folder.c_str(), nullptr};
+  GError* error = nullptr;
+  if (!g_spawn_async(nullptr, argv, nullptr, G_SPAWN_SEARCH_PATH, nullptr,
+                     nullptr, nullptr, &error)) {
+    flash_status(error != nullptr && error->message != nullptr
+                     ? std::string(error->message)
+                     : std::string("xdg-open failed"));
+    if (error != nullptr) g_error_free(error);
+  }
+}
+
+// The §2a error mapping: the core's actionable phrases map onto i18n
+// copy; anything unknown keeps the backend detail.
+std::string map_lifecycle_error(std::string const& detail, bool for_create) {
+  if (detail.find("already exists") != std::string::npos) {
+    return for_create ? tr("dbErrExists") : tr("dbErrTargetOccupied");
+  }
+  if (detail.find("equals the current location") != std::string::npos) {
+    return tr("dbErrTargetSame");
+  }
+  if (detail.find("not a taskly database") != std::string::npos) {
+    return tr("dbErrNotTaskly");
+  }
+  return for_create
+             ? format_positional(tr("dbErrCreateFailed"), detail)
+             : format_positional(tr("dbErrMigrateFailed"), detail);
+}
+
+// §10 database name: non-empty, ≤64 characters, none of / \ : * ? " < > |
+bool valid_database_name(std::string const& name) {
+  if (name.empty()) return false;
+  int codepoints = 0;
+  for (std::size_t i = 0; i < name.size();) {
+    unsigned char const c = static_cast<unsigned char>(name[i]);
+    int const len = c < 0x80 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
+    if (i + static_cast<std::size_t>(len) > name.size()) return false;
+    ++codepoints;
+    i += static_cast<std::size_t>(len);
+  }
+  if (codepoints > 64) return false;
+  return name.find_first_of("/\\:*?\"<>|") == std::string::npos;
+}
+
+// Native file chooser with one completion; cancellations simply never
+// call it (§2a: cancellations leave all data untouched).
+void show_file_chooser(char const* title, GtkFileChooserAction action,
+                       char const* accept_label,
+                       std::vector<std::string> const& patterns,
+                       std::function<void(std::string const&)> on_picked) {
+  auto* chooser = gtk_file_chooser_native_new(
+      title, g_state.window, action, accept_label,
+      tr("dialogCancel").c_str());
+  if (!patterns.empty()) {
+    auto* filter = gtk_file_filter_new();
+    for (auto const& pattern : patterns) {
+      gtk_file_filter_add_pattern(filter, pattern.c_str());
+    }
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(chooser), filter);
+    g_object_unref(filter);
+  }
+  auto* const callback =
+      new std::function<void(std::string const&)>(std::move(on_picked));
+  g_signal_connect_data(
+      chooser, "response",
+      G_CALLBACK(+[](GtkNativeDialog* native, gint response, gpointer data) {
+        auto* callback =
+            static_cast<std::function<void(std::string const&)>*>(data);
+        if (response == GTK_RESPONSE_ACCEPT) {
+          auto* file = gtk_file_chooser_get_file(GTK_FILE_CHOOSER(native));
+          if (file != nullptr) {
+            gchar* path = g_file_get_path(file);
+            if (path != nullptr) {
+              (*callback)(path);
+              g_free(path);
+            }
+            g_object_unref(file);
+          }
+        }
+        g_object_unref(native);
+        delete callback;
+      }),
+      callback, nullptr, static_cast<GConnectFlags>(0));
+  gtk_native_dialog_show(GTK_NATIVE_DIALOG(chooser));
+}
+
+// §2a create flow shared by the gate, the File menu and the Settings
+// 数据 group: name entry (§10 validation) + explicitly chosen folder, then
+// the core's exclusive create at <folder>/taskly.sqlite. A failed create
+// leaves everything untouched and keeps the dialog open for retry.
+void show_create_database_dialog() {
   if (g_state.api == nullptr) return;
-  g_state.api->default_database_async(
-      [](rivet_app::Result<std::string> result) {
-        on_result(std::move(result), [](std::string const& path) {
-          g_state.settings.database_path = path;
-          open_database_at(path);
-        });
+  auto* dialog = gtk_dialog_new_with_buttons(
+      tr("dbCreateTitle").c_str(), g_state.window,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT),
+      tr("dialogCancel").c_str(), GTK_RESPONSE_CANCEL, nullptr);
+  gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+  auto* area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  auto* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  gtk_widget_set_margin_top(content, 12);
+  gtk_widget_set_margin_bottom(content, 6);
+  gtk_widget_set_margin_start(content, 12);
+  gtk_widget_set_margin_end(content, 12);
+  gtk_box_append(GTK_BOX(area), content);
+
+  auto* name_caption = gtk_label_new(tr("dbNameLabel").c_str());
+  gtk_widget_set_halign(name_caption, GTK_ALIGN_START);
+  gtk_box_append(GTK_BOX(content), name_caption);
+  auto* name_entry = gtk_entry_new();
+  gtk_editable_set_text(GTK_EDITABLE(name_entry),
+                        tr("dbNameDefault").c_str());
+  gtk_accessible_update_property(GTK_ACCESSIBLE(name_entry),
+                                 GTK_ACCESSIBLE_PROPERTY_LABEL,
+                                 tr("dbNameLabel").c_str(), -1);
+  gtk_box_append(GTK_BOX(content), name_entry);
+
+  auto* folder_caption = gtk_label_new(tr("dbFolderLabel").c_str());
+  gtk_widget_set_halign(folder_caption, GTK_ALIGN_START);
+  gtk_box_append(GTK_BOX(content), folder_caption);
+  auto* folder_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  auto* folder_value = gtk_label_new(tr("dbPathNone").c_str());
+  gtk_label_set_ellipsize(GTK_LABEL(folder_value), PANGO_ELLIPSIZE_MIDDLE);
+  gtk_label_set_xalign(GTK_LABEL(folder_value), 0.0f);
+  gtk_widget_set_hexpand(folder_value, TRUE);
+  gtk_box_append(GTK_BOX(folder_row), folder_value);
+  auto* folder_button = gtk_button_new_with_label(tr("dbFolderChoose").c_str());
+  g_signal_connect(
+      folder_button, "clicked",
+      G_CALLBACK(+[](GtkButton*, gpointer user_data) {
+        auto* dialog = GTK_WINDOW(user_data);
+        show_file_chooser(tr("dbChooseFolder").c_str(),
+                          GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
+                          tr("dbChooseFolder").c_str(), {},
+                          [dialog](std::string const& folder) {
+                            // Re-read through the dialog so the capture
+                            // stays valid across language switches.
+                            auto* value = GTK_LABEL(g_object_get_data(
+                                G_OBJECT(dialog), "create-folder-value"));
+                            if (value != nullptr) {
+                              gtk_label_set_text(value, folder.c_str());
+                            }
+                            g_object_set_data_full(
+                                G_OBJECT(dialog), "create-folder",
+                                g_strdup(folder.c_str()), g_free);
+                          });
+      }),
+      dialog);
+  gtk_box_append(GTK_BOX(folder_row), folder_button);
+  gtk_box_append(GTK_BOX(content), folder_row);
+  g_object_set_data(G_OBJECT(dialog), "create-folder-value", folder_value);
+
+  auto* error_label = gtk_label_new("");
+  gtk_widget_add_css_class(error_label, "detail-error");
+  gtk_label_set_wrap(GTK_LABEL(error_label), TRUE);
+  gtk_label_set_xalign(GTK_LABEL(error_label), 0.0f);
+  gtk_box_append(GTK_BOX(content), error_label);
+
+  auto* apply = gtk_button_new_with_label(tr("dbApplyCreate").c_str());
+  gtk_dialog_add_action_widget(GTK_DIALOG(dialog), apply,
+                               GTK_RESPONSE_ACCEPT);
+
+  // Dialog lifetime across the async RPC: the alive token drops the
+  // completion when the user cancels while the create is in flight.
+  auto alive = std::make_shared<bool>(true);
+  g_object_set_data_full(
+      G_OBJECT(dialog), "create-alive", new std::shared_ptr<bool>(alive),
+      +[](gpointer data) {
+        delete static_cast<std::shared_ptr<bool>*>(data);
       });
+
+  g_signal_connect(
+      dialog, "response",
+      G_CALLBACK(+[](GtkDialog* dialog_box, gint response, gpointer) {
+        if (response != GTK_RESPONSE_ACCEPT) {
+          gtk_window_destroy(GTK_WINDOW(dialog_box));
+          return;
+        }
+        auto* name_entry = GTK_ENTRY(g_object_get_data(
+            G_OBJECT(dialog_box), "create-name-entry"));
+        auto* error_label = GTK_LABEL(g_object_get_data(
+            G_OBJECT(dialog_box), "create-error"));
+        auto const folder = std::string(
+            static_cast<char const*>(g_object_get_data(G_OBJECT(dialog_box),
+                                                       "create-folder"))
+                != nullptr
+                ? static_cast<char const*>(g_object_get_data(
+                    G_OBJECT(dialog_box), "create-folder"))
+                : "");
+        auto const name = std::string(
+            gtk_editable_get_text(GTK_EDITABLE(name_entry)));
+        if (!valid_database_name(name)) {
+          gtk_label_set_text(error_label, tr("dbErrBadName").c_str());
+          return;
+        }
+        if (folder.empty()) {
+          gtk_label_set_text(error_label, tr("dbErrNoPath").c_str());
+          return;
+        }
+        gtk_label_set_text(error_label, "");
+        if (g_state.api == nullptr) return;
+        auto alive = *static_cast<std::shared_ptr<bool>*>(
+            g_object_get_data(G_OBJECT(dialog_box), "create-alive"));
+        g_state.api->create_database_async(
+            folder, name,
+            [alive, dialog_box, error_label, name](
+                rivet_app::Result<rivet_app::Snapshot> result) {
+              dispatch_ui([alive, dialog_box, error_label, name,
+                           result = std::move(result)]() mutable {
+                if (!*alive) return;
+                if (g_state.api == nullptr ||
+                    g_state.shutting_down.load(std::memory_order_acquire)) {
+                  return;
+                }
+                if (!result.succeeded()) {
+                  gtk_label_set_text(
+                      error_label,
+                      map_lifecycle_error(exception_text(result.error), true)
+                          .c_str());
+                  return;
+                }
+                auto const snapshot = result.get();
+                gtk_window_destroy(GTK_WINDOW(dialog_box));
+                absorb_database_snapshot(snapshot);
+                flash_status(format_positional(tr("dbCreated"), name));
+              });
+            });
+      }),
+      nullptr);
+  g_object_set_data(G_OBJECT(dialog), "create-name-entry", name_entry);
+  g_object_set_data(G_OBJECT(dialog), "create-error", error_label);
+  g_signal_connect(
+      dialog, "destroy",
+      G_CALLBACK(+[](GtkWidget*, gpointer data) {
+        auto* alive = static_cast<std::shared_ptr<bool>*>(data);
+        if (alive != nullptr) **alive = false;
+      }),
+      g_object_get_data(G_OBJECT(dialog), "create-alive"));
+  gtk_window_present(GTK_WINDOW(dialog));
 }
 
 int on_poll_timer(gpointer) {
@@ -5208,7 +6401,44 @@ int on_backend_finished(gpointer) {
               // immediately before every check (UPDATE.md), so a slow
               // startup RPC cannot race the silent check.
               save_setting("install-flavor", install_shape());
-              open_default_database();
+              // §2a 新任务 group: the recorded global quick-add combo is
+              // display-only in this slice.
+              g_state.api->get_setting_async(
+                  "global-quick-add",
+                  [](rivet_app::Result<std::string> combo) {
+                    if (!combo.succeeded()) return;
+                    g_global_quick_add = combo.get();
+                    dispatch_ui([] { refresh_quick_add_recorder(); });
+                  });
+              apply_database_identity();
+              // §2a startup: an empty recorded path shows the welcome gate;
+              // a recorded path opens, and its failure is the recovery
+              // gate. No default storage folder is ever silently assigned.
+              g_state.api->get_setting_async(
+                  "last-db-path",
+                  [](rivet_app::Result<std::string> recorded) {
+                    dispatch_ui(
+                        [recorded = std::move(recorded)]() mutable {
+                          auto path = recorded.succeeded()
+                                          ? recorded.get()
+                                          : std::string();
+                          auto const first =
+                              path.find_first_not_of(" \t\r\n");
+                          if (first == std::string::npos) {
+                            path.clear();
+                          } else {
+                            auto const last =
+                                path.find_last_not_of(" \t\r\n");
+                            path = path.substr(first, last - first + 1);
+                          }
+                          if (path.empty()) {
+                            show_welcome_gate();
+                          } else {
+                            attempt_open_database(
+                                path, /*recovery_on_failure=*/true);
+                          }
+                        });
+                  });
             });
       });
   return G_SOURCE_REMOVE;
@@ -5337,6 +6567,28 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(lists_scroll),
                                 user_list);
   gtk_box_append(GTK_BOX(sidebar), lists_scroll);
+
+  // §2a database identity footer: name + the managed-by-you note.
+  {
+    auto* identity = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    gtk_widget_set_margin_top(identity, 10);
+    gtk_widget_set_margin_bottom(identity, 12);
+    gtk_widget_set_margin_start(identity, 12);
+    gtk_widget_set_margin_end(identity, 12);
+    auto* identity_name = gtk_label_new("");
+    gtk_label_set_xalign(GTK_LABEL(identity_name), 0.0f);
+    gtk_widget_add_css_class(identity_name, "database-identity-name");
+    gtk_label_set_ellipsize(GTK_LABEL(identity_name), PANGO_ELLIPSIZE_END);
+    gtk_box_append(GTK_BOX(identity), identity_name);
+    auto* identity_note = gtk_label_new("");
+    gtk_label_set_xalign(GTK_LABEL(identity_note), 0.0f);
+    gtk_widget_add_css_class(identity_note, "meta-text");
+    gtk_label_set_ellipsize(GTK_LABEL(identity_note), PANGO_ELLIPSIZE_END);
+    gtk_box_append(GTK_BOX(identity), identity_note);
+    gtk_box_append(GTK_BOX(sidebar), identity);
+    g_state.database_identity_name = GTK_LABEL(identity_name);
+    g_state.database_identity_note = GTK_LABEL(identity_note);
+  }
 
   gtk_paned_set_start_child(GTK_PANED(body), sidebar);
 
@@ -5656,7 +6908,107 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_box_append(GTK_BOX(pane), list_overlay);
   gtk_paned_set_end_child(GTK_PANED(body), pane);
   gtk_paned_set_position(GTK_PANED(body), 280);
-  gtk_box_append(GTK_BOX(root), body);
+
+  // §2a launch gate: an overlay covering the whole content area. While it
+  // shows, clicks stay with the gate — sidebar and task interactions are
+  // inert until a database opens (nothing is created automatically).
+  auto* content_overlay = gtk_overlay_new();
+  gtk_overlay_set_child(GTK_OVERLAY(content_overlay), body);
+  auto* gate = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  gtk_widget_add_css_class(gate, "database-gate");
+  gtk_widget_set_hexpand(gate, TRUE);
+  gtk_widget_set_vexpand(gate, TRUE);
+  {
+    auto* center = gtk_box_new(GTK_ORIENTATION_VERTICAL, 14);
+    gtk_widget_set_valign(center, GTK_ALIGN_CENTER);
+    gtk_widget_set_halign(center, GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_start(center, 24);
+    gtk_widget_set_margin_end(center, 24);
+    auto* wordmark = gtk_label_new("Taskly");
+    gtk_widget_add_css_class(wordmark, "gate-wordmark");
+    gtk_box_append(GTK_BOX(center), wordmark);
+    auto* gate_title = gtk_label_new("");
+    gtk_widget_add_css_class(gate_title, "gate-title");
+    gtk_label_set_wrap(GTK_LABEL(gate_title), TRUE);
+    gtk_label_set_max_width_chars(GTK_LABEL(gate_title), 46);
+    gtk_box_append(GTK_BOX(center), gate_title);
+    auto* recovery_path = gtk_label_new("");
+    gtk_widget_add_css_class(recovery_path, "gate-path");
+    gtk_label_set_wrap(GTK_LABEL(recovery_path), TRUE);
+    gtk_label_set_selectable(GTK_LABEL(recovery_path), TRUE);
+    gtk_box_append(GTK_BOX(center), recovery_path);
+    auto* gate_body = gtk_label_new("");
+    gtk_widget_add_css_class(gate_body, "gate-body");
+    gtk_label_set_wrap(GTK_LABEL(gate_body), TRUE);
+    gtk_label_set_max_width_chars(GTK_LABEL(gate_body), 46);
+    gtk_box_append(GTK_BOX(center), gate_body);
+    auto* welcome_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_widget_set_halign(welcome_box, GTK_ALIGN_CENTER);
+    auto* create_button = gtk_button_new_with_label(tr("dbGateCreate").c_str());
+    gtk_widget_add_css_class(create_button, "suggested-action");
+    g_signal_connect(
+        create_button, "clicked",
+        G_CALLBACK(+[](GtkButton*, gpointer) {
+          show_create_database_dialog();
+        }),
+        nullptr);
+    gtk_box_append(GTK_BOX(welcome_box), create_button);
+    auto* open_button = gtk_button_new_with_label(tr("dbGateOpen").c_str());
+    g_signal_connect(
+        open_button, "clicked",
+        G_CALLBACK(+[](GtkButton*, gpointer) {
+          on_menu_open_database(nullptr, nullptr, nullptr);
+        }),
+        nullptr);
+    gtk_box_append(GTK_BOX(welcome_box), open_button);
+    gtk_box_append(GTK_BOX(center), welcome_box);
+    auto* recovery_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_widget_set_halign(recovery_box, GTK_ALIGN_CENTER);
+    auto* relocate = gtk_button_new_with_label(tr("dbRelocate").c_str());
+    g_signal_connect(
+        relocate, "clicked",
+        G_CALLBACK(+[](GtkButton*, gpointer) {
+          // §2a relocate: the core verifies the picked file; no replacement
+          // database is ever created.
+          show_file_chooser(
+              tr("dbRelocateTitle").c_str(), GTK_FILE_CHOOSER_ACTION_OPEN,
+              tr("dbApplyOpen").c_str(), {"*.db", "*.sqlite", "*.sqlite3"},
+              [](std::string const& path) {
+                attempt_open_database(path, /*recovery_on_failure=*/true);
+              });
+        }),
+        nullptr);
+    gtk_box_append(GTK_BOX(recovery_box), relocate);
+    auto* retry = gtk_button_new_with_label(tr("dbRetry").c_str());
+    g_signal_connect(
+        retry, "clicked",
+        G_CALLBACK(+[](GtkButton*, gpointer) {
+          // Re-attempt the recorded path (loop until it opens or the user
+          // gives up).
+          attempt_open_database(g_state.recovery_path,
+                                /*recovery_on_failure=*/true);
+        }),
+        nullptr);
+    gtk_box_append(GTK_BOX(recovery_box), retry);
+    gtk_box_append(GTK_BOX(center), recovery_box);
+    auto* principle = gtk_label_new("");
+    gtk_widget_add_css_class(principle, "gate-principle");
+    gtk_label_set_wrap(GTK_LABEL(principle), TRUE);
+    gtk_label_set_max_width_chars(GTK_LABEL(principle), 46);
+    gtk_box_append(GTK_BOX(center), principle);
+    gtk_box_append(GTK_BOX(gate), center);
+
+    g_state.gate_layer = gate;
+    g_state.gate_title = GTK_LABEL(gate_title);
+    g_state.gate_body = GTK_LABEL(gate_body);
+    g_state.gate_principle = GTK_LABEL(principle);
+    g_state.gate_recovery_path = GTK_LABEL(recovery_path);
+    g_state.gate_welcome_box = welcome_box;
+    g_state.gate_recovery_box = recovery_box;
+  }
+  gtk_widget_set_visible(gate, FALSE);
+  gtk_overlay_add_overlay(GTK_OVERLAY(content_overlay), gate);
+  gtk_box_append(GTK_BOX(root), content_overlay);
 
   // Status bar (28px): persistent view status with 3s flashes.
   auto* statusbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);

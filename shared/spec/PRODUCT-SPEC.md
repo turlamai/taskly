@@ -36,6 +36,82 @@ README's honest gaps).
   Explorer restart (TaskbarCreated). Tray loss or denial disables
   reminders but never startup.
 
+## 2a. Database lifecycle (all platforms)
+
+The user owns one SQLite file; there is no account and no cloud binding.
+The app starts against the last selected database and nothing else — no
+default storage folder and no populated task set is ever silently assigned
+(prototype checkpoint 2026-11-15, issue #121). The Racket core owns file
+operations (exclusive create, verify, copy-migrate, backup JSON); hosts own
+pickers, dialogs, reveal and the gate presentation. Filename conventions and
+the backup format live in DATA-FORMAT (§7 keys, §9 backup).
+
+- **Startup gate.** With no database recorded in config (`last-db-path`
+  empty), the main window shows the welcome gate instead of the task UI:
+  wordmark, headline, one-line description and two actions — 创建数据库 /
+  Create Database, 打开已有数据库… / Open Existing Database… — plus the
+  principle line (no account, no cloud; the data's location and sync
+  belong to the user). Sidebar and task interactions stay inert until a
+  database is open (§3).
+- **Recovery gate.** When the recorded database cannot be opened (missing,
+  moved, unreadable, not a Taskly database), the gate shows the recovery
+  block: 找不到上次的数据库 / Can't find your last database, the recorded
+  path, an explanation, and two actions — 重新定位… / Relocate… and 重试 /
+  Retry. It **never** creates a replacement database automatically and
+  never silently switches databases. Relocate opens a file dialog for the
+  original file; the host reopens only after the core verifies the picked
+  file is a Taskly database. Retry re-attempts the recorded path (e.g.
+  after the disk was reconnected).
+- **Create (exclusive, atomic).** Requires an explicitly chosen folder and
+  an entered database name (§10 validation). The core creates
+  `<folder>/taskly.sqlite` only when the target does not exist; an existing
+  target is rejected with an actionable error and nothing is written. On
+  success the new empty database opens and is recorded as the last
+  database. A failed create leaves the previous state untouched.
+- **Open.** Platform file dialog (`*.db *.sqlite *.sqlite3`). Opening a
+  verified database records it; a failure keeps the current database.
+- **Migrate (two-step, all-or-nothing).** Step 1 collects a target folder;
+  step 2 requires explicit confirmation showing 从…迁移到… / from → to and
+  stating that all tasks move with the database and that only success
+  switches the location. The core rejects a target that already holds any
+  file and a target equal to the current location, checkpoints WAL, copies
+  to a temporary file, verifies the copy (schema version + task/list
+  counts), then atomically renames it into place and records the new
+  location. Any failure keeps the original file, the original location and
+  the open database unchanged. Success leaves the source file in place
+  (user-managed data; no deletion).
+- **Reveal.** 所在文件夹… shows the current database's folder in the
+  platform file manager (Finder / Explorer with the file selected /
+  xdg-open), disabled while no database is open.
+- **Backup JSON (export / restore).** Export writes the selected
+  database's lists and tasks to a user-chosen path as `taskly-backup v1`
+  (DATA-FORMAT §9) and reports the task count. Restore is two-step: pick a
+  file → the core validates it (shape, field completeness, ≤10 000 tasks,
+  ≤5 MB) and previews the counts → explicit confirmation that replacement
+  is irreversible (suggest exporting first) → the core replaces the
+  current database's lists and tasks in one transaction. Invalid files,
+  oversized files and cancellations leave all data untouched. The restore
+  binds to the database selected at preview time: if the active database
+  changed before confirmation, the host refuses and asks to re-select.
+- **Settings 数据 / Data group** (§8): 当前数据库 (name + location,
+  reveal button), 存储位置 (migrate), 切换数据库 (open another),
+  新建数据库 (create), 备份与导出 (export JSON), 恢复备份 (restore) —
+  same outcomes as above, plus a status line reporting outcomes. Controls
+  that need an open database are disabled while none is open.
+- **Database identity.** The sidebar footer shows the database name plus
+  the 数据库由你管理 / managed-by-you note; the window title carries the
+  name. The display name is entered at creation; opening an unregistered
+  database uses the file stem; it persists in config `last-db-name`
+  (DATA-FORMAT §7).
+- **New-task defaults (Settings 新任务 group).** 默认清单 / Default List:
+  a picker over the current lists persisted as config `default-list-id`;
+  quick-add targeting follows it per §4. 全局快速添加 / Global Quick Add:
+  records a modifier+key combination (⌘/Ctrl, ⌥/Alt, ⇧ optional) with
+  reset and clear affordances, persisted as config `global-quick-add`;
+  shortcuts are **recorded but not registered with the operating system**
+  in this slice (the prototype's declared scope; registration is a future
+  slice).
+
 ## 3. Sidebar
 
 - 2×2 smart-view tiles, fixed semantic colors (DESIGN-TOKENS), platform
@@ -58,7 +134,9 @@ README's honest gaps).
   Show/Hide Completed toggle (accent text) when connected.
 - Quick-add field (connected only), placeholder `+ 添加任务`. Enter commits:
   text first runs through ExtractTimeCommand (trailing `@10am`, `+1d`…),
-  target list = selected list else first list (none → error
+  target list = selected list, else the configured default list (§2a
+  新任务 group, config `default-list-id`, when it still resolves to an
+  existing list), else the first list (none → error
   `taskCreateListFirst`); new task lands at top; counts refresh.
   The host captures the **concrete list ID at submission**, before any
   asynchronous parsing or persistence. Switching lists while the request
@@ -150,10 +228,15 @@ differ, but draft, identity and persistence outcomes do not.
   (DESIGN-TOKENS §Anchored task detail layer) with **per-field autosave** —
   every field change persists immediately (the Reminders details-popover
   model), so 完成 and click-away only close it and nothing is discarded.
-  删除 inside the popover follows the delete/undo semantics below. If a
-  change fails to persist, an actionable error anchors to that field and
-  the popover stays open for retry. The popover closes when its task leaves
-  the current view.
+  Layout follows the prototype checkpoint 2026-11-15: title, date, notes
+  and list membership are directly visible; time (+ reminder, staged for
+  A2 / issue #131), priority, tags, subtasks and URL sit behind
+  keyboard-accessible native disclosure controls that open automatically
+  when the field already holds a value and stay closed (but reachable)
+  otherwise. 删除 inside the popover follows the delete/undo semantics
+  below. If a change fails to persist, an actionable error anchors to that
+  field and the popover stays open for retry. The popover closes when its
+  task leaves the current view.
 - Delete: no confirmation from the row; instead the host hides the selected
   rows and stages their original records for about six seconds. 撤销 restores
   the same task IDs and complete metadata because no backend delete has yet
@@ -186,6 +269,17 @@ draft/persistence results may not.
 | Delete → timeout | stored rows with IDs and metadata | delete; let ~6 s expire | backend deletes exactly the captured IDs; later refresh does not restore them |
 | Search refresh | global results include task `N` from another list | backend `changed` event / periodic refresh | search remains owner; `N` retains its real list label, selection and in-progress draft |
 | Database switch | edit or delete batch belongs to database A | open/close/switch to database B | A's pending callbacks cannot mutate B; selection, drafts, detail popovers and undo state are cleared |
+| Gate → create | no database recorded | choose folder + name, confirm | new empty database opens with the default list, is recorded; relaunch reopens it |
+| Gate → create collision | target folder already holds `taskly.sqlite` | attempt create | actionable error; nothing written; previous state unchanged |
+| Gate → recovery (missing) | recorded database path missing | start the app | recovery block shows the recorded path; no replacement is created |
+| Gate → recovery relocate | recovery block visible | relocate to the real database file | it opens with its tasks; recorded path updates |
+| Gate → retry | recovery block visible; file restored in place | press 重试 | recorded database opens normally |
+| Migrate success | active database with tasks | migrate to an empty folder, confirm | tasks available at the new location; new location recorded; source file left in place |
+| Migrate failure | active database with tasks | migrate fails (target unwritable) | original file, location and open database unchanged; error actionable |
+| Migrate collision | target folder already holds a database file | attempt migrate | rejected before any write |
+| Backup export | active database with lists + tasks | export to a chosen path | `taskly-backup v1` file contains all lists + tasks; task count reported |
+| Backup restore confirm | valid backup file; active database | preview shows counts, then confirm | lists + tasks replaced in one transaction; refresh preserves the restored data |
+| Backup restore refused | invalid/oversized file, or active database changed since preview | attempt restore | nothing changes; actionable message |
 
 Coverage map (enforcement lives in the `rivet-acceptance.rktd` suites and
 their `scripts/e2e/` drivers; this table is the pointer, not a second spec):
@@ -202,6 +296,11 @@ their `scripts/e2e/` drivers; this table is the pointer, not a second spec):
 | Delete → timeout | — | gap |
 | Search refresh | — | gap |
 | Database switch (stale token) | core-contract (`core-test.rkt` reopen/stale-token) | core ✅ · host-level trace gap |
+| Gate → create / collision | macos-native-ui (`database-gate-create`) | macos ✅ · windows/linux gap (runs on their machines) |
+| Gate → recovery (missing / relocate / retry) | macos-native-ui (`database-recovery`) | macos ✅ · windows/linux gap |
+| Migrate success / failure / collision | core-contract (`core-test.rkt` copy-migrate cases) · macos-native-ui (`database-migrate`) | core ✅ · macos ✅ · windows/linux gap |
+| Backup export / restore confirm / refused | core-contract (`core-test.rkt` backup cases) · macos-native-ui (`database-backup`) | core ✅ · macos ✅ · windows/linux gap |
+| New-task default list | core-contract (`core-test.rkt` default-list targeting) · macos-native-ui (settings picker) | core ✅ · macos ✅ · windows/linux gap |
 
 Gaps are the acceptance queue: closing one means adding a requirement to
 `rivet-acceptance.rktd` — never softening existing ones.
@@ -222,15 +321,19 @@ be written here before it can be accepted; none is declared for these rows.
 
 ## 8. Menus / app-level
 
-- File: New Database (Ctrl+Shift+N, save panel, default name `tasks`),
-  Open Database (Ctrl+O, *.db), Close Database (confirm), Quit/Exit.
+- File: New Database (Ctrl+Shift+N — the §2a create flow: folder picker +
+  name entry, exclusive `taskly.sqlite`), Open Database (Ctrl+O,
+  *.db/*.sqlite/*.sqlite3 — §2a), Close Database (confirm), Quit/Exit.
 - View: Today / Planned / All / Completed (Ctrl+1…4), New Task
   (Ctrl+N, focuses quick add), Search (Ctrl+F, focuses search), Show
   Completed toggle (Ctrl+Shift+C).
 - Tools: Install / Uninstall Command Line Tool.
 - Settings: Language (简体中文 / English, runtime switch, persisted in
   config `language`), Theme — 跟随系统 (follow system) / 浅色
-  (light) / 深色 (dark), persisted in config `theme`; follow-system tracks
+  (light) / 深色 (dark), persisted in config `theme`; the 新任务 group
+  (default list, global quick-add recording) and the 数据 group (§2a:
+  current database + reveal, migrate, open another, create, export JSON,
+  restore backup) share the same window IA on every host; follow-system tracks
   OS personalization live — plus the auto-check-updates preference
   (config `auto-check-updates`, default on). The three preferences share
   one information architecture on every host and live in the
@@ -299,7 +402,10 @@ Task text non-empty ≤1000 chars; list name non-empty ≤100; date year
 1900–2100; (search keyword ≤200 — CLI layer). Priority is an integer 0–3
 (0 none · 1 low · 2 medium · 3 high); tags are strings, each non-empty
 ≤100 chars; subtask text non-empty ≤500 chars; URL ≤2048 chars when
-present (blank → absent). Error messages from i18n.
+present (blank → absent). Database name non-empty ≤64 chars without
+`/ \ : * ? " < > |`; create/migrate targets must not already exist; open/
+relocate accepts `*.db *.sqlite *.sqlite3`; backup restore rejects files
+>5 MB or with >10 000 tasks. Error messages from i18n.
 
 ## 11. i18n
 

@@ -38,12 +38,65 @@ $testHome = Join-Path $output ("home-{0}" -f $PID)
 $tasklyHome = Join-Path $testHome '.taskly'
 New-Item -ItemType Directory -Force -Path $tasklyHome | Out-Null
 $epoch = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+
+# §2a: the profile records an existing database so the interaction flow
+# starts connected; the welcome gate is product behavior exercised by the
+# packaged gate scenario. The seed database is a real empty v5 file written
+# through Python's sqlite3 (no Racket on the runner): schema per
+# DATA-FORMAT §3, default list seeded.
+$seedDb = Join-Path $tasklyHome 'tasks.db'
+$seedScript = Join-Path $output 'seed-tasks-db.py'
+Set-Content -LiteralPath $seedScript -Encoding utf8 -Value @'
+import sqlite3
+import sys
+
+database = sqlite3.connect(sys.argv[1])
+database.executescript(
+    """
+    PRAGMA journal_mode = WAL;
+    PRAGMA user_version = 5;
+    CREATE TABLE lists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        icon TEXT,
+        color INTEGER,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        list_id INTEGER,
+        text TEXT NOT NULL,
+        due_date TEXT,
+        due_time TEXT,
+        completed INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        notes TEXT,
+        priority INTEGER DEFAULT 0,
+        tags TEXT,
+        subtasks TEXT,
+        url TEXT,
+        FOREIGN KEY (list_id) REFERENCES lists (id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_tasks_list_id ON tasks(list_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed);
+    CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+    INSERT INTO lists (name, icon, color, created_at) VALUES
+      ('工作', '📋', -16745729, '2026-11-16T00:00:00Z');
+    """
+)
+database.commit()
+database.close()
+'@
+python $seedScript $seedDb
+if (-not (Test-Path -LiteralPath $seedDb)) { throw 'seed database was not created' }
+
 @"
 # Taskly acceptance profile
 language = en
 close-to-tray = 0
 last-selected-list-id = 0
 last-update-check = $epoch
+last-db-path = $seedDb
 "@ | Set-Content -LiteralPath (Join-Path $tasklyHome 'config.ini') -Encoding utf8
 
 function Wait-Until {

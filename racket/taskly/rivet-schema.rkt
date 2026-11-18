@@ -50,13 +50,17 @@
 
 ;; Host preferences resolved from config.ini. Strings are kept in the config
 ;; vocabulary ("zh"/"en", "system"/"light"/"dark", "0"/"1") so hosts never
-;; re-parse the file or re-validate the values.
+;; re-parse the file or re-validate the values. `default-list-id` feeds the
+;; 新任务 default-list picker (0 = unset → first list); `database-name` is
+;; the display name for the sidebar identity and the 数据 group.
 (define-record Settings
   ([language : String]
    [theme : String]
    [close-to-tray : String]
    [last-selected-list-id : Int64]
-   [database-path : String]))
+   [database-path : String]
+   [database-name : String]
+   [default-list-id : Int64]))
 
 ;; Canonical quick-add split (parse_quick_add): the cleaned text plus the
 ;; due date/time the trailing command expressed. Every host calls this
@@ -95,6 +99,15 @@
    [message : (Optional String)]
    [downloaded-path : (Optional String)]
    [available-version : (Optional String)]))
+
+;; Result of preview_backup: what restore_backup would replace, so the host
+;; can show the counts inside its confirmation dialog before applying.
+;; Validation failures raise instead of filling this record.
+(define-record BackupPreview
+  ([format : String]
+   [version : Int64]
+   [list-count : Int64]
+   [task-count : Int64]))
 
 (define (nullable value)
   (if value value (void)))
@@ -165,7 +178,9 @@
    (config-theme config)
    (config-close-to-tray config)
    (config-last-selected-list-id config)
-   (path->string (resolve-database-path #f config))))
+   (path->string (resolve-database-path #f config))
+   (config-last-db-name config)
+   (config-default-list-id config)))
 
 (define (reminder-decision->dto decision)
   (ReminderDecision
