@@ -1,7 +1,5 @@
 # Taskly
 
-**Product:** [Website](https://taskly.jrtx.site/) · **Support:** [Issues & feedback](https://github.com/turlamai/taskly/issues) · [Development policy](https://github.com/turlamai/turlamai.github.io/blob/master/PORTFOLIO.md)
-
 A focused, keyboard-friendly task manager for macOS, Windows and Linux —
 one Racket core driving a first-party native host on every desktop, an
 agent-facing CLI, and a single local SQLite file.
