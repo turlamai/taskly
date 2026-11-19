@@ -1,7 +1,5 @@
 # Taskly
 
-**产品：**[产品主页](https://taskly.jrtx.site/) · **支持：**[问题与反馈](https://github.com/turlamai/taskly/issues) · [当前交付策略](https://github.com/turlamai/turlamai.github.io/blob/master/PORTFOLIO.zh-CN.md)
-
 一款专注、键盘友好的跨平台任务管理器，覆盖 macOS、Windows 和 Linux——一个 Racket 核心驱动每个桌面的第一方原生宿主，附带面向 agent 的 CLI，数据就是单个本地 SQLite 文件。
 
 [![release](https://img.shields.io/github/v/release/turlamai/taskly)](https://github.com/turlamai/taskly/releases/latest) ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey) ![built with](https://img.shields.io/badge/built%20with-Rivet-9333ea) [![CI](https://github.com/turlamai/taskly/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/taskly/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE)
