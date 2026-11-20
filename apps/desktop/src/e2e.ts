@@ -100,11 +100,15 @@ export async function bootE2E(): Promise<void> {
     t1 = await quickAddViaUI('alpha task');
     assert(t1 > 0, 'quick add via UI produced no task');
     click($('.lrow[data-list="' + listB + '"]'));
-    await wait(60);
+    await until(() => store.state.view === 'list' && store.state.listId === listB,
+      'setup Beta list selected');
     t2 = await quickAddViaUI('beta needle');
     assert(t2 > 0, 'second list quick add failed');
+    await until(() => store.taskById(t2)?.listId === listB,
+      'setup beta task committed to the selected list');
     click($('[data-view="all"]'));
-    await wait(60);
+    await until(() => store.state.view === 'all' && store.state.listId === null,
+      'setup All view selected');
     t3 = await quickAddViaUI('gamma doomed');
     assert(t3 > 0, 'third quick add failed');
   });
