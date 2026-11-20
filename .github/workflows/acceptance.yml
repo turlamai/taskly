@@ -83,15 +83,17 @@ jobs:
           racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs "https://github.com/turlamai/rivet.git#$env:RIVET_PIN"
           racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs "https://github.com/turlamai/glaze.git#$env:GLAZE_PIN"
           racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs crypto
-      - name: Run executable acceptance (real window, 29 verdicts)
+      - name: Run executable acceptance (all manifest suites, real window)
         shell: pwsh
-        run: racket verify.rkt
+        run: racket scripts/acceptance/run-suites.rkt
       - name: Upload Windows evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: taskly-acceptance-windows
-          path: .glaze/verify
+          path: |
+            .glaze/verify
+            .glaze/acceptance
           if-no-files-found: warn
 
   macos:
@@ -125,14 +127,16 @@ jobs:
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/glaze.git#${GLAZE_PIN}"
           bash scripts/install-racket-packages-with-retry.sh crypto
-      - name: Run executable acceptance (real window, 29 verdicts)
-        run: racket verify.rkt
+      - name: Run executable acceptance (all manifest suites, real window)
+        run: racket scripts/acceptance/run-suites.rkt
       - name: Upload macOS evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: taskly-acceptance-macos-${{ matrix.arch }}
-          path: .glaze/verify
+          path: |
+            .glaze/verify
+            .glaze/acceptance
           if-no-files-found: warn
 
   linux:
@@ -166,15 +170,17 @@ jobs:
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/glaze.git#${GLAZE_PIN}"
           bash scripts/install-racket-packages-with-retry.sh crypto
-      - name: Run executable acceptance (real window under Xvfb, 29 verdicts)
+      - name: Run executable acceptance (all manifest suites, real window under Xvfb)
         run: |
           set -euo pipefail
           export WEBKIT_DISABLE_DMABUF_RENDERER=1
-          dbus-run-session -- xvfb-run -a racket verify.rkt
+          dbus-run-session -- xvfb-run -a racket scripts/acceptance/run-suites.rkt
       - name: Upload Linux evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: taskly-acceptance-linux
-          path: .glaze/verify
+          path: |
+            .glaze/verify
+            .glaze/acceptance
           if-no-files-found: warn

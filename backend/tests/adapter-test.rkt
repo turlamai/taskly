@@ -11,21 +11,17 @@
          rackunit
          racket/file
          racket/path
-         racket/runtime-path
          racket/string
          "../rvt1.rkt"
          "../wire-codec.rkt"
+         (prefix-in engine: "../../racket/taskly/backend.rkt")
          "../../racket/taskly/paths.rkt")
 
 (define root (make-temporary-file "taskly-adapter-~a" 'directory))
 (current-taskly-home root)
 
-(define-runtime-path test-dir ".")
-(define engine-backend
-  (simplify-path (build-path test-dir ".." ".." "racket" "taskly" "backend.rkt")))
-
 (set-rvt1-call! rvt1-call)
-(start-rvt1! engine-backend)
+(start-rvt1!)
 
 ;; The adapter surface must equal the schema surface (the python gate
 ;; checks the glaze route list; this checks the codec's runtime table).

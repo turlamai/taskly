@@ -220,17 +220,26 @@ async function commitEdit(save: boolean): Promise<void> {
   if (editing == null) return;
   const task = store.taskById(editing);
   const id = editing;
-  editing = null;
   const d = draft;
-  draft = null;
   if (save && task && d) {
     syncDraft();
     const text = d.text.trim();
     try {
       await store.saveTask({ ...task, text: text || task.text, dueDate: d.dueDate || null, dueTime: d.dueTime || null, priority: d.priority, notes: d.notes.trim() || null });
     } catch (e) {
+      // PRODUCT-SPEC §6 (quick edit → save failure): the draft stays
+      // available for correction/retry; the stored record is untouched.
+      if (editing === id) {
+        draft = d;
+        render();
+      }
       announce(t('detailSaveFailed', e instanceof Error ? e.message : String(e)));
+      return;
     }
+  }
+  if (editing === id) {
+    editing = null;
+    draft = null;
   }
   void id;
   render();
@@ -665,6 +674,11 @@ async function main(): Promise<void> {
     setGateMode(result.mode, result.error);
   }
   render();
+  // Acceptance harness (#141 slice 5): same page, #e2e hash, host-gated.
+  if (window.location.hash === '#e2e') {
+    const { bootE2E } = await import('./e2e');
+    void bootE2E();
+  }
 }
 
 void main();

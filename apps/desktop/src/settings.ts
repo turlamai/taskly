@@ -157,7 +157,8 @@ async function applyRestore(): Promise<void> {
     await store.restoreBackup(pendingBackupPath);
     report(t('dbRestored', pendingPreview ? pendingPreview.taskCount : 0));
   } catch (e) {
-    report(t('dbRestoreInvalid', e instanceof Error ? e.message : String(e)));
+    const msg = e instanceof Error ? e.message : String(e);
+    report(msg === 'stale-preview' ? t('dbRestoreStale') : t('dbRestoreInvalid', msg));
   }
   dialog.close();
 }

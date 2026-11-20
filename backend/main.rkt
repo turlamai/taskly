@@ -24,13 +24,19 @@
          glaze            ; make-tray, make-menu-item, hotkey-register!, …
          glaze/autolaunch ; auto-launch-set! / auto-launch-enabled?
          glaze/global-shortcut ; string->hotkey / hotkey->string
+         racket/file
          racket/runtime-path
+         racket/string
          racket/system
          racket/path
          racket/port
          json
          "../racket/taskly/config.rkt" ; read-config / config-language (host prefs)
          "../racket/taskly/version.rkt"
+         ;; Static require: registration happens at load time AND raco exe
+         ;; embeds the engine for packaged builds (a runtime dynamic-require
+         ;; cannot resolve source paths inside the distribution).
+         (prefix-in engine: "../racket/taskly/backend.rkt")
          "rvt1.rkt"
          "wire-codec.rkt")
 
@@ -39,31 +45,34 @@
 ;; app entry and the real-window verifier both call it; schema checks
 ;; load this module without starting anything.
 (provide api start-engine!
+         event-bus
          install-host! host-teardown!
          host-open-capture! host-capture-window host-shortcut-registered?
          host-tray-live?)
 
-(define-runtime-path engine-backend "../racket/taskly/backend.rkt")
 (define-runtime-path frontend-dist "../apps/desktop/dist")
 
-;; Loading the production backend registers every RPC/Event, exactly as
-;; in the embedded runtime. Pure registration — no GUI, no serve thread
-;; (schema checks load this module without starting the app).
-(void (dynamic-require engine-backend #f))
-
 (define bus (make-event-bus))
+(define event-bus bus)
 
-;; The engine declares `changed` (Any) but does not emit it today; keep
-;; the push path live so a future emitter reaches the UI without a new
-;; transport. Payloads must be JSON-serializable for the SSE endpoint.
+;; The engine publishes `changed` on every mutation (publish! in
+;; racket/taskly/backend.rkt); relay it onto the glaze bus so both the
+;; native GLZ1 carrier and the HTTP SSE endpoint push it to every window.
+;; Payloads must be JSON-serializable: the engine DTO can carry #<void>
+;; for unset optionals, which would kill an SSE connection mid-stream, so
+;; normalize recursively (void → null) before broadcasting.
+(define (json-safe v)
+  (cond
+    [(void? v) 'null]
+    [(hash? v)
+     (for/hash ([(k val) (in-hash v)])
+       (values (if (symbol? k) k (json-safe k)) (json-safe val)))]
+    [(list? v) (map json-safe v)]
+    [(pair? v) (cons (json-safe (car v)) (json-safe (cdr v)))]
+    [else v]))
 (set-event-handler!
  (lambda (payload)
-   (bus-broadcast! bus 'changed
-                   (if (or (hash? payload) (list? payload)
-                           (string? payload) (number? payload)
-                           (boolean? payload) (eq? payload 'null))
-                       payload
-                       (format "~s" payload)))))
+   (bus-broadcast! bus 'changed (json-safe payload))))
 
 ;; ---- typed RPC surface (1:1 with rivet-schema.json) ----------------------
 ;; Structured DTOs (records/lists) ride GValue at the transport boundary;
@@ -85,6 +94,11 @@
    (rpc/json "create_database" (hasheq 'folder folder 'name name))]
   [(POST "api/rpc/migrate_database" #:returns GValue)
    (migrateDatabase [folder GString])
+   ;; Actionable collision refusal before any write (PRODUCT-SPEC §6):
+   ;; the engine's copy failure would surface as a raw internal error.
+   (define target (build-path (path->complete-path (string-trim folder)) "taskly.sqlite"))
+   (when (file-exists? target)
+     (bad-param (format "target folder already holds a database: ~a" (path->string target))))
    (rpc/json "migrate_database" (hasheq 'folder folder))]
   [(POST "api/rpc/close_database" #:returns GValue)
    (closeDatabase)
@@ -186,11 +200,10 @@
   ;; request thread until the user picks; #f means cancelled.
   [(POST "api/host/pick_folder" #:returns GValue)
    (pickFolder [title (goptional GString)])
-   (pick-folder #:title (or title #f))]
+   (host-pick-folder (or title #f))]
   [(POST "api/host/pick_file" #:returns GValue)
    (pickFile [title (goptional GString)] [filters GValue])
-   (pick-file #:title (or title #f)
-              #:filters (or filters '()))]
+   (host-pick-file (or title #f) (or filters '()))]
   [(POST "api/host/save_file" #:returns GValue)
    (saveFile [title (goptional GString)] [defaultName (goptional GString)]
              [filters GValue])
@@ -221,7 +234,23 @@
    (bus-broadcast! bus 'changed 'null)
    (define wv (unbox capture-wv))
    (when (and wv (not (webview-closed? wv))) (webview-close wv))
-   #t])
+   #t]
+
+  ;; ---- acceptance harness gate (#141 slice 5) ------------------------
+  ;; The web UI carries an in-page journey harness (#e2e) because glaze
+  ;; exposes no JS injection into the webview. These routes are inert
+  ;; unless TASKLY_E2E=1 (acceptance jobs / verify.rkt only); the page
+  ;; harness additionally requires the #e2e hash AND enabled=true here.
+  [(POST "api/host/e2e" #:returns GValue)
+   (e2e)
+   (host-e2e-state)]
+  [(POST "api/host/e2e_report" #:returns GBool)
+   (e2eReport [id GString] [ok GBool] [detail GString])
+   (host-e2e-report! id ok detail)
+   #t]
+  [(POST "api/host/e2e_fs" #:returns GValue)
+   (e2eFs [op GString] [path GString] [data (goptional GString)])
+   (host-e2e-fs op path (or data ""))])
 
 ;; Show a folder in the system file manager (settings → 所在文件夹).
 ;; Falls back to #f when no opener exists; the UI then shows the path.
@@ -360,6 +389,63 @@
     (auto-launch-set! "Taskly" enabled))
   (host-autostart-state))
 
+;; ---- acceptance harness gate (#141 slice 5) --------------------------
+;; In-page journey reports + the few filesystem probes the database
+;; lifecycle scenarios need (missing-file recovery, invalid backup).
+;; Everything here refuses to run unless TASKLY_E2E=1.
+(define (e2e-enabled?) (equal? (getenv "TASKLY_E2E") "1"))
+(define e2e-reports (box '()))
+(define e2e-next-pick (box #f))
+
+;; Native pickers under the acceptance gate: a staged path (e2e_fs
+;; stage_pick) answers the next pick so the dialog flow runs end-to-end
+;; without an OS modal; production always opens the real picker.
+(define (consume-staged-pick!)
+  (define p (unbox e2e-next-pick))
+  (set-box! e2e-next-pick #f)
+  p)
+(define (host-pick-folder title)
+  (or (and (e2e-enabled?) (consume-staged-pick!))
+      (pick-folder #:title title)))
+(define (host-pick-file title filters)
+  (or (and (e2e-enabled?) (consume-staged-pick!))
+      (pick-file #:title title #:filters filters)))
+
+(define (require-e2e!)
+  (unless e2e-enabled? (bad-param "e2e harness disabled (set TASKLY_E2E=1)")))
+
+(define (host-e2e-state)
+  (require-e2e!)
+  (hasheq 'enabled #t
+          'home (path->string (build-path (find-system-path 'temp-dir)
+                                          (format "taskly-e2e-~a" (current-seconds))))
+          'reports (reverse (unbox e2e-reports))))
+
+(define (host-e2e-report! id ok detail)
+  (require-e2e!)
+  (set-box! e2e-reports (cons (hasheq 'id id 'ok ok 'detail detail) (unbox e2e-reports))))
+
+(define (host-e2e-fs op path data)
+  (require-e2e!)
+  (cond
+    [(string=? op "exists") (hasheq 'exists (file-exists? path))]
+    [(string=? op "stage_pick")
+     ;; Acceptance seam: the next native picker call returns this path
+     ;; instead of opening an OS modal (headless runners cannot click one).
+     (set-box! e2e-next-pick path)
+     (hasheq 'exists #t)]
+    [(string=? op "unlink")
+     (with-handlers ([exn:fail? (lambda (_) (void))]) (delete-file path))
+     (hasheq 'exists (file-exists? path))]
+    [(string=? op "write")
+     (make-directory* (or (path-only path) (current-directory)))
+     (call-with-output-file path (lambda (out) (display data out)) #:exists 'truncate)
+     (hasheq 'exists #t)]
+    [(string=? op "copy")
+     (copy-file path data #t)
+     (hasheq 'exists (file-exists? data))]
+    [else (bad-param (format "e2e_fs: unknown op ~v" op))]))
+
 ;; Called from #:on-ready (app entry and verifier): remember the window,
 ;; install the tray and register the recorded accelerator.
 (define (install-host! wv url)
@@ -397,7 +483,7 @@
 (define (start-engine!)
   (unless engine-started?
     (set-rvt1-call! rvt1-call)
-    (start-rvt1! engine-backend)
+    (start-rvt1!)
     (set! engine-started? #t)))
 
 (module+ main

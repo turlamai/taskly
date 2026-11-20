@@ -252,9 +252,12 @@ differ, but draft, identity and persistence outcomes do not.
 
 ## 6. Interaction lifecycle scenarios
 
-Every declared host runs the same outcome scenarios in packaged native-UI
-acceptance. Accessibility mechanics may differ; the stable task identity and
-draft/persistence results may not.
+The single glaze host runs every outcome scenario below in real-window
+acceptance on every platform (`web-ui-journeys` suite: `verify.rkt` boots
+the packaged-shape app and the in-page harness drives real DOM events
+through the production handlers). Accessibility mechanics are the web
+platform's; the stable task identity and draft/persistence results may not
+differ between platforms.
 
 | Scenario | Before | Action | Required result |
 |---|---|---|---|
@@ -282,34 +285,49 @@ draft/persistence results may not.
 | Backup restore confirm | valid backup file; active database | preview shows counts, then confirm | lists + tasks replaced in one transaction; refresh preserves the restored data |
 | Backup restore refused | invalid/oversized file, or active database changed since preview | attempt restore | nothing changes; actionable message |
 
-Coverage map (enforcement lives in the `rivet-acceptance.rktd` suites and
-their `scripts/e2e/` drivers; this table is the pointer, not a second spec):
+Coverage map (enforcement lives in the `rivet-acceptance.rktd` suites, run
+by `scripts/acceptance/run-suites.rkt`; this table is the pointer, not a
+second spec). Journey ids refer to the in-page harness
+(`apps/desktop/src/e2e.ts`) executed inside the real window by
+`verify.rkt` on windows + macos + linux:
 
 | Scenario | Enforced by | Status |
 |---|---|---|
-| Quick edit → Escape | windows-native-ui (`Escape cancelled inline task draft`) | windows ✅ · linux gap (GTK 4.22 AT-SPI exposes no external driver entry to the inline editor — no row action, unusable extents, failed grabFocus; the editor stays available to users via title click / double-click / Enter and is verified by interaction testing) · macos gap |
-| Quick edit → click away / Return | linux-native-ui (Return steps) | linux ✅ · windows/macos partial (editor traversal asserted, Return/click-away not traced) |
-| Quick edit → visible Save | linux-native-ui (`Save` asserts), windows (inline editor traversal) | linux ✅ · windows partial · macos gap |
-| Quick edit → save failure | — | gap: needs an injectable persistence failure |
-| Quick edit → visible Cancel | windows-native-ui (`inline-task-cancel`), linux-native-ui (`Cancel`) | ✅ |
-| Detail → field change / persist failure / close | macos-native-ui (detail autosave + Done), linux-native-ui (title autosave, URL and notes reopen-verified, Tomorrow quick date on first-run), windows-native-ui (detail autosave + Done) | field change + close ✅ · persist failure gap: needs an injectable persistence failure |
-| Delete → undo | macos-native-ui (`undo-delete`), linux-native-ui (staged delete + `Undo`) | macos+linux ✅ · windows partial (batch delete staged, undo trace not asserted) |
-| Delete → timeout | — | gap |
-| Search refresh | — | gap |
-| Database switch (stale token) | core-contract (`core-test.rkt` reopen/stale-token) | core ✅ · host-level trace gap |
-| Gate → create / collision | macos-native-ui (`database-gate-create`) | macos ✅ · windows/linux gap (runs on their machines) |
-| Gate → recovery (missing / relocate / retry) | macos-native-ui (`database-recovery`) | macos ✅ · windows/linux gap |
-| Migrate success / failure / collision | core-contract (`core-test.rkt` copy-migrate cases) · macos-native-ui (`database-migrate`) | core ✅ · macos ✅ · windows/linux gap |
-| Backup export / restore confirm / refused | core-contract (`core-test.rkt` backup cases) · macos-native-ui (`database-backup`) | core ✅ · macos ✅ · windows/linux gap |
-| New-task default list | core-contract (`core-test.rkt` default-list targeting) · macos-native-ui (settings picker) | core ✅ · macos ✅ · windows/linux gap |
+| Quick edit → Escape | web-ui-journeys j01 | ✅ all platforms |
+| Quick edit → click away / Return | web-ui-journeys j02 (Return + sidebar pointerdown) | ✅ all platforms |
+| Quick edit → visible Save | web-ui-journeys j03 (reopen reads every field) | ✅ all platforms |
+| Quick edit → save failure | web-ui-journeys j04 (1001-char title rejected; draft kept; stored unchanged) | ✅ all platforms |
+| Quick edit → visible Cancel | web-ui-journeys j05 | ✅ all platforms |
+| Detail → field change / persist failure / close | web-ui-journeys j06 / j07 / j08 | ✅ all platforms |
+| Delete → undo | web-ui-journeys j09 (staged delete; original id + metadata restored) | ✅ all platforms |
+| Delete → timeout | web-ui-journeys j10 (6 s window expires; engine delete committed) | ✅ all platforms |
+| Search refresh | web-ui-journeys j11 (engine `changed` push; search stays owner; owner label kept) | ✅ all platforms |
+| Database switch (stale token) | core-contract (`core-test.rkt` reopen/stale-token) · web-ui-journeys j12 (view/draft/detail/undo cleared) | ✅ all platforms |
+| Gate → create / collision | web-ui-journeys j13 (dialog create success + relaunch reopen; collision error keeps dialog) | ✅ all platforms |
+| Gate → recovery (missing / relocate / retry) | web-ui-journeys j14 | ✅ all platforms |
+| Migrate success / failure / collision | core-contract (`core-test.rkt` copy-migrate cases) · web-ui-journeys j15 | ✅ all platforms |
+| Backup export / restore confirm / refused | core-contract (`core-test.rkt` backup cases) · web-ui-journeys j16 (stale preview refused; invalid file refused) | ✅ all platforms |
+| New-task default list | core-contract (`core-test.rkt` default-list targeting) · web-ui-journeys j17 | ✅ all platforms |
 
 Gaps are the acceptance queue: closing one means adding a requirement to
 `rivet-acceptance.rktd` — never softening existing ones.
 
-Windows UI Automation, macOS Accessibility and Linux AT-SPI traces cover the
-keyboard/focus and identity-preserving undo paths. Core/RVT1 tests cover the
-database-session and stale-callback boundary. A host-specific exception must
-be written here before it can be accepted; none is declared for these rows.
+Declared host exception (single web host, glaze rewrite #141): OS-native
+modal pickers (folder/file/save dialogs) cannot be clicked by a headless
+runner. Under the acceptance gate (`TASKLY_E2E=1` + `#e2e` route) the host
+answers the next picker call with a staged path (`api/host/e2e_fs`
+`stage_pick`), so the dialog's own Choose → apply → error/confirm surface
+runs end-to-end; only the OS modal chrome is substituted. Production
+builds always open the real picker. OS-level accessibility traces
+(UIA/AX/AT-SPI) retired with the native hosts: keyboard/focus outcomes are
+asserted through real DOM events in the same window users see.
+
+Second declared exception (host capabilities): live global-hotkey
+registration needs OS trust that macOS CI sessions do not grant (TCC /
+agent session). `verify.rkt` asserts live registration on Windows and
+Linux; on macOS it asserts the shortcut API contract (invalid accelerator
+rejected with the engine message) and records the grant gap here instead
+of softening the Windows/Linux requirement.
 
 ## 7. Pickers
 

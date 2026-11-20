@@ -38,12 +38,13 @@
   (and t (not (thread-dead? t))))
 
 ;; Start the engine backend on a pipe pair and complete the RVT1 hello
-;; handshake. Requires the production backend module first (registration
-;; happens at require time, exactly as in the embedded runtime).
-(define (start-rvt1! backend-module-path)
+;; handshake. The production backend module must already be loaded by the
+;; caller (static require in backend/main.rkt so raco exe embeds it; the
+;; wire test dynamic-requires it from the source tree). Registration
+;; happens at require time, exactly as in the embedded runtime.
+(define (start-rvt1!)
   (when (unbox server-thread)
     (error 'start-rvt1! "already started"))
-  (void (dynamic-require backend-module-path #f))
   (define-values (server-in client-out) (make-pipe))
   (define-values (client-in server-out) (make-pipe))
   (set-box! client-out-box client-out)
