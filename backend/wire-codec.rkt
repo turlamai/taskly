@@ -13,7 +13,8 @@
 ;; production backend module over real RVT1 frames (backend/rvt1.rkt),
 ;; exactly the path racket/tests/backend-wire-test.rkt exercises.
 
-(require json
+(require glaze/api      ; exn:fail:glaze:bad-param — message passes both carriers
+         json
          racket/file
          racket/match
          racket/runtime-path
@@ -165,5 +166,10 @@
   (when err
     ;; The engine's message is the user-facing message (save-lifecycle
     ;; contract: the backend's message at the form, never a generic one).
-    (raise (exn:fail:user (format "~a" err) (current-continuation-marks))))
+    ;; glaze answers plain exns with a generic "internal error" on both
+    ;; carriers; bad-param is the framework's typed channel whose message
+    ;; reaches the page (HTTP 400 / native invalid-args), as glaze's own
+    ;; dialog routes use it. The transport code classifies, the engine
+    ;; message informs.
+    (raise (exn:fail:glaze:bad-param (format "~a" err) (current-continuation-marks))))
   (wire->json result (hash-ref spec 'result)))

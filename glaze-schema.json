@@ -118,6 +118,22 @@
     {
       "method": "POST",
       "path": "/api/rpc/update_state"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/pick_folder"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/pick_file"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/save_file"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/reveal"
     }
   ],
   "schema": {
@@ -129,6 +145,107 @@
         "result": {
           "kind": "reference",
           "name": "Health"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostPick_file",
+        "parameters": [
+          {
+            "name": "title",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "filters",
+            "type": {
+              "kind": "scalar",
+              "name": "Value"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostPick_folder",
+        "parameters": [
+          {
+            "name": "title",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostReveal",
+        "parameters": [
+          {
+            "name": "path",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Bool"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostSave_file",
+        "parameters": [
+          {
+            "name": "title",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "defaultName",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "filters",
+            "type": {
+              "kind": "scalar",
+              "name": "Value"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
         }
       },
       {

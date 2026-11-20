@@ -57,7 +57,15 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   });
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(detail.slice(0, 400) || `${path} failed: ${res.status}`);
+    // glaze's typed error body carries the engine's user-facing message
+    // (bad-param channel); fall back to raw text for transport errors.
+    let message = detail.slice(0, 400) || `${path} failed: ${res.status}`;
+    try {
+      const body = JSON.parse(detail) as { error?: unknown; message?: unknown };
+      const m = typeof body.error === 'string' ? body.error : typeof body.message === 'string' ? body.message : null;
+      if (m) message = m;
+    } catch { /* non-JSON body */ }
+    throw new Error(message);
   }
   return (await res.json()) as T;
 }

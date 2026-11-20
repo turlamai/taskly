@@ -17,9 +17,12 @@
 (require glaze/app        ; run-app
          glaze/api        ; POST
          glaze/api-macros ; define-api-routes
+         glaze/dialogs    ; pick-file/pick-folder/save-file-dialog
          glaze/events     ; make-event-bus, bus-broadcast!
+         glaze/shell      ; shell-spawn! (reveal in the system file manager)
          glaze/types      ; GString, GInt64, GBool, GValue, goptional, grecord
          racket/runtime-path
+         racket/system
          "../racket/taskly/version.rkt"
          "rvt1.rkt"
          "wire-codec.rkt")
@@ -166,7 +169,44 @@
    (rpc/json "start_download" (hasheq))]
   [(POST "api/rpc/update_state" #:returns GValue)
    (updateState)
-   (rpc/json "update_state" (hasheq))])
+   (rpc/json "update_state" (hasheq))]
+
+  ;; ---- host capabilities (not engine RPCs; outside the surface gate) ----
+  ;; Native pickers/reveal for the single web UI. Dialogs block their
+  ;; request thread until the user picks; #f means cancelled.
+  [(POST "api/host/pick_folder" #:returns GValue)
+   (pickFolder [title (goptional GString)])
+   (pick-folder #:title (or title #f))]
+  [(POST "api/host/pick_file" #:returns GValue)
+   (pickFile [title (goptional GString)] [filters GValue])
+   (pick-file #:title (or title #f)
+              #:filters (or filters '()))]
+  [(POST "api/host/save_file" #:returns GValue)
+   (saveFile [title (goptional GString)] [defaultName (goptional GString)]
+             [filters GValue])
+   (save-file-dialog #:title (or title #f)
+                     #:default-name (or defaultName #f)
+                     #:filters (or filters '()))]
+  [(POST "api/host/reveal" #:returns GBool)
+   (reveal [path GString])
+   (reveal-path path)])
+
+;; Show a folder in the system file manager (settings → 所在文件夹).
+;; Falls back to #f when no opener exists; the UI then shows the path.
+(define (reveal-path path)
+  (define dir
+    (if (directory-exists? path)
+        path
+        (let-values ([(base name dir?) (split-path path)])
+          (if (path? base) (path->string base) path))))
+  (with-handlers ([exn:fail? (lambda (_) #f)])
+    (case (system-type 'os)
+      [(windows) (shell-spawn! "explorer.exe" (list dir)) #t]
+      [(macosx) (shell-spawn! "open" (list dir)) #t]
+      [else (cond
+              [(find-executable-path "xdg-open")
+               (shell-spawn! "xdg-open" (list dir)) #t]
+              [else #f])])))
 
 (define engine-started? #f)
 

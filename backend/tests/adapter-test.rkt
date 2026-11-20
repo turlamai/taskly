@@ -7,7 +7,8 @@
 ;; Isolation mirrors backend-wire-test.rkt: a throwaway taskly home, so
 ;; no test touches ~/.taskly or the network.
 
-(require rackunit
+(require glaze/api
+         rackunit
          racket/file
          racket/path
          racket/runtime-path
@@ -93,10 +94,11 @@
 (check-true (hash-has-key? settings 'databasePath))
 
 ;; Engine validation errors surface as the engine's message (save-lifecycle
-;; contract), not a generic failure.
-(check-exn exn:fail:user?
+;; contract), not a generic failure: the codec raises glaze's bad-param,
+;; whose message both carriers pass to the page.
+(check-exn exn:fail:glaze:bad-param?
            (lambda () (rpc/json "parse_due" (hasheq 'expression "not a date"))))
-(with-handlers ([exn:fail:user?
+(with-handlers ([exn:fail:glaze:bad-param?
                  (lambda (e)
                    (check-true (string-contains? (exn-message e) "Cannot parse")))])
   (rpc/json "parse_due" (hasheq 'expression "not a date at all")))
