@@ -241,7 +241,8 @@ export async function bootE2E(): Promise<void> {
   await run('j11-search-refresh', async () => {
     setInput(id<HTMLInputElement>('q'), 'needle');
     await until(() => store.state.q === 'needle', 'j11 search owner');
-    assert(store.visible().some((x) => x.id === t2), 'search misses other-list task');
+    await until(() => store.visible().some((x) => x.id === t2) && !!row(t2)?.querySelector('.owner'),
+      'j11 search results rendered');
     assert((row(t2)?.querySelector('.owner')?.textContent || '').includes('Beta'), 'owner label lost');
     await rpc.addTask('needle two', listB, null, null, null);
     // engine `changed` → store refresh (push or SSE fallback)
