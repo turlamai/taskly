@@ -58,7 +58,8 @@ jobs:
           # which the glaze flatpak manifest cannot bundle. Skip the smoke
           # until the first glaze-line release exists; main stays green in
           # the meantime and the leg activates itself on that release.
-          if tar tzf "taskly-${VERSION}-linux-${ARCH}.tar.gz" | grep -q '^bin/'; then
+          # Entries are tarred from inside dist/, so they carry a ./ prefix.
+          if tar tzf "taskly-${VERSION}-linux-${ARCH}.tar.gz" | grep -Eq '^\./?bin/'; then
             echo "glaze=true" >> "$GITHUB_OUTPUT"
           else
             echo "glaze=false" >> "$GITHUB_OUTPUT"
