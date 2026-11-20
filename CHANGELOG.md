@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-20
+
+### Changed
+- **Version reset (issue #141, family convention).** The glaze rewrite is a
+  new product line: one Racket core + a single first-party glaze host (web
+  UI + thin native capabilities) replaces the three native shells
+  (WinUI 3 / SwiftUI / GTK 4). Versioning restarts at 0.1.0; entries below
+  this section describe the retired pre-reset line and are kept as history.
+- Host rewrite keeps the engine, CLI, data format and `rivet-schema.json`
+  unchanged: typed routes map 1:1 onto the existing RPC surface over an
+  in-process RVT1 pipe pair; production transport is the native GLZ1
+  carrier (no loopback port), with an explicit token-guarded HTTP adapter
+  for dev/CI. Thin host adds tray, global quick-add hotkey, a `#capture`
+  window that never opens the database, OS autostart (installed-build
+  guarded) and close-to-tray.
+- Acceptance is now an executable contract (`rivet-acceptance.rktd` +
+  `scripts/acceptance/run-suites.rkt`): real-window PRODUCT-SPEC §6 journeys
+  run inside the page against production handlers on Windows, macOS
+  arm64/x64 and Linux; the accessibility-tree drivers retired with the
+  native hosts. Two declared exceptions: OS-modal pickers are staged in
+  acceptance, and macOS CI cannot grant global-hotkey trust (TCC).
+- Update feed stays rivet-format Ed25519 (`raco rivet sign-manifest`);
+  packaging moves to glaze build (DMG/zip, MSI/zip, deb/rpm/AppImage/
+  tar.gz/Flatpak).
+
+### Fixed
+- Undo restores the original task identity (staged delete, PRODUCT-SPEC §6)
+  instead of delete-then-recreate.
+- Restore refuses a stale preview (generation guard) with an actionable
+  error.
+- `changed` push no longer dies silently on void-valued snapshot fields
+  (adapter sanitizes before SSE/GLZ1 broadcast).
+
 ## [0.2.13] - 2026-11-18
 
 ### Added
