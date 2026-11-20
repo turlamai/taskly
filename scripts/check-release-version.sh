@@ -56,33 +56,20 @@ APP_BUILD="$(sed -nE 's/^\(define app-build ([0-9]+)\).*/\1/p' "$ROOT/racket/tas
 [[ -n "$RIVET_RKTD_BUILD" && "$RIVET_RKTD_BUILD" == "$APP_BUILD" ]] || \
   fail "rivet.rktd build '${RIVET_RKTD_BUILD:-missing}' does not match app-build '${APP_BUILD:-missing}'"
 
-# The generated native clients embed the same release identity. These files
-# are marked do-not-edit: a mismatch means the tree forgot to regenerate
-# them after the version bump (the 0.1.1 release shipped a stale macOS
-# constant and was only patched by hand in commit 8c34ed5).
-check_generated_version() {
-  local file="$1" pattern="$2" found
-  found="$(grep -oE "$pattern" "$ROOT/$file" | head -n1 | grep -oE '"[^"]*"' | tr -d '"')"
-  [[ "$found" == "$VERSION" ]] || \
-    fail "generated file '$file' version '${found:-missing}' does not match VERSION '$VERSION' (regenerate, do not hand-edit)"
-}
-check_generated_version \
-  "macos-host/Sources/RivetHost/GeneratedBackend.swift" \
-  'public static let version = "[^"]+"'
-check_generated_version \
-  "windows/GeneratedBackend.hpp" \
-  'kVersion\[\] = "[^"]+"'
-check_generated_version \
-  "linux/GeneratedBackend.hpp" \
-  'kVersion\[\] = "[^"]+"'
+# The web app package carries the same release identity (glaze build stamps
+# --version from it in CI; a drift would ship a mislabelled bundle).
+PYBIN=python3
+"$PYBIN" -c 'pass' >/dev/null 2>&1 || PYBIN=python
+NODE_VERSION="$("$PYBIN" -c "import json,sys;print(json.load(open(sys.argv[1],encoding='utf-8'))['version'])" "$ROOT/package.json" 2>/dev/null || true)"
+[[ "$NODE_VERSION" == "$VERSION" ]] || \
+  fail "package.json version '${NODE_VERSION:-missing}' does not match VERSION '$VERSION'"
 
-# Keep the signing key identity aligned across the backend, macOS verifier,
-# and documented manifest contract. The manifest generator reads the backend
-# key id, so a mismatch here would make a correctly signed release unusable.
+# Keep the signing key identity aligned across the backend and the documented
+# manifest contract. The manifest generator reads the backend key id, so a
+# mismatch here would make a correctly signed release unusable.
 BACKEND_KEY_ID="$(sed -n 's/^(define update-key-id "\([^"]*\)".*/\1/p' "$ROOT/racket/taskly/updater.rkt")"
-MACOS_KEY_ID="$(sed -n 's/.*public static let expectedKeyID = "\([^"]*\)".*/\1/p' "$ROOT/macos-host/Sources/RivetHost/UpdateService.swift")"
 SPEC_KEY_ID="$(grep -oE '"key_id": "[^"]+"' "$ROOT/shared/spec/UPDATE.md" | head -n1 | cut -d '"' -f4 || true)"
-[[ -n "$BACKEND_KEY_ID" && "$BACKEND_KEY_ID" == "$MACOS_KEY_ID" && "$BACKEND_KEY_ID" == "$SPEC_KEY_ID" ]] || \
-  fail "update key id differs across backend, macOS host, and shared UPDATE contract"
+[[ -n "$BACKEND_KEY_ID" && "$BACKEND_KEY_ID" == "$SPEC_KEY_ID" ]] || \
+  fail "update key id differs between backend and shared UPDATE contract"
 
 echo "release preflight: version $VERSION and update key identity are aligned"

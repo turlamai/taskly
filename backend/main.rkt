@@ -255,8 +255,8 @@
 
 (define-runtime-path i18n-zh "../shared/i18n/zh.json")
 (define-runtime-path i18n-en "../shared/i18n/en.json")
-(define-runtime-path icon-ico "../shared/assets/icon.ico")
-(define-runtime-path icon-png "../shared/assets/icon-512.png")
+(define-runtime-path icon-ico "../assets/taskly.ico")
+(define-runtime-path icon-png "../assets/icon-512.png")
 
 ;; Host-side labels (tray menu) read the same i18n single source as the
 ;; web table; language follows config `language` at tray install time.

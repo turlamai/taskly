@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Verify that the release Ed25519 private key is trusted by both updater clients.
-# This check runs before expensive native packaging and again before publication.
+# Verify that the release Ed25519 private key is trusted by the updater.
+# Since the glaze rewrite (issue #141) the engine updater is the single
+# verifier; the native macOS trust root retired with its host.
+# This check runs before expensive packaging and again before publication.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,13 +26,9 @@ fi
 [[ "$(wc -c < "$PUBLIC_DER" | tr -d '[:space:]')" == "44" ]] || fail "signing key must be Ed25519"
 
 DER_PUBLIC="$(base64 -w0 < "$PUBLIC_DER")"
-RAW_PUBLIC="$(tail -c 32 "$PUBLIC_DER" | base64 -w0)"
 EXPECTED_DER="$(sed -n '/(define update-public-key-b64/{n;s/^[[:space:]]*"\([^"]*\)".*/\1/p;}' "$ROOT/racket/taskly/updater.rkt")"
-EXPECTED_RAW="$(sed -n 's/.*public static let publicKeyBase64 = "\([^"]*\)".*/\1/p' "$ROOT/macos-host/Sources/RivetHost/UpdateService.swift")"
 
 [[ -n "$EXPECTED_DER" && "$DER_PUBLIC" == "$EXPECTED_DER" ]] ||
   fail "signing key does not match the Racket updater trust root"
-[[ -n "$EXPECTED_RAW" && "$RAW_PUBLIC" == "$EXPECTED_RAW" ]] ||
-  fail "signing key does not match the macOS updater trust root"
 
-echo "Release signing key matches both updater trust roots"
+echo "Release signing key matches the updater trust root"

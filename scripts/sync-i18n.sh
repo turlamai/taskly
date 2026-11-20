@@ -17,7 +17,9 @@ cd "$(dirname "$0")/.."
 
 check() {
   local status=0
-  python3 - <<'PY' || status=1
+  local pybin=python3
+  "$pybin" -c 'pass' >/dev/null 2>&1 || pybin=python
+  "$pybin" - <<'PY' || status=1
 import json, sys
 
 def load(path):

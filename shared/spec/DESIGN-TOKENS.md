@@ -3,14 +3,15 @@
 > Taskly's visual language is warm, quiet and content-first: a terracotta
 > action accent, warm neutral surfaces and generous whitespace. Platform-native
 > typography and controls stay intact; Things, TickTick and Reminders are
-> interaction references rather than pixel templates. Every platform
-> implements these values as named constants; smart-tile colors remain
-> theme-independent.
+> interaction references rather than pixel templates. The single glaze web
+> host consumes these values directly from the prototype CSS; smart-tile
+> colors remain theme-independent.
 
 **v0.2 baseline (2026-11-12, prototype polish, issue #130).** Values have a
-single home: `design/prototype/shared.css`. `scripts/check-design-tokens.py`
-parses the CSS and gates the three hosts against it — hosts aligned in the
-same atomic slice (drift D11 ✅): light tertiary darkened `#767370 → #6B6866`
+single home: `design/prototype/shared.css`. Since the glaze rewrite
+(issue #141) the web UI `@import`s that file (plus `database-flow.css`)
+unchanged, so there is exactly one implementation and no cross-host parity
+gate: light tertiary darkened `#767370 → #6B6866`
 (4.9:1, safe at 12px); dark secondary lifted `#B2AEAC → #C3BFBD`; danger and
 planned become
 light/dark pairs; new semantic tokens (divider-strong, accent-ink,
@@ -149,84 +150,46 @@ White rounded square (macOS-squircle radius ≈ 22.5%) with a quiet checklist
 mark: one terracotta rounded bar over two neutral (`#CECED3`) bars, staggered
 widths. Monochrome, no gradients — must read on light and dark docks alike.
 
-## Windows MSI installer artwork
+## Installer artwork (native-host contracts retired, issue #141)
 
-WiX 5's `WixUI_InstallDir` shares `assets/wizard-dialog.bmp` (493×312)
-between welcome and completion pages. Its `ExitDialog` optional checkbox is
-**opaque** at x=135…355 and y=190…230 installer units, mapping to approximately
-x=180…473 and y=253…307 on the bitmap. Gradients under this native control
-produce a conspicuous rectangular patch.
+The WiX wizard bitmap contract and the branded macOS DMG background contract
+lived with the three native hosts and are retired with them (slice 4). The
+glaze installer chain consumes the brand assets directly: `assets/taskly.ico`
+(Windows MSI/NSIS + tray) and `assets/taskly.icns` (macOS bundle); the DMG is
+the plain drag-to-Applications volume (family glaze-line pattern). The retired
+artwork sources (`wizard-*`, `dmg-background.*`) and their pixel gates
+(`scripts/check-windows-installer-bitmaps.py`, `scripts/render-dmg-background.sh`)
+are deleted; history stays in git.
 
-The image's **entire bottom footer** (y=248…311) is flat classic Windows
-button-face `#F0F0F0`, with a subtle divider at y=247. The interactive
-checkbox remains native and accessible, while its backing now blends into the
-same surface. Keep SVG, PNG preview, and shipping BMP synchronized.
-`scripts/check-windows-installer-bitmaps.py` verifies pixel identity and
-native checkbox surface in CI, packaged acceptance and Windows release.
+## Host mapping (single glaze web host)
 
-## macOS DMG artwork contract
-
-- The editable source is `assets/dmg-background.svg`; the shipping installer
-  embeds `assets/dmg-background.png`, regenerated before macOS release and
-  packaged acceptance by `scripts/render-dmg-background.sh` (`librsvg`).
-- Finder's branded installer is 660×400 points at 2× scale, requiring a
-  1320×800 background. The Taskly and Applications icon slots are controlled
-  by pinned Rivet (positions 130,160 and 450,160 at 80pt icons). Keep the
-  straight drag arrow centered in the clear space between those slots and
-  do not draw art over the icon/label areas. The small `DRAG TO INSTALL`
-  cue and high-contrast bottom instruction sit entirely in the background's
-  clear middle and lower text zones, never underneath Finder's icon labels.
-- Final visual acceptance must inspect the mounted DMG in Finder (not only the
-  raw SVG/PNG): app icon, Applications target, arrowhead and labels must stay
-  aligned at native scale. The 1320x800 renderer check is necessary but cannot
-  prove Finder's overlay composition is correct.
-
-## Platform mapping table (where tokens live in each host)
-
-The contract above is consumed at fixed, CI-checked locations. When changing
-a token value: change it here first, then in all three hosts —
-`scripts/check-design-tokens.py` gates the shared hexes in CI (coverage gap:
-see drift D9).
+The contract above is consumed at one fixed location. When changing a token
+value: change `design/prototype/shared.css` (or `database-flow.css`) — the web
+UI imports both unchanged, so every surface follows in the same commit.
 
 | Host | Colors | Theme switching | Geometry/type |
 |---|---|---|---|
-| macOS — `macos-host/Sources/RivetHost/Theme.swift` | `Palette` code constants (this file is cited in the file header); dual light/dark constants with `ThemeState.isDark` ternaries; list palette `listColorsHex` | KVO on `NSApplication.effectiveAppearance`; settings override via `NSApp.appearance` (`nil` = system) | sidebar 280 / status 28 / chip 34; window `.defaultSize(1280×880)`, min 760×520 |
-| Windows — `windows/MainWindow.xaml` `ResourceDictionary.ThemeDictionaries` | Light/Dark dictionaries: `TasklyAccentBrush`, `TasklySidebarBrush`, `TasklySurfaceBrush`, `TasklyDividerBrush`, `TasklySelectionBrush`, `TasklyHoverBrush`, secondary/muted text brushes; theme-independent tile brushes below the dictionaries | `RootGrid().RequestedTheme` via `MainWindow::ApplyTheme`; `ActualThemeChanged` re-applies brushes to hand-built rows | sidebar 280 (200–420); search 28 (spec 30 — D5); quick-add 40/12 (spec 36/10 — D6) |
-| Linux — `linux/src/main.cpp` `Palette`/`kLight`/`kDark` + `apply_css` | constexpr palette mirroring Theme.swift (incl. alpha selection/hover); CSS assembled as strings at runtime, no .css file | GSettings `color-scheme prefer-dark`, libadwaita fallback theme-name sniff; forcing light on a dark system is an accepted delta without libadwaita | sidebar 200–420 via paned handle; menu bar 30 (spec 32 — D7); default window 1000×680 (see D1) |
+| glaze web UI — `apps/desktop/src/style.css` `@import`s `design/prototype/shared.css` + `database-flow.css` | the prototype's semantic custom properties, verbatim | `prefers-color-scheme` + persisted `data-theme` override applied before first paint (`src/theme.ts`) | prototype geometry verbatim (sidebar 280, search 30, quick-add 36/r10, detail layer per §Anchored task detail layer) |
 
-Tile glyphs stay monochrome platform icon fonts (SF Symbols / Segoe Fluent
-Icons / symbolic icons) on every host.
+Tile glyphs stay monochrome (emoji catalog from `shared/emoji.json`, rendered
+as text glyphs in the web list tiles).
 
-## Drift ledger (spec vs hosts, recorded 2026-11-11)
+## Drift ledger (retired with the native hosts, issue #141)
 
-Recorded by the design-gate slice (issue #121). Each item is fixed by an
-implementation slice or resolved by an explicit spec amendment — never
-silently pick a side:
-
-| # | Item | Spec | Reality | Resolution owner |
-|---|---|---|---|---|
-| D1 | Window default size | ~~DESIGN-TOKENS says 1280×880, PRODUCT-SPEC §2 says 1024×768~~ | all legs 1280×880 ✅ (Windows/Linux aligned on leg/linux-win-align) | ✅ resolved: spec amended + legs aligned |
-| D2 | Windows due-today color | = action accent | ~~`TasklyDueTodayBrush #C4501B` / dark `#F2913D`~~ | ✅ fixed on leg/win-drift-2 |
-| D3 | Windows overdue color | `#FF3B30` | ~~`#D13438` / dark `#FF6B6E`~~ | ✅ fixed on leg/win-drift-2 |
-| D4 | Windows hover/selection fills | alpha fills (hover 5%/7%, selection 8%/12%) | ~~opaque approximations `#EBE9E7`/`#332F2F` and `#E8E4E0`/`#3A3736`~~ | ✅ fixed on leg/win-drift-2 |
-| D5 | Search box height | 30px | ~~Windows 28~~ | ✅ fixed on leg/win-drift-2 |
-| D6 | Quick-add field | 36px, radius 10 | ~~Windows 40/r12 · Linux 38/r12~~ | ✅ fixed on leg/win-drift + leg/linux-win-align |
-| D7 | Menu bar height | 32 | ~~Linux 30~~ | ✅ fixed on leg/linux-win-align |
-| D8 | List editor picker | tabbed 8×12 emoji grid + 12-swatch row, same on every platform | macOS complete · Linux ✅ upgraded to shared/emoji.json tabbed grid · **Windows has no picker at all** (plain text prompt) | Windows leg slice — the remaining contract violation |
-| D9 | Token CI coverage | every shared hex gated on every host | ~~only 6 values on Windows~~ | ✅ extended on leg/win-drift-2 |
-| D10 | Completed checkbox | ~~PRODUCT-SPEC §5: "ring + check in accent"~~ | leg audit 2026-11-11: macOS compliant · Linux declared exception (§5 8px dot) · **Windows stock CheckBox = undeclared drift** | ✅ spec amended; Windows leg slice: implement the 20px list-color ring or declare the exception in §5 first |
-| D11 | Token values v0.2 on hosts (issue #130) | light tertiary `#6B6866`, dark secondary `#C3BFBD`, checker derives all gated values from shared.css | ~~hosts + checker at v0.1 values~~ | ✅ resolved: atomic slice aligned Theme.swift + MainWindow.xaml + main.cpp + checker (checker now parses shared.css, no value dict) |
-| D12 | Overdue color on hosts | `danger` pair (see D11) | ~~theme-independent `#FF3B30` overdue brush/text on all three legs~~ | ✅ resolved: atomic slice migrated Theme.swift (`lightDanger`/`darkDanger` + `ThemeState.danger`), Windows `TasklyOverdueBrush` and Linux `Palette.overdue` to the parsed `--danger` pair; checker gates all legs |
-| D13 | Detail layer on hosts | anchored task-detail popover with per-field autosave (§Anchored task detail layer) + theme system (persisted light/dark/system, boot-before-paint) | ~~hosts implement the inline quick editor only~~ | ✅ resolved on all three legs in 0.2.12 (macOS TaskDetailPopover `c6f8f63`; Windows Flyout + Linux overlay panel `ba9000c`; acceptance traces green on all CI legs + Ubuntu VM). Reminder offsets staged (A2, #131) |
+D1–D13 (recorded 2026-11-11 by the design-gate slice, issue #121) tracked spec
+vs. the three native hosts. With a single web host importing the prototype CSS
+there is no cross-host drift surface left; the ledger and its gate
+(`scripts/check-design-tokens.py`) are retired in slice 4. The full table stays
+readable in git history.
 
 ## Prototype-first process (this repo)
 
-- The visual contract is **this file** (single source — Theme.swift cites it
-  in its header). Prototypes live in `design/prototype/` and render this
-  contract as reviewable HTML before any host code changes: contract change →
-  prototype update → review → then the legs.
+- The visual contract is **this file** plus the prototype CSS it points at.
+  Prototypes live in `design/prototype/` and render this contract as
+  reviewable HTML before UI code changes: contract change → prototype update
+  → review → then the web host (which imports the prototype directly).
 - Design-gate exit: key screens prototyped, interaction logic locked against
-  PRODUCT-SPEC, drift ledger dispositioned.
+  PRODUCT-SPEC.
 - Platform-native idioms stay (PRODUCT-SPEC header): prototypes express
   intent, not pixel templates — a host-specific exception must be written
   into PRODUCT-SPEC before implementation, never discovered in review.
