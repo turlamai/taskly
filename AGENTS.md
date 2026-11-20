@@ -2,7 +2,7 @@
 
 ## Current owner decision — 2026-11-18 quality-first
 
-This is a **non-commercial development product**. The previous 2026-10 authorization, pricing, trial, Pro and Permit/Commerce rollout decisions are canceled. Do not implement or restore checkout, activation, subscription, paid feature gates, trial expiry or update-entitlement windows. Keep source licenses, release-signature verification, privacy protections and tested data migration intact. Focus only on real product functionality, native platform parity, recovery, clear bilingual READMEs and honest website status. Read the [current family policy](https://github.com/turlamai/turlamai.github.io/blob/master/PORTFOLIO.md) before every development slice.
+This is a **non-commercial development product**. The previous 2026-10 authorization, pricing, trial, Pro and Permit/Commerce rollout decisions are canceled. Do not implement or restore checkout, activation, subscription, paid feature gates, trial expiry or update-entitlement windows. Keep source licenses, release-signature verification, privacy protections and tested data migration intact. Focus only on real product functionality, cross-platform parity (single glaze host), recovery, clear bilingual READMEs and honest website status. Read the [current family policy](https://github.com/turlamai/turlamai.github.io/blob/master/PORTFOLIO.md) before every development slice.
 
 ## Required policy discovery at each slice
 
@@ -30,50 +30,57 @@ Current approved launch design is in [PR #60](https://github.com/turlamai/taskly
 
 ## 这是什么
 
-Taskly 是 Rivet 架构的待办应用（monorepo）：**一个 Racket CS 领域核心 + 三平台第一方原生宿主**。宿主只渲染和交互，全部业务逻辑在核心，两端经 Rivet 的类型化 RPC（RVT1）通信。
+Taskly 是 Rivet 架构的待办应用（monorepo）：**一个 Racket CS 领域核心 + 单一 glaze 宿主（web UI）**。宿主只渲染和交互，全部业务逻辑在核心，两端经 Rivet 的类型化 RPC（RVT1）通信；glaze 适配器把 RVT1 进程内 pipe 对暴露为 typed 路由（native GLZ1 carrier 或显式 HTTP dev adapter）。
 
 | 组件 | 技术 | 目录 | 验证状态 |
 |---|---|---|---|
 | 领域核心 + CLI | Racket CS 9.3 | `racket/taskly/`（+ `racket/tests/`） | ✅ 契约测试 + 63 例 golden CLI 全绿 |
-| macOS 宿主 14+ | Swift 6 + SwiftUI | `macos-host/` | ✅ CI 构建 |
-| Windows 宿主 10+ | WinUI 3 (C++/WinRT) | `windows/` | ✅ CI 构建 |
-| Linux 宿主 | GTK 4（C++/CMake） | `linux/` | ✅ CI 构建 + xvfb 冒烟 |
+| glaze 适配器 + 薄宿主 | Racket（glaze pin） | `backend/` | ✅ 三平台 CI + 真窗 verify |
+| Web UI（唯一界面） | TypeScript + Vite | `apps/desktop/`（+ `packages/core/` 生成客户端） | ✅ 三平台真窗 §6 全旅程 |
 
-宿主代码中的 `GeneratedBackend.swift` / `GeneratedBackend.hpp` / 客户端代码由 `raco rivet build` 从 `racket/taskly/backend.rkt`（RPC 契约）生成，**不要手改**。架构决策记录：`ARCHITECTURE.md`；迁移史只在 git 历史（原生线止于 `51c9c1c`）。发现 rivet 能力缺口直接提 rivet issue/PR。
+`packages/core/src/rpc.ts` 由 `scripts/gen-rpc-types.py` 从 `rivet-schema.json` 生成，`glaze-schema.json` 由 `raco glaze schema write` 生成，**都不要手改**；`scripts/check-rpc-surface.py` 门禁路由/生成客户端/契约三者对齐。架构决策记录：`ARCHITECTURE.md`；三平台原生宿主迁移史只在 git 历史（原生线止于 `51c9c1c`，glaze 换线见 issue #141）。发现 rivet/glaze 能力缺口直接提上游 issue/PR。
 
 ## 快速命令
 
 ```bash
 # 核心（任何平台）
-raco rivet build          # 生成客户端 + 编译核心 bundle + 构建当前平台宿主
-raco rivet acceptance --json # 当前平台完整验收：契约、真实 RVT1、构建、打包、原生 UI
 raco test racket/         # 契约测试
+racket scripts/acceptance/run-suites.rkt  # 当前平台完整验收：契约、RVT1、glaze 构建、真窗 §6 旅程、更新
+racket verify.rkt         # 真窗冒烟 + §6 全旅程（需图形会话；Linux CI 用 dbus+xvfb）
 scripts/taskly-cli.sh list --json                          # dev CLI（系统 racket）
 python3 shared/cli-golden/runner.py --binary scripts/taskly-cli.sh   # 63 例 golden 套件（--record 重录）
 
+# UI / 适配器
+pnpm install && pnpm check && pnpm build   # web UI 类型检查 + 构建
+raco glaze schema write   # 重生成 glaze-schema.json（路由变更后）
+python3 scripts/gen-rpc-types.py           # 重生成 packages/core/src/rpc.ts
+raco glaze build --entry backend/main.rkt --name Taskly --version "$(cat VERSION)" --identifier app.taskly.Taskly --out dist
+
 # 发布链
-bash scripts/check-release-version.sh [tag]   # VERSION == rivet.rktd == tag
+bash scripts/check-release-version.sh [tag]   # VERSION == rivet.rktd == version.rkt == info.rkt == package.json == tag；另核 CHANGELOG 段、build 号、更新 key id
 scripts/make-update-manifest.sh v<ver> <dist-dir>   # 签名更新清单（Ed25519，需 OpenSSL 3）
 
 # i18n / emoji 单源同步
-scripts/sync-i18n.sh            # shared/i18n → 各宿主资源目录
-scripts/sync-i18n.sh --check    # CI 模式：仅校验
+python3 scripts/gen-web-i18n.py   # shared/i18n → apps/desktop/src/i18n.ts（生成物）
+scripts/sync-i18n.sh --check    # CI 模式：校验 zh/en 键齐 + emoji.json 可解析
 ```
 
 开始修改已有 checkout 前，必须先检查 `git status`，再以 fast-forward-only
 方式更新 tracked remote。工作树非干净、分支已分叉或远端不可达时，保留现场并
 报告，不得用 stash/reset/清理生成目录掩盖状态。记录本次工作的起始 commit。
 
-`rivet-acceptance.rktd` 是可执行的完成定义。Agent 不得通过删除 requirement、
-放宽断言、改 golden 期望或用 CLI 代替 GUI 行为来让变更变绿；required suite
-只要在声明平台未执行、超时、失败或没有生成本次运行的新证据，就不能称为完成。
+`rivet-acceptance.rktd` 是可执行的完成定义，由 `scripts/acceptance/run-suites.rkt`
+按平台执行（逐 suite 日志 + summary + evidence 校验）。Agent 不得通过删除
+requirement、放宽断言、改 golden 期望或用 CLI 代替 GUI 行为来让变更变绿；
+required suite 只要在声明平台未执行、超时、失败或没有生成本次运行的新证据，
+就不能称为完成。真窗旅程的门禁与平台例外声明在 PRODUCT-SPEC §6。
 
-发布 = 改 `VERSION` + `rivet.rktd` + `CHANGELOG.md`（三处同值）→ 推 tag `v*`，release.yml 自动打包三平台 + SHA256SUMS + 签名 update manifest。
+发布 = 改 `VERSION` + `rivet.rktd` + `racket/taskly/version.rkt` + `package.json` + `CHANGELOG.md`（同值）→ 推 tag `v*`，release.yml 自动打包三平台 + SHA256SUMS + 签名 update manifest（馈送保持 rivet 格式，`raco rivet sign-manifest` 签名）。
 
 ## 实现路由（agent 按任务读真源）
 
 - **实现界面**：以 `design/prototype/` 为准——对照 HTML/CSS/JS 与实物截图验收，不依赖散文复述。原型里契约与脚手架混用（假数据、`TODAY` 常量）；行为拿不准时以 `shared/spec/PRODUCT-SPEC.md` 为准，不要从 JS 反推契约。
-- **Token/几何值**：唯一真源 = `design/prototype/shared.css`；`scripts/check-design-tokens.py` 解析它并门禁三腿常量（Theme.swift / MainWindow.xaml / main.cpp）。改值 = 只改 shared.css，同一切片对齐三腿；不在文档或脚本里复制值。
+- **Token/几何值**：唯一真源 = `design/prototype/shared.css`；web UI 经 `apps/desktop/src/style.css` 的 `@import` 单源引用（database-flow.css 同）。单一 web 宿主后无跨宿主常量门禁（旧三腿门禁已退役）；改值 = 只改 shared.css。
 - **行为契约**：`shared/spec/PRODUCT-SPEC.md`（§6 场景表 = 验收测试计划，覆盖映射见表后 Coverage map）；视觉语义 = `shared/spec/DESIGN-TOKENS.md`（值已指向 shared.css，只记语义与决策）。
 - **动共享层**（spec/prototype/scripts/rivet-acceptance.rktd）先 issue 声明，契约与实现同 commit 落账。
 
@@ -94,8 +101,8 @@ scripts/sync-i18n.sh --check    # CI 模式：仅校验
 - **golden 套件是 CLI 的字节级契约**：改 CLI 行为 → 先改 `CLI-SPEC.md`，再 `--record` 重录，人工 review diff。新 case 必须录制，禁止静默跳过；禁止空 `args` 的 case（会启动 GUI）
 - **DB schema**：加列/迁移必须 bump `user_version` + 更新 DATA-FORMAT.md（核心只有 `racket/taskly/db.rkt` 一个实现）
 - **CLI JSON**：task 对象 `id, listId, listName, text, completed, dueDate, dueTime, notes, createdAt`（null 省略、2 空格缩进、非 ASCII `\uXXXX` 转义）；错误走 stderr `{"ok":false,"error":…,"exitCode":N}`
-- **RPC 契约**：改 `backend.rkt` 的 RPC/事件 → `raco rivet build` 重新生成三平台客户端后才能编译宿主
-- **通知永不崩溃**：权限拒绝/传输失败 → 本会话禁用通知（0.6.1 macOS 崩溃事故是永久回归测试）
+- **RPC 契约**：改 `backend.rkt` 的 RPC/事件 → `scripts/gen-rpc-types.py` + `raco glaze schema write` 重生成客户端与基线 → `scripts/check-rpc-surface.py` 与 `raco glaze schema check --json` 门禁 → 适配器路由 1:1 对齐
+- **提醒 staged**（#131）：reminder 字段仅 staged UI，不做 OS 通知调度；将来恢复通知时权限拒绝/传输失败不得崩溃（0.6.1 macOS 崩溃事故是永久回归教训）
 - **`~/.taskly/` 路径约定**：GUI/CLI/云盘同步都依赖它
 
 ## 项目结构
@@ -104,31 +111,34 @@ scripts/sync-i18n.sh --check    # CI 模式：仅校验
 taskly/
 ├── racket/taskly/      Racket CS 领域核心：db · cli · service · date-parser · validation · backend（RPC 契约）
 ├── racket/tests/       核心契约测试（raco test racket/）
-├── macos-host/         SwiftUI 宿主（Swift 包；含 UpdateService 应用内更新器）
-├── windows/            WinUI 3 宿主（XAML + C++/WinRT）
-├── linux/              GTK 4 宿主（CMake；宿主模板在 rivet 侧，此处放生成头）
+├── backend/            glaze 适配器：typed 路由 · RVT1 pipe 对 · 薄宿主（tray/hotkey/capture/autostart）· e2e 门禁
+├── apps/desktop/       唯一 web UI（Vite + TS；store/main/database-flow/settings/e2e harness）
+├── packages/core/      生成客户端 rpc.ts + 双传输 bridge（native GLZ1 / HTTP fetch+SSE）
 ├── shared/
 │   ├── spec/           六份契约文档（canonical）
 │   ├── i18n/           zh/en 单源
 │   ├── emoji.json      清单图标单源
 │   └── cli-golden/     63 例 golden CLI 套件（cases.json + runner.py + golden/）
-├── scripts/            taskly-cli.sh · sync-i18n.sh · check-release-version.sh · make-update-manifest.sh · update-keys.sh · e2e/
+├── scripts/            taskly-cli.sh · sync-i18n.sh · gen-rpc-types.py · gen-web-i18n.py · check-rpc-surface.py · check-release-version.sh · make-update-manifest.sh · update-keys.sh · acceptance/run-suites.rkt
+├── flatpak/            Linux Flatpak 打包（glaze payload）
 ├── site/               GitHub Pages 站点（taskly.jrtx.site，pages.yml 部署）
 ├── docs/               用户文档（USER-GUIDE 等 .md）
-├── .github/workflows/  ci.yml（contract·core+golden·三平台宿主）· release.yml（三平台打包+签名清单）
-├── VERSION + rivet.rktd  版本双源（发版前必须同值）
+├── .github/workflows/  ci.yml（contract·frontend·core+golden·三平台适配器·package-smoke）· acceptance.yml（三平台真窗全 suites）· release.yml（三平台打包+签名清单）
+├── VERSION + rivet.rktd + racket/taskly/version.rkt + package.json  版本同源（发版前必须同值）
+├── rivet-acceptance.rktd  可执行验收契约（run-suites.rkt 执行）
+├── verify.rkt          真窗冒烟 + §6 全旅程 verdicts
 ├── ARCHITECTURE.md     架构决策记录
 └── CHANGELOG.md        发布说明来源（release 说明自动提取对应版本段）
 ```
 
 ## 常见任务指引
 
-- **改共享行为**（视图过滤、CLI 语义、排程）：改 `racket/taskly/` + 同步 `shared/spec/`，跑 `raco test racket/` + golden；宿主侧只改展示层
+- **改共享行为**（视图过滤、CLI 语义、排程）：改 `racket/taskly/` + 同步 `shared/spec/`，跑 `raco test racket/` + golden；UI 侧只改展示层
 - **加 CLI 子命令**：单点实现于 `racket/taskly/cli.rkt`，补 `CLI-SPEC.md`，`--record` 重录 golden
-- **加 RPC**：`racket/taskly/backend.rkt` 定义 → `raco rivet build` 重新生成客户端 → 宿主调用生成代码
-- **macOS 宿主 UI**：`macos-host/Sources/RivetHost/`（AppModel @Observable + SwiftUI 视图），交互基准见 PRODUCT-SPEC §5b
-- **改文案**：改 `shared/i18n/`，跑 `scripts/sync-i18n.sh`；改清单图标：改 `shared/emoji.json` 同样同步
-- **发版**：见「快速命令」发布链；rivet pin（ci.yml 与 release.yml 的 `RIVET_PIN` 保持一致）只能有意 bump 并重新跑全套 CI
+- **加 RPC**：`racket/taskly/backend.rkt` 定义 → `gen-rpc-types.py` + `raco glaze schema write` → `backend/main.rkt` 加 1:1 typed 路由 → 门禁绿 → UI 经 `packages/core` 调用
+- **Web UI**：`apps/desktop/src/`（store 快照 + 逐字段 autosave；交互基准见 PRODUCT-SPEC §5/§6，视觉基准 `design/prototype/`）；真窗验收 `racket verify.rkt`
+- **改文案**：改 `shared/i18n/`，跑 `python3 scripts/gen-web-i18n.py` 重生成 `i18n.ts`（`sync-i18n.sh --check` 校验键齐）；改清单图标：改 `shared/emoji.json`
+- **发版**：见「快速命令」发布链；三 pin（`RIVET_PIN`/`KEEL_PIN`/`GLAZE_PIN` 跨 ci/acceptance/release 对齐，`scripts/check-dependency-pins.sh` 门禁）只能有意 bump 并重新跑全套 CI
 
 ## 组合定位（Portfolio placement）
 

@@ -1,5 +1,11 @@
 # Taskly prototype refinement
 
+> **Host-generation note (2026-11-20, issue #141):** the product host is now
+> the single glaze web UI. Where this document contrasts browser-prototype
+> limits with "native" behavior, read "native" as the thin-host capabilities
+> the glaze adapter provides (pickers, tray, hotkey, autostart); the
+> prototype's CSS/IA is the web host's visual single source.
+
 ## Scope
 
 This iteration retains the existing compact neutral design, semantic colors, and light/dark themes. It changes the HTML prototype only; the upstream product and token specifications referenced by DESIGN.md are not modified here.

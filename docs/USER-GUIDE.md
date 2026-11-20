@@ -22,7 +22,7 @@ Use [official Releases](https://github.com/turlamai/taskly/releases), select an 
 
 1. The default list is ready on first launch. Add one non-sensitive task in the field above the empty-state hint; no setup wizard or list creation is required.
 2. Open the task, choose a date, then use the visible Save action. Quit and reopen Taskly and confirm the task and date persisted.
-3. For reminders, allow OS notifications and test one while the app is running. Do not assume delivery while it is closed or the computer sleeps.
+3. Reminders: the reminder field persists, but OS notification delivery is staged (#131) — do not expect banners yet, in any state.
 
 ## Data, backup and recovery
 
@@ -30,9 +30,9 @@ Tasks use SQLite, normally ~/.taskly/tasks.db, with configuration in ~/.taskly/c
 
 ## Keyboard and editing
 
-Use Command on macOS and Ctrl on Windows/Linux: 1–4 switches smart views, N focuses quick add, F focuses search, and Shift+C toggles completed tasks. In the task list, arrows move selection and Enter opens inline editing. The editor always shows Save and Cancel; Enter saves, while Escape or Cancel discards the whole draft, then a second Escape clears selection. The date action offers Today, Tomorrow and This Weekend above the native calendar. Choosing a date only changes the draft: Save, Enter or clicking another row persists it, with saving/success/error feedback. A failed explicit save keeps the draft available for retry. Delete is staged for about six seconds; Undo restores the same task identity and metadata.
+Ctrl/⌘+K focuses search. In the task list, Enter (or the edit action) opens inline editing; the editor always shows Save and Cancel. Enter saves, Escape or Cancel discards the whole draft, and clicking outside the editor commits it. The date chip cycles none → today → tomorrow; arbitrary dates and times live in the details popover's date/time fields. Choosing a date in the editor only changes the draft: Save, Enter or clicking another row persists it, with saving/success/error feedback. A failed explicit save keeps the draft available for retry. Delete is staged for about six seconds; Undo restores the same task identity and metadata. Multi-select, batch actions, arrow-key row navigation and the Ctrl/⌘+1…4 / N / F / ⇧C accelerators are benchmark targets not yet in this host (see UX-BENCHMARKS).
 
-The ⓘ button on a task row opens the task details popover (macOS preview): completion, title, date, time, priority, tags, subtasks, notes, URL and list membership in one layer. Every change saves as it is made — closing never discards — and a failed save anchors an actionable error to its field. Clicking the task title still opens the inline editor. The details popover for Windows and Linux lands in an upcoming preview.
+The ⓘ button on a task row opens the task details popover on every platform: completion, title, date, time, priority, tags, subtasks, notes, URL and list membership in one layer. Every change saves as it is made — closing never discards — and a failed save anchors an actionable error to its field. Clicking the task title still opens the inline editor.
 
 ## Network, keys and privacy
 
@@ -40,11 +40,11 @@ Core task use is local. Update checks/downloads and links you open contact exter
 
 ## Known limits
 
-Reminders are evaluated consistently by the shared core on all three desktop hosts, but Taskly must be running and the OS must allow notification delivery. The standalone packaged CLI is not yet part of desktop releases; source CLI instructions remain in the README.
+Reminder eligibility is evaluated consistently by the shared core on every platform, but OS notification delivery is staged (#131): fields persist, nothing fires yet. The standalone packaged CLI is not yet part of desktop releases; source CLI instructions remain in the README.
 
 ## Updates and removal
 
-Back up data and read the destination release notes first. Taskly checks silently shortly after launch (at most once every four hours) and lets you check manually from the Taskly menu on macOS or the Help menu on Windows and Linux. macOS, Windows MSI/portable, Linux AppImage and portable tarballs install the verified update in place; deb/rpm and Flatpak copies are directed to the system package manager (or `flatpak --user update`), which owns the upgrade. Never bypass a failed signature check or replace the program with an untrusted artifact. On failure, preserve data and the error, then recover with a trusted release. Removing the program does not necessarily erase its separate data directory; verify your backup before deleting personal data.
+Back up data and read the destination release notes first. Taskly checks silently shortly after launch (at most once every four hours) and lets you check manually from Settings on every platform. macOS, Windows MSI/portable, Linux AppImage and portable tarballs install the verified update in place; deb/rpm and Flatpak copies are directed to the system package manager (or `flatpak --user update`), which owns the upgrade. Never bypass a failed signature check or replace the program with an untrusted artifact. On failure, preserve data and the error, then recover with a trusted release. Removing the program does not necessarily erase its separate data directory; verify your backup before deleting personal data.
 
 DMG, MSI, deb/rpm and portable archives replace application files, not `~/.taskly/`. If an update fails, quit all Taskly processes and reinstall the previous trusted build using the same installation shape; portable users can return to the previous program directory. The exact per-shape rollback table is in the update contract below.
 

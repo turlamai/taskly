@@ -1,7 +1,7 @@
 # Taskly Design Tokens (Contract)
 
 > Taskly's visual language is warm, quiet and content-first: a terracotta
-> action accent, warm neutral surfaces and generous whitespace. Platform-native
+> action accent, warm neutral surfaces and generous whitespace. Webview
 > typography and controls stay intact; Things, TickTick and Reminders are
 > interaction references rather than pixel templates. The single glaze web
 > host consumes these values directly from the prototype CSS; smart-tile
@@ -122,8 +122,8 @@ render fallback debris on some stacks.
 The selected row expands in place for a quick edit. The task text remains
 the visual title (15px semibold, borderless, up to three lines). Notes use
 a 13px borderless multiline field with a tertiary placeholder. Date and
-time render as compact rounded chips where the native toolkit supports
-them, or equivalently grouped native fields on GTK/WinUI. The quick editor
+time render as compact rounded chips in the single web host (the old
+GTK/WinUI grouped-field fallback retired with the native hosts). The quick editor
 does not introduce a second card or dialog border. PRODUCT-SPEC §5/§6 owns
 the shared Enter-save, Escape-cancel and click-away-save behavior.
 

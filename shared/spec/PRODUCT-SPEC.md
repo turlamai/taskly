@@ -1,9 +1,10 @@
 # Taskly Product Specification (Contract)
 
-> Cross-platform behavior contract for the native apps (macOS / Windows /
-> Linux). Sources of truth: this file + DATA-FORMAT + CLI-SPEC +
-> DESIGN-TOKENS + shared/i18n. Platform-native interaction idioms may differ
-> (menus, pickers) as long as the behavior contract holds.
+> Cross-platform behavior contract for the single glaze host (web UI) on
+> macOS / Windows / Linux. Sources of truth: this file + DATA-FORMAT +
+> CLI-SPEC + DESIGN-TOKENS + shared/i18n. The webview's platform idioms
+> (date inputs, focus rings) may differ as long as the behavior contract
+> holds.
 
 ## 1. Product
 
@@ -17,11 +18,12 @@ README's honest gaps).
 
 ## 2. Window & layout
 
-- Default 1280×880, min 760×520 (amended 2026-11-11 per drift D1 — the
-  visual contract's value; macOS already ships it, Windows/Linux align).
-  Menu bar (or native menu on macOS) +
-  status bar + main split: sidebar 280px (min 200, max 420, resizable) +
-  task pane.
+- Default 1100×760 (glaze main window, amended 2026-11-20 with the single
+  glaze host, issue #141; the pre-rewrite 1280×880 native value retired).
+  No OS menu bar: app-level actions live in the tray menu, the settings
+  dialog and keyboard (§8). Main split: sidebar + task pane per the
+  prototype CSS single source (`design/prototype/`, imported by
+  `apps/desktop/src/style.css`).
 - Status bar shows a persistent line (search term > view description >
   list name; `Database Not Connected` when closed). Transient messages
   (task added, switched list…) revert to persistent after 3 s.
@@ -180,9 +182,8 @@ the backup format live in DATA-FORMAT (§7 keys, §9 backup).
   multi-list views), clickable tag chips (click filters the view by the
   tag), the subtask done/total count, and a single-line-ellipsized notes
   preview. The checkbox ring takes the task's
-  list color (accent fallback); Linux, whose stock CheckButton carries no
-  recolorable ring, renders an 8px list-color dot before the row instead
-  (platform-native idiom, same information).
+  list color (accent fallback); the single web host recolors the ring on
+  every platform (the old Linux dot fallback retired with the GTK host).
 - `ⓘ` button (always visible, `aria-haspopup="dialog"`) opens the anchored
   task-detail popover — full fields, per-field autosave (§5b). Clicking the
   task title opens the row's inline quick editor.
@@ -202,8 +203,13 @@ the backup format live in DATA-FORMAT (§7 keys, §9 backup).
 
 ## 5b. Task interactions (Reminders parity)
 
-This section is the three-host contract. Native controls and modifier glyphs
-differ, but draft, identity and persistence outcomes do not.
+This section is the single-host contract. Draft, identity and persistence
+outcomes are enforced by the §6 journeys on every platform. Selection
+(⌘/⇧-click, range extend), ↑/↓ row navigation and the window-wide
+accelerators below are **contract targets staged on the glaze host**
+(benchmark ledger: docs/UX-BENCHMARKS.md); the shipped interaction set is
+Return/Esc/click-away editing, fold, staged delete/undo and the details
+popover.
 
 - Hover: quiet row fill (hover token) only, plus the info button
   emphasizing (opacity step). Hover never moves row content or reveals
@@ -220,8 +226,10 @@ differ, but draft, identity and persistence outcomes do not.
   borderless notes, then visible Save/Cancel actions — edits commit on Save,
   Return or click-away; no modal sheet. Esc and Cancel discard all buffered
   fields. The date
-  chip's popover leads with quick dates (今天 / 明天 / 本周末, where
-  本周末 is the coming weekend day) above a native calendar. Selecting a date
+  chip cycles 无 → 今天 → 明天; arbitrary dates use the details popover's
+  date field (webview date input). A quick-date popover (今天 / 明天 /
+  本周末, where 本周末 is the coming weekend day) above a calendar is a
+  staged contract target. Selecting a date
   updates the draft only; Save/Return/click-away performs the persistence,
   matching the Reminders details-popover discoverability without hiding
   Taskly's explicit transaction boundary.
@@ -331,14 +339,26 @@ of softening the Windows/Linux requirement.
 
 ## 7. Pickers
 
-- Date: the date action opens the platform-native calendar, led by Today /
-  Tomorrow / This Weekend; it is bounded 1900-01-01…2100-12-31; Clear removes
-  date and time from the draft. Date selection never silently commits the
+> Single glaze host: OS-modal file dialogs are reached through the thin
+> host's native picker routes (staged in acceptance via `stage_pick`, see
+> the §6 declared exception). Date/time pickers are webview inputs.
+
+- Date: the editor's date chip cycles 无 / 今天 / 明天; the details
+  popover's date field opens the webview date input, bounded
+  1900-01-01…2100-12-31; clearing removes date and time from the draft.
+  A quick-date-led calendar popover (Today / Tomorrow / This Weekend) is a
+  staged contract target. Date selection never silently commits the
   surrounding task draft.
 - Time: hour 00–23 + minute in 5-minute steps (00…55); current minute
   rounds to nearest 5; Clear → no time.
 
 ## 8. Menus / app-level
+
+> Single glaze host: there is no OS menu bar. The IA below maps to the
+> tray menu (show / quick add / quit), the settings dialog and keyboard.
+> Database actions live in the settings 数据 group and the first-run gate;
+> Install/Uninstall CLI is the CLI's own `install-cli`/`uninstall-cli`.
+> Accelerators other than Ctrl/⌘+K are staged contract targets (§5b).
 
 - File: New Database (Ctrl+Shift+N — the §2a create flow: folder picker +
   name entry, exclusive `taskly.sqlite`), Open Database (Ctrl+O,
@@ -385,12 +405,15 @@ of softening the Windows/Linux requirement.
   block on the clipboard so a bug report can include it verbatim; the
   copy confirmation is a transient status message. Diagnostics labels
   are English fixed strings (machine-oriented, like the CLI's `--json`).
-  macOS and Windows render the fields inside their sheet/dialog; Linux
-  builds the same layout on a plain GtkDialog — GtkAboutDialog cannot
-  carry multiple links, so the native about dialog is not used.
-- All accelerators work window-wide without opening the menu.
+  Every platform renders the same web dialog layout (single glaze host).
+- Accelerators: Ctrl/⌘+K (search focus) ships window-wide; the remaining
+  accelerators in §5b are staged contract targets.
 
 ## 9. Reminders (all platforms)
+
+> **Delivery staged (#131).** The eligibility/summarization contract below
+> is implemented and unit-tested in the core; OS notification delivery is
+> not wired in the glaze host yet. Reminder fields persist; nothing fires.
 
 - Check every 60 s while a DB is connected; plus one check at startup.
 - Due = incomplete ∧ has due_date ∧ `combine(due_date, due_time|00:00) ≤ now`
@@ -403,7 +426,8 @@ of softening the Windows/Linux requirement.
   the logical database session. It emits a typed `task` or `summary` decision
   and records `emitted → attempted → delivered|failed`; repeated wakeups never
   retry an emitted decision. A database switch invalidates outstanding tokens.
-  Native hosts own permission, timers, OS delivery and localized presentation.
+  The glaze host will own permission, timers, OS delivery and localized
+  presentation when delivery lands (#131).
   Clock/calendar inputs are injectable in core fixtures, including local
   midnight and DST-boundary cases.
 - Notification: title `⏰ 任务到期` (reminderTitle), body
@@ -434,13 +458,12 @@ fallback → key itself. `{0}` placeholders formatted positionally. Default
 zh; persisted in config. **Date shapes are not copy**: they follow the app
 language through the platform culture/locale formatter (zh-CN / en-US).
 
-## 12. Known v0.6.4 quirks — resolved in native apps
+## 12. Known v0.6.4 quirks — resolved in the app
 
 - GUI quick-add stores "now" as dueTime for `+1d` (CLI semantics differ):
-  native apps adopt the **CLI semantics** (pure-date intent clears time) in
+  the app adopts the **CLI semantics** (pure-date intent clears time) in
   the GUI too.
-- Completed view has no stable order: native apps sort completed-last by id
+- Completed view has no stable order: the app sorts completed-last by id
   DESC within the view for determinism.
-- GUI has no search field (CLI-only search): native macOS/Windows/Linux
-  apps **add** a search field (product decision, flagged as an intentional
-  delta from 0.6.4).
+- GUI has no search field (CLI-only search): the app **adds** a search
+  field (product decision, flagged as an intentional delta from 0.6.4).

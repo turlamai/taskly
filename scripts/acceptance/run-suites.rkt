@@ -77,8 +77,8 @@
     (printf "[acceptance] ~a: missing evidence ~a\n" sid missing-evidence))
   (unless ok?
     (define lines (file->lines log-path))
-    (for ([line (in-list (if (> (length lines) 40)
-                             (list-tail lines (- (length lines) 40))
+    (for ([line (in-list (if (> (length lines) 120)
+                             (list-tail lines (- (length lines) 120))
                              lines))])
       (printf "[acceptance:~a] ~a\n" sid line)))
   (hash 'id (symbol->string sid)
