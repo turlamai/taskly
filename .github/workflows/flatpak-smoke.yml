@@ -6,7 +6,12 @@ name: Flatpak smoke
 # the release leg; it never publishes anything.
 on:
   workflow_dispatch:
+  # After publish, never racing it: a tag push used to start this leg
+  # before the release existed (empty `gh release list` → hard fail).
+  release:
+    types: [published]
   push:
+    branches: ['**']
     paths:
       - flatpak/**
       - .github/workflows/flatpak-smoke.yml
@@ -40,6 +45,11 @@ jobs:
           # The newest non-draft release's payload for this arch; the smoke
           # test validates the pipeline, not a specific version.
           VERSION="$(gh release list -R turlamai/taskly --limit 5 --json tagName,isDraft --jq '.[] | select(.isDraft|not) | .tagName' | head -1 | sed 's/^v//')"
+          if [ -z "${VERSION}" ]; then
+            echo "glaze=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::no published release yet; flatpak smoke skipped"
+            exit 0
+          fi
           echo "Smoke payload version: ${VERSION}"
           gh release download "v${VERSION}" -R turlamai/taskly \
             -p "taskly-${VERSION}-linux-${ARCH}.tar.gz" -D . --clobber
