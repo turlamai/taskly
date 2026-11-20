@@ -241,9 +241,17 @@ export async function bootE2E(): Promise<void> {
   await run('j11-search-refresh', async () => {
     setInput(id<HTMLInputElement>('q'), 'needle');
     await until(() => store.state.q === 'needle', 'j11 search owner');
-    await until(() => store.visible().some((x) => x.id === t2) && !!row(t2)?.querySelector('.owner'),
-      'j11 search results rendered');
-    assert((row(t2)?.querySelector('.owner')?.textContent || '').includes('Beta'), 'owner label lost');
+    // Poll the final observable (owner text), not a proxy: on slow macOS
+    // VMs the row node can exist a tick before its meta text settles.
+    try {
+      await until(() => store.visible().some((x) => x.id === t2) &&
+        (row(t2)?.querySelector('.owner')?.textContent || '').includes('Beta'),
+        'j11 owner label rendered');
+    } catch {
+      throw new Error('owner label lost: row=' + (row(t2)?.outerHTML || 'none').slice(0, 300) +
+        ' lists=' + JSON.stringify(store.snapshot.lists.map((l) => [l.id, l.name])) +
+        ' q=' + store.state.q);
+    }
     await rpc.addTask('needle two', listB, null, null, null);
     // engine `changed` → store refresh (push or SSE fallback)
     await until(() => store.visible().some((x) => x.text === 'needle two'),
