@@ -5,7 +5,7 @@
 // `changed` but does not emit it yet). Views filter the full snapshot
 // client-side exactly like the prototype; search rides search_tasks.
 import * as rpc from '@taskly/core';
-import { apiPost } from '@taskly/core';
+import { apiPost, onEngineChanged } from '@taskly/core';
 import type { Settings, Snapshot, Task, TodoList } from '@taskly/core';
 import { bucket, extractTags, TODAY } from './shared';
 
@@ -30,7 +30,7 @@ export const EMPTY_SNAPSHOT: Snapshot = {
 export const DEFAULT_SETTINGS: Settings = {
   language: 'system',
   theme: 'system',
-  closeToTray: 'false',
+  closeToTray: '1',
   lastSelectedListId: 0,
   databasePath: '',
   databaseName: '',
@@ -40,6 +40,8 @@ export const DEFAULT_SETTINGS: Settings = {
 export let snapshot: Snapshot = EMPTY_SNAPSHOT;
 export let settings: Settings = DEFAULT_SETTINGS;
 export let dbOpen = false;
+export function setDbOpen(v: boolean): void { dbOpen = v; }
+export function setSettings(s: Settings): void { settings = s; }
 export let searchResults: Task[] | null = null;
 
 const listeners = new Set<() => void>();
@@ -242,6 +244,14 @@ export async function restoreBackup(path: string): Promise<void> {
   emit();
 }
 
+/* ---- engine push: another window (quick capture) mutated the DB ---- */
+
+export function watchEngine(): void {
+  onEngineChanged(() => {
+    if (dbOpen) void refresh();
+  });
+}
+
 /* ---- host capabilities (native pickers / reveal; not engine RPCs) ---- */
 
 export const host = {
@@ -256,6 +266,18 @@ export const host = {
   },
   reveal(path: string): Promise<boolean> {
     return apiPost('/api/host/reveal', { path });
+  },
+  shortcut(accelerator: string): Promise<{ ok: boolean; accelerator: string }> {
+    return apiPost('/api/host/shortcut', { accelerator });
+  },
+  autostart(): Promise<{ enabled: boolean | string; installed: boolean }> {
+    return apiPost('/api/host/autostart', {});
+  },
+  setAutostart(enabled: boolean): Promise<{ enabled: boolean | string; installed: boolean }> {
+    return apiPost('/api/host/autostart_set', { enabled });
+  },
+  captureDone(): Promise<boolean> {
+    return apiPost('/api/host/capture_done', {});
   },
 };
 

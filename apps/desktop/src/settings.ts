@@ -1,7 +1,8 @@
 // Settings sheet — ported from design/prototype/settings.html onto the
 // engine settings RPCs and backup RPCs. Theme/language/default list are
 // engine settings (single source); the global shortcut persists under the
-// engine's free-form `global-quick-add` config key (slice 3 registers it).
+// engine's free-form `global-quick-add` config key as a glaze accelerator
+// ("Ctrl+Alt+Space") and the thin host registers it with the OS (slice 3).
 import * as rpc from '@taskly/core';
 import { t, setLang } from './i18n';
 import * as store from './store';
@@ -9,8 +10,8 @@ import { announce, esc, TODAY } from './shared';
 import { applyTheme } from './theme';
 import { openDbDialog, revealDatabase } from './database-flow';
 
-const DEFAULT_SHORTCUT = '⌃⌥Space';
-let shortcut = DEFAULT_SHORTCUT;
+const DEFAULT_ACCEL = 'Ctrl+Alt+Space';
+let shortcut = DEFAULT_ACCEL;
 let recording = false;
 let pendingBackupPath: string | null = null;
 let pendingPreview: rpc.BackupPreview | null = null;
@@ -25,7 +26,7 @@ function report(message: string): void {
 
 export async function openSettings(): Promise<void> {
   // language / theme / default list from engine settings
-  ($('lang') as HTMLSelectElement).value = store.settings.language || 'system';
+  ($('lang') as HTMLSelectElement).value = store.settings.language || 'zh';
   document.querySelectorAll<HTMLInputElement>('#themeSeg input[name="theme"]').forEach((r) => {
     r.checked = r.value === (store.settings.theme || 'system');
   });
@@ -33,10 +34,18 @@ export async function openSettings(): Promise<void> {
   dl.innerHTML = store.snapshot.lists.map((l) =>
     '<option value="' + l.id + '">' + esc(l.name) + '</option>').join('');
   dl.value = String(store.settings.defaultListId || (store.snapshot.lists[0]?.id ?? 0));
+  ($('closeTrayChk') as HTMLInputElement).checked = store.settings.closeToTray !== '0';
   try {
-    shortcut = (await rpc.getSetting('global-quick-add')) || DEFAULT_SHORTCUT;
+    const state = await store.host.autostart();
+    const chk = $('autostartChk') as HTMLInputElement;
+    chk.checked = state.enabled === true;
+    chk.disabled = !state.installed;
+    $('autostartHelp').textContent = state.installed ? t('autostartHelp') : t('autostartDevNote');
+  } catch { /* host capability unavailable (pure web dev) */ }
+  try {
+    shortcut = (await rpc.getSetting('global-quick-add')) || DEFAULT_ACCEL;
     if (shortcut === 'disabled') shortcut = '';
-  } catch { shortcut = DEFAULT_SHORTCUT; }
+  } catch { shortcut = DEFAULT_ACCEL; }
   renderShortcut();
   $('settingsSheetWrap').hidden = false;
   $('settingsBack').focus();
@@ -47,15 +56,21 @@ function closeSettings(): void {
   stopRecording();
 }
 
-/* ---- shortcut recording (host registers it in slice 3) ---- */
+/* ---- shortcut recording (accelerator string; host registers it) ---- */
+
+const MOD_GLYPHS: Record<string, string> = { Ctrl: '⌃', Alt: '⌥', Shift: '⇧', Cmd: '⌘', Meta: '⌘' };
+
+function accelToDisplay(accel: string): string {
+  return accel.split('+').map((p) => MOD_GLYPHS[p] || p).join('');
+}
 
 function renderShortcut(): void {
   const btn = $('scBtn');
   btn.classList.toggle('empty', !shortcut);
   btn.classList.remove('rec');
-  btn.textContent = shortcut || t('shortcutNone');
-  $('scValue').textContent = shortcut || t('shortcutNone');
-  ($('scReset') as HTMLButtonElement).disabled = shortcut === DEFAULT_SHORTCUT;
+  btn.textContent = shortcut ? accelToDisplay(shortcut) : t('shortcutNone');
+  $('scValue').textContent = shortcut ? accelToDisplay(shortcut) : t('shortcutNone');
+  ($('scReset') as HTMLButtonElement).disabled = shortcut === DEFAULT_ACCEL;
 }
 
 function stopRecording(): void {
@@ -72,20 +87,31 @@ function startRecording(): void {
   announce(t('shortcutRecording'));
 }
 
+const KEY_NAMES: Record<string, string> = {
+  ' ': 'Space', Spacebar: 'Space',
+  ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right',
+};
+
 function formatCombo(e: KeyboardEvent): string {
   const parts: string[] = [];
-  if (e.ctrlKey) parts.push('⌃');
-  if (e.altKey) parts.push('⌥');
-  if (e.shiftKey) parts.push('⇧');
-  if (e.metaKey) parts.push('⌘');
-  let key = e.key;
-  if (key === ' ' || key === 'Spacebar') key = 'Space';
-  else if (key.length === 1) key = key.toUpperCase();
-  return parts.join('') + key;
+  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  if (e.metaKey) parts.push('Cmd');
+  let key = KEY_NAMES[e.key] || e.key;
+  if (key.length === 1) key = key.toUpperCase();
+  return parts.concat([key]).join('+');
 }
 
 async function persistShortcut(value: string): Promise<void> {
   await rpc.setSetting('global-quick-add', value || 'disabled');
+  try {
+    await store.host.shortcut(value);
+  } catch (e) {
+    // Recorded but refused by the OS (taken accelerator, headless session):
+    // say so; the recording retries at next launch.
+    announce(t('shortcutRegisterFailed', e instanceof Error ? e.message : String(e)));
+  }
 }
 
 /* ---- data group ---- */
@@ -164,6 +190,23 @@ export function initSettings(): void {
     void store.setSetting('default-list-id', value);
   });
 
+  $('closeTrayChk').addEventListener('change', (e) => {
+    const on = (e.target as HTMLInputElement).checked;
+    void store.setSetting('close-to-tray', on ? '1' : '0');
+  });
+
+  $('autostartChk').addEventListener('change', (e) => {
+    const chk = e.target as HTMLInputElement;
+    const on = chk.checked;
+    void store.host.setAutostart(on).then((state) => {
+      chk.checked = state.enabled === true;
+      report(t('autostartSaved'));
+    }).catch((err) => {
+      chk.checked = !on;
+      report(t('autostartFailed', err instanceof Error ? err.message : String(err)));
+    });
+  });
+
   /* shortcut */
   $('scBtn').addEventListener('click', () => { recording ? stopRecording() : startRecording(); });
   document.addEventListener('keydown', (e) => {
@@ -183,7 +226,7 @@ export function initSettings(): void {
   $('scBtn').addEventListener('blur', () => { if (recording) stopRecording(); });
   $('scReset').addEventListener('click', () => {
     stopRecording();
-    shortcut = DEFAULT_SHORTCUT;
+    shortcut = DEFAULT_ACCEL;
     void persistShortcut(shortcut);
     renderShortcut();
   });

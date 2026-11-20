@@ -108,9 +108,10 @@ the backup format live in DATA-FORMAT (§7 keys, §9 backup).
   quick-add targeting follows it per §4. 全局快速添加 / Global Quick Add:
   records a modifier+key combination (⌘/Ctrl, ⌥/Alt, ⇧ optional) with
   reset and clear affordances, persisted as config `global-quick-add`;
-  shortcuts are **recorded but not registered with the operating system**
-  in this slice (the prototype's declared scope; registration is a future
-  slice).
+  the glaze thin host registers the recorded accelerator with the OS
+  (glaze hotkey) and opens the quick-capture popup on trigger (#141
+  slice 3). A refused registration is reported to the user and never
+  blocks startup; the recording stays persisted for the next launch.
 
 ## 3. Sidebar
 

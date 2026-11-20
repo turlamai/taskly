@@ -134,6 +134,22 @@
     {
       "method": "POST",
       "path": "/api/host/reveal"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/shortcut"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/autostart"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/autostart_set"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/capture_done"
     }
   ],
   "schema": {
@@ -145,6 +161,41 @@
         "result": {
           "kind": "reference",
           "name": "Health"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostAutostart",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostAutostart_set",
+        "parameters": [
+          {
+            "name": "enabled",
+            "type": {
+              "kind": "scalar",
+              "name": "Bool"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostCapture_done",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "Bool"
         }
       },
       {
@@ -240,6 +291,23 @@
             "type": {
               "kind": "scalar",
               "name": "Value"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostShortcut",
+        "parameters": [
+          {
+            "name": "accelerator",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
             }
           }
         ],

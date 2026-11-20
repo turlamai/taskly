@@ -13,6 +13,7 @@ import { initTheme, applyTheme } from './theme';
 import { initDatabaseFlow, setGateMode, refreshDatabaseUI } from './database-flow';
 import { initListEditor, openListEditor } from './list-editor';
 import { initSettings, openSettings } from './settings';
+import { bootCapture } from './capture';
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string, r?: ParentNode) => (r || document).querySelector(s) as T | null;
 const $$ = <T extends HTMLElement = HTMLElement>(s: string, r?: ParentNode) => Array.from((r || document).querySelectorAll(s)) as T[];
@@ -642,6 +643,11 @@ function bind(): void {
 
 /* ---- boot ---- */
 async function main(): Promise<void> {
+  // The hotkey popup is the same page on a second window (#capture).
+  if (window.location.hash === '#capture') {
+    await bootCapture();
+    return;
+  }
   setLang(resolveLang('system'));
   initTheme();
   fillIcons();
@@ -650,6 +656,7 @@ async function main(): Promise<void> {
   initSettings();
   bind();
   store.onChange(render);
+  store.watchEngine();
   const result = await store.boot();
   if (result.mode === 'ok') {
     setLang(resolveLang(store.settings.language));

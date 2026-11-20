@@ -11,6 +11,7 @@
 
 (require glaze/app
          glaze/window
+         glaze/tray/main
          json
          net/url
          racket/file
@@ -109,6 +110,42 @@
      (define missing
        (post-json url "api/rpc/open_database"
                   (hasheq 'path (path->string (build-path (current-taskly-home) "nope.sqlite")))))
+     ;; ---- slice 3: thin-host capabilities in the real window ----
+     (install-host! wv url)
+     (define sc-ok
+       (post-json url "api/host/shortcut" (hasheq 'accelerator "Ctrl+Alt+T")))
+     (define sc-registered (host-shortcut-registered?))
+     (define sc-bad
+       (post-json url "api/host/shortcut" (hasheq 'accelerator "Ctrl+NotAKey")))
+     (define sc-re
+       (post-json url "api/host/shortcut" (hasheq 'accelerator "Ctrl+Alt+T")))
+     (define autostart (post-json url "api/host/autostart" (hasheq)))
+     (define autostart-dev
+       (post-json url "api/host/autostart_set" (hasheq 'enabled #t)))
+     ;; Quick-capture popup: second real window on the #capture route.
+     (post-json url "api/rpc/open_database"
+                (hasheq 'path (path->string (build-path db-folder "taskly.sqlite"))))
+     (host-open-capture!)
+     (define cap-wv (host-capture-window))
+     (define cap-deadline (+ (current-inexact-milliseconds) 15000))
+     (define cap-loaded?
+       (let loop ()
+         (cond
+           [(and cap-wv (equal? (webview-title cap-wv) "Taskly Capture Ready")) #t]
+           [(>= (current-inexact-milliseconds) cap-deadline) #f]
+           [else (sleep 0.1) (loop)])))
+     (define cap-shot (and cap-wv (webview-capture! cap-wv)))
+     (define saved-cap-shot
+       (cond
+         [(and cap-shot (file-exists? cap-shot))
+          (make-directory* evidence-dir)
+          (define dest (build-path evidence-dir "taskly-capture.png"))
+          (copy-file cap-shot dest #:exists-ok? #t)
+          dest]
+         [else #f]))
+     (define cap-done (post-json url "api/host/capture_done" (hasheq)))
+     (sleep 0.8)
+     (define cap-closed? (and cap-wv (webview-closed? cap-wv)))
      (set! verdicts
            (list (cons 'page-loaded loaded?)
                  (cons 'url (equal? (webview-url wv) url))
@@ -131,10 +168,26 @@
                  (cons 'close-db (eq? 'null closed))
                  (cons 'error-message (and (hash? missing)
                                            (string? (hash-ref missing 'error #f))
-                                           (string-contains? (hash-ref missing 'error "") "not found")))))
+                                           (string-contains? (hash-ref missing 'error "") "not found")))
+                 (cons 'shortcut-register (and (hash? sc-ok) (eq? #t (hash-ref sc-ok 'ok #f))
+                                               (equal? "Ctrl+Alt+T" (hash-ref sc-ok 'accelerator #f))))
+                 (cons 'shortcut-live sc-registered)
+                 (cons 'shortcut-invalid (and (hash? sc-bad)
+                                              (string-contains? (hash-ref sc-bad 'error "") "invalid accelerator")))
+                 (cons 'shortcut-reregister (and (hash? sc-re) (eq? #t (hash-ref sc-re 'ok #f))))
+                 (cons 'autostart-get (and (hash? autostart) (hash-has-key? autostart 'enabled)
+                                           (eq? #f (hash-ref autostart 'installed #t))))
+                 (cons 'autostart-dev-guard (and (hash? autostart-dev)
+                                                 (string-contains? (hash-ref autostart-dev 'error "") "installed build")))
+                 (cons 'tray (or (not (tray-supported?)) (host-tray-live?)))
+                 (cons 'capture-loaded cap-loaded?)
+                 (cons 'capture-shot (and saved-cap-shot (> (file-size saved-cap-shot) 0)))
+                 (cons 'capture-done (eq? #t cap-done))
+                 (cons 'capture-closed cap-closed?)))
      (webview-close wv))))
 
 (stop)
+(host-teardown!)
 (for ([verdict (in-list verdicts)])
   (printf "[verify] ~a = ~a\n" (car verdict) (cdr verdict)))
 (unless (and (pair? verdicts) (andmap cdr verdicts))

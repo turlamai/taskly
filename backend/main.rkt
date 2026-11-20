@@ -14,15 +14,22 @@
 ;;       racket backend/main.rkt
 ;; Dev:  raco glaze dev  /  TASKLY_TRANSPORT=http for the HTTP adapter.
 
-(require glaze/app        ; run-app
+(require glaze/app        ; run-app, open-app-window, app-quit!, current-app
          glaze/api        ; POST
          glaze/api-macros ; define-api-routes
          glaze/dialogs    ; pick-file/pick-folder/save-file-dialog
          glaze/events     ; make-event-bus, bus-broadcast!
          glaze/shell      ; shell-spawn! (reveal in the system file manager)
          glaze/types      ; GString, GInt64, GBool, GValue, goptional, grecord
+         glaze            ; make-tray, make-menu-item, hotkey-register!, …
+         glaze/autolaunch ; auto-launch-set! / auto-launch-enabled?
+         glaze/global-shortcut ; string->hotkey / hotkey->string
          racket/runtime-path
          racket/system
+         racket/path
+         racket/port
+         json
+         "../racket/taskly/config.rkt" ; read-config / config-language (host prefs)
          "../racket/taskly/version.rkt"
          "rvt1.rkt"
          "wire-codec.rkt")
@@ -31,7 +38,10 @@
 ;; start-engine! wires the codec to the in-process RVT1 transport — the
 ;; app entry and the real-window verifier both call it; schema checks
 ;; load this module without starting anything.
-(provide api start-engine!)
+(provide api start-engine!
+         install-host! host-teardown!
+         host-open-capture! host-capture-window host-shortcut-registered?
+         host-tray-live?)
 
 (define-runtime-path engine-backend "../racket/taskly/backend.rkt")
 (define-runtime-path frontend-dist "../apps/desktop/dist")
@@ -189,7 +199,29 @@
                      #:filters (or filters '()))]
   [(POST "api/host/reveal" #:returns GBool)
    (reveal [path GString])
-   (reveal-path path)])
+   (reveal-path path)]
+
+  ;; ---- thin-host capabilities (#141 slice 3) -------------------------
+  ;; Global quick-add accelerator: recorded in config `global-quick-add`
+  ;; by the settings sheet, registered here with the OS (glaze hotkey).
+  [(POST "api/host/shortcut" #:returns GValue)
+   (shortcut [accelerator GString])
+   (host-apply-shortcut! accelerator)]
+  ;; Launch-at-login: the OS entry is the source of truth (no config key).
+  [(POST "api/host/autostart" #:returns GValue)
+   (autostart)
+   (host-autostart-state)]
+  [(POST "api/host/autostart_set" #:returns GValue)
+   (autostartSet [enabled GBool])
+   (host-autostart-set! enabled)]
+  ;; Quick-capture popup finished (task added or Esc): push `changed` so
+  ;; the main window refetches, then close the popup.
+  [(POST "api/host/capture_done" #:returns GBool)
+   (captureDone)
+   (bus-broadcast! bus 'changed 'null)
+   (define wv (unbox capture-wv))
+   (when (and wv (not (webview-closed? wv))) (webview-close wv))
+   #t])
 
 ;; Show a folder in the system file manager (settings → 所在文件夹).
 ;; Falls back to #f when no opener exists; the UI then shows the path.
@@ -208,6 +240,158 @@
                (shell-spawn! "xdg-open" (list dir)) #t]
               [else #f])])))
 
+;; ---- thin host runtime (#141 slice 3) --------------------------------
+;; Tray + global hotkey + quick-capture popup + launch-at-login. The web
+;; UI stays the only chrome; these are the OS-deep capabilities the issue
+;; keeps as thin-host duties. All callbacks run on foreign threads (tray
+;; worker, hotkey message pump), so they re-bind current-app explicitly.
+
+(define main-wv (box #f))
+(define capture-wv (box #f))
+(define base-url (box #f))
+(define host-app (box #f))
+(define tray-handle (box #f))
+(define registered-hk (box #f))
+
+(define-runtime-path i18n-zh "../shared/i18n/zh.json")
+(define-runtime-path i18n-en "../shared/i18n/en.json")
+(define-runtime-path icon-ico "../shared/assets/icon.ico")
+(define-runtime-path icon-png "../shared/assets/icon-512.png")
+
+;; Host-side labels (tray menu) read the same i18n single source as the
+;; web table; language follows config `language` at tray install time.
+(define (host-strings)
+  (define lang (config-language (read-config)))
+  (define path (if (equal? lang "zh") i18n-zh i18n-en))
+  (with-handlers ([exn:fail? (lambda (_) (hasheq))])
+    (call-with-input-file path (lambda (in) (read-json in)))))
+
+(define (host-t strings key fallback)
+  (define v (hash-ref strings key #f))
+  (if (string? v) v fallback))
+
+(define (installed-exe?)
+  ;; Launch-at-login registers the running executable; under `racket
+  ;; backend/main.rkt` (or any script, e.g. the verifier) run-file is the
+  ;; interpreter or the source file, which must never become a login item.
+  (define p (find-system-path 'run-file))
+  (define name (string-downcase (path->string (file-name-from-path p))))
+  (and (not (or (path-has-extension? p #".rkt") (path-has-extension? p #".rktd")))
+       (not (member name '("racket.exe" "racket")))))
+
+(define (bad-param message)
+  (raise (exn:fail:glaze:bad-param message (current-continuation-marks))))
+
+(define (with-host-app thunk)
+  (parameterize ([current-app (unbox host-app)]) (thunk)))
+
+;; Show/restore the main window; reopen it when the user closed it while
+;; close-to-tray kept the app resident (PRODUCT-SPEC §2 tray contract).
+(define (show-main!)
+  (with-host-app
+   (lambda ()
+     (define wv (unbox main-wv))
+     (if (and wv (not (webview-closed? wv)))
+         (webview-focus! wv)
+         (let ([w (open-app-window (unbox base-url)
+                                   #:title "Taskly"
+                                   #:width 1100
+                                   #:height 760
+                                   #:on-close main-close!)])
+           (set-box! main-wv w))))))
+
+;; Closing the main window: close-to-tray=1 keeps the tray-resident app
+;; alive; =0 quits (the engine setting is the single source).
+(define (main-close!)
+  (set-box! main-wv #f)
+  (when (equal? (config-close-to-tray (read-config)) "0")
+    (with-host-app (lambda () (app-quit! (unbox host-app))))))
+
+;; The global-hotkey quick-capture popup: a second, small web window on
+;; the same page (#capture route), same backend, same engine.
+(define (host-open-capture!)
+  (with-host-app
+   (lambda ()
+     (define wv (unbox capture-wv))
+     (if (and wv (not (webview-closed? wv)))
+         (webview-focus! wv)
+         (let ([w (open-app-window (string-append (unbox base-url) "#capture")
+                                   #:title "Taskly Quick Add"
+                                   #:width 620
+                                   #:height 150
+                                   #:on-close (lambda () (set-box! capture-wv #f)))])
+           (set-box! capture-wv w))))))
+
+(define (host-capture-window) (unbox capture-wv))
+
+(define (host-tray-live?) (and (unbox tray-handle) #t))
+
+;; Register (or clear) the OS accelerator recorded in config. Returns the
+;; canonical form so the settings sheet can display what the OS accepted.
+(define (host-apply-shortcut! accelerator)
+  (hotkey-unregister-all!)
+  (set-box! registered-hk #f)
+  (cond
+    [(or (string=? accelerator "") (string=? accelerator "disabled"))
+     (hasheq 'ok #t 'accelerator "")]
+    [else
+     (define hk (string->hotkey accelerator))
+     (unless hk (bad-param (format "accelerator: invalid accelerator ~v" accelerator)))
+     (define ok (hotkey-register! hk host-open-capture!))
+     (unless ok (bad-param (format "accelerator already in use: ~a" (hotkey->string hk))))
+     (set-box! registered-hk hk)
+     (hasheq 'ok #t 'accelerator (hotkey->string hk))]))
+
+(define (host-shortcut-registered?)
+  (define hk (unbox registered-hk))
+  (and hk (hotkey-registered? hk) #t))
+
+(define (autostart-enabled-value)
+  (define v (auto-launch-enabled? "Taskly"))
+  (if (symbol? v) (symbol->string v) v))
+
+(define (host-autostart-state)
+  (hasheq 'enabled (autostart-enabled-value) 'installed (installed-exe?)))
+
+(define (host-autostart-set! enabled)
+  (unless (installed-exe?)
+    (bad-param "autostart needs an installed build (raco glaze build), not the dev interpreter"))
+  (with-handlers ([exn:fail? (lambda (e) (bad-param (exn-message e)))])
+    (auto-launch-set! "Taskly" enabled))
+  (host-autostart-state))
+
+;; Called from #:on-ready (app entry and verifier): remember the window,
+;; install the tray and register the recorded accelerator.
+(define (install-host! wv url)
+  (set-box! main-wv wv)
+  (set-box! base-url url)
+  (set-box! host-app (current-app))
+  (define strings (host-strings))
+  (when (tray-supported?)
+    (with-handlers ([exn:fail? (lambda (_) (void))]) ; tray loss never blocks startup
+      (set-box! tray-handle
+                (make-tray
+                 #:icon (if (eq? (system-type 'os) 'windows) icon-ico icon-png)
+                 #:tooltip "Taskly"
+                 #:menu (list
+                         (make-menu-item (host-t strings 'trayShow "Show Taskly")
+                                         #:action show-main!)
+                         (menu-separator)
+                         (make-menu-item (host-t strings 'trayQuit "Quit")
+                                         #:action (lambda ()
+                                                    (with-host-app
+                                                     (lambda () (app-quit! (unbox host-app)))))))
+                 #:on-event (lambda (e)
+                              (when (memq e '(click left-click)) (show-main!)))))))
+  (with-handlers ([exn:fail? (lambda (_) (void))]) ; a taken hotkey never blocks startup
+    (host-apply-shortcut! (config-ref (read-config) "global-quick-add" ""))))
+
+(define (host-teardown!)
+  (hotkey-unregister-all!)
+  (define t (unbox tray-handle))
+  (when t (with-handlers ([exn:fail? (lambda (_) (void))]) (tray-close t)))
+  (set-box! tray-handle #f))
+
 (define engine-started? #f)
 
 (define (start-engine!)
@@ -225,15 +409,23 @@
     (or (let ([v (getenv "TASKLY_TRANSPORT")])
           (and (member v '("native" "http")) (string->symbol v)))
         'native))
-  (run-app
-   #:public-dir frontend-dist
-   #:api api
-   #:transport transport
-   #:api-token (or (getenv "GLAZE_API_TOKEN") #t)
-   #:events bus
-   #:title "Taskly"
-   #:width 1100
-   #:height 760
-   #:app-id "taskly"
-   #:window-state #t
-   #:current-version app-version))
+  (define-values (_kind stop)
+    (run-app
+     #:public-dir frontend-dist
+     #:api api
+     #:transport transport
+     #:api-token (or (getenv "GLAZE_API_TOKEN") #t)
+     #:events bus
+     #:title "Taskly"
+     #:width 1100
+     #:height 760
+     #:app-id "taskly"
+     #:window-state #t
+     ;; Tray-resident: closing the last window does not quit by itself;
+     ;; main-close! applies the engine's close-to-tray preference.
+     #:quit-on-last-window? #f
+     #:on-close main-close!
+     #:on-ready (lambda (wv url) (install-host! wv url))
+     #:current-version app-version))
+  (stop)
+  (host-teardown!))

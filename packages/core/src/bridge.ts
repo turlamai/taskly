@@ -17,6 +17,7 @@ interface Glz1 {
     args?: unknown,
     opts?: { method?: string; timeoutMs?: number },
   ): Promise<unknown>;
+  on?(name: string, fn: (payload: unknown) => void): void;
 }
 
 declare global {
@@ -71,12 +72,17 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 }
 
 /**
- * Engine push channel (SSE /glaze/events). The engine declares `changed`
- * but does not emit it today; the UI refreshes after mutations regardless.
- * Degrades silently where SSE is unavailable (native origin without the
- * event endpoint) — never breaks the page.
+ * Engine push channel. Native carrier: the GLZ1 client delivers event
+ * batches through __glz1.on (no SSE endpoint on the controlled origin).
+ * HTTP carrier: SSE /glaze/events. Degrades silently where neither is
+ * available — never breaks the page.
  */
 export function onEngineChanged(cb: (payload: unknown) => void): () => void {
+  const g = nativeBridge();
+  if (g && typeof g.on === 'function') {
+    g.on('changed', cb);
+    return () => {};
+  }
   try {
     const es = new EventSource('/glaze/events');
     const handler = (e: MessageEvent) => {

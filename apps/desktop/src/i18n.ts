@@ -240,7 +240,7 @@ const zh: Record<string, string> = {
   "defaultListLabel": "默认清单",
   "defaultListHelp": "快速添加的任务会进入这里",
   "globalQuickAddLabel": "全局快速添加",
-  "globalQuickAddHelp": "仅记录组合键，不注册系统快捷键",
+  "globalQuickAddHelp": "记录组合键并注册系统快捷键，随时呼出快速捕获",
   "shortcutNone": "未设置",
   "shortcutRecording": "按下组合键…",
   "shortcutReset": "恢复默认",
@@ -290,6 +290,17 @@ const zh: Record<string, string> = {
   "deleteListBtn": "删除列表",
   "overdueSuffix": "已逾期",
   "settingsGroupGeneral": "通用",
+  "autostartLabel": "开机时启动",
+  "autostartHelp": "登录后自动运行 Taskly",
+  "autostartDevNote": "开发模式不可用——安装版（raco glaze build）才会登记登录项",
+  "autostartSaved": "开机启动偏好已保存",
+  "autostartFailed": "开机启动设置失败：{0}",
+  "closeToTrayLabel": "关闭主窗口时留在托盘",
+  "capturePlaceholder": "+ 添加任务",
+  "captureHint": "Enter 保存 · Esc 关闭",
+  "captureNoDb": "尚未连接数据库——先在主窗口创建或打开",
+  "shortcutRegisterFailed": "快捷键已记录，但系统注册失败：{0}",
+  "trayQuit": "退出",
 };
 
 const en: Record<string, string> = {
@@ -528,7 +539,7 @@ const en: Record<string, string> = {
   "defaultListLabel": "Default List",
   "defaultListHelp": "Quick-added tasks land here",
   "globalQuickAddLabel": "Global Quick Add",
-  "globalQuickAddHelp": "Records the combination; not registered as a system shortcut",
+  "globalQuickAddHelp": "Records the combo and registers it with the OS to summon quick capture",
   "shortcutNone": "Not Set",
   "shortcutRecording": "Press keys…",
   "shortcutReset": "Reset",
@@ -578,6 +589,17 @@ const en: Record<string, string> = {
   "deleteListBtn": "Delete list",
   "overdueSuffix": "overdue",
   "settingsGroupGeneral": "General",
+  "autostartLabel": "Launch at login",
+  "autostartHelp": "Run Taskly automatically after sign-in",
+  "autostartDevNote": "Unavailable in dev mode — installed builds (raco glaze build) register the login item",
+  "autostartSaved": "Launch-at-login preference saved",
+  "autostartFailed": "Launch-at-login change failed: {0}",
+  "closeToTrayLabel": "Keep Taskly in the tray when the main window closes",
+  "capturePlaceholder": "+ Add task",
+  "captureHint": "Enter saves · Esc closes",
+  "captureNoDb": "No database connected — create or open one in the main window first",
+  "shortcutRegisterFailed": "Shortcut recorded, but the OS refused it: {0}",
+  "trayQuit": "Quit",
 };
 
 const TABLES: Record<Lang, Record<string, string>> = { zh, en };

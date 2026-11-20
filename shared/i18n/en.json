@@ -234,7 +234,7 @@
   "defaultListLabel": "Default List",
   "defaultListHelp": "Quick-added tasks land here",
   "globalQuickAddLabel": "Global Quick Add",
-  "globalQuickAddHelp": "Records the combination; not registered as a system shortcut",
+  "globalQuickAddHelp": "Records the combo and registers it with the OS to summon quick capture",
   "shortcutNone": "Not Set",
   "shortcutRecording": "Press keys…",
   "shortcutReset": "Reset",
@@ -283,5 +283,17 @@
   "notesPlaceholder": "Notes…",
   "deleteListBtn": "Delete list",
   "overdueSuffix": "overdue",
-  "settingsGroupGeneral": "General"
+  "settingsGroupGeneral": "General",
+  "autostartLabel": "Launch at login",
+  "autostartHelp": "Run Taskly automatically after sign-in",
+  "autostartDevNote": "Unavailable in dev mode — installed builds (raco glaze build) register the login item",
+  "autostartSaved": "Launch-at-login preference saved",
+  "autostartFailed": "Launch-at-login change failed: {0}",
+  "closeToTrayLabel": "Keep Taskly in the tray when the main window closes",
+  "capturePlaceholder": "+ Add task",
+  "captureHint": "Enter saves · Esc closes",
+  "captureNoDb": "No database connected — create or open one in the main window first",
+  "shortcutRegisterFailed": "Shortcut recorded, but the OS refused it: {0}",
+  "trayShow": "Show Taskly",
+  "trayQuit": "Quit"
 }
