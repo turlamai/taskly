@@ -80,3 +80,8 @@ windows/Generated Files/
 ## Rivet generated output
 build/
 dist/
+
+## Glaze / web workspace (#141)
+node_modules/
+.glaze/
+*.tsbuildinfo
