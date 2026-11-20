@@ -6,7 +6,12 @@ name: Flatpak smoke
 # the release leg; it never publishes anything.
 on:
   workflow_dispatch:
+  # After publish, never racing it: a tag push used to start this leg
+  # before the release existed (empty `gh release list` → hard fail).
+  release:
+    types: [published]
   push:
+    branches: ['**']
     paths:
       - flatpak/**
       - .github/workflows/flatpak-smoke.yml
@@ -34,18 +39,37 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes flatpak flatpak-builder
       - name: Fetch the published release payload
+        id: payload
         run: |
           set -euo pipefail
           # The newest non-draft release's payload for this arch; the smoke
           # test validates the pipeline, not a specific version.
           VERSION="$(gh release list -R turlamai/taskly --limit 5 --json tagName,isDraft --jq '.[] | select(.isDraft|not) | .tagName' | head -1 | sed 's/^v//')"
+          if [ -z "${VERSION}" ]; then
+            echo "glaze=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::no published release yet; flatpak smoke skipped"
+            exit 0
+          fi
           echo "Smoke payload version: ${VERSION}"
           gh release download "v${VERSION}" -R turlamai/taskly \
             -p "taskly-${VERSION}-linux-${ARCH}.tar.gz" -D . --clobber
+          # Generation guard (issue #141): releases published before the
+          # glaze rewrite carry the rivet payload (RivetHost + runtime/),
+          # which the glaze flatpak manifest cannot bundle. Skip the smoke
+          # until the first glaze-line release exists; main stays green in
+          # the meantime and the leg activates itself on that release.
+          # Entries are tarred from inside dist/, so they carry a ./ prefix.
+          if tar tzf "taskly-${VERSION}-linux-${ARCH}.tar.gz" | grep -Eq '^\./?bin/'; then
+            echo "glaze=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "glaze=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::latest release v${VERSION} is a pre-glaze payload; flatpak smoke skipped until the first glaze-line release"
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
           ARCH: ${{ matrix.arch }}
       - name: Build the bundle (same steps as the release leg)
+        if: steps.payload.outputs.glaze == 'true'
         run: |
           set -euo pipefail
           VERSION="$(ls taskly-*-linux-*.tar.gz | head -1 | sed -E 's/taskly-([^-]+)-linux-.*/\1/')"
@@ -66,6 +90,7 @@ jobs:
           sha256sum "taskly-${VERSION}-linux-${ARCH}.flatpak" \
             > "taskly-${VERSION}-linux-${ARCH}.flatpak.sha256"
       - name: Sandbox execution check
+        if: steps.payload.outputs.glaze == 'true'
         run: |
           set -euo pipefail
           sudo apt-get install --yes xvfb x11-utils
@@ -83,20 +108,19 @@ jobs:
           # The sandboxed process is alive under its own instance.
           flatpak ps --columns=application | grep site.jrtx.taskly
           sleep 8
-          # The window mapped on the display and the embedded backend booted
-          # (the RVT1 runtime layout resolves through /proc/self/exe inside
-          # the sandbox).
+          # The window mapped on the display: the glaze webview booted the
+          # real UI inside the sandbox (the engine serves in-process, so
+          # there is no separate backend log line to grep for).
           DISPLAY=:99 xwininfo -root -tree | grep -i taskly
-          grep -qE "ready|listening|serve|backend" app-run.log || \
-            { echo "backend boot evidence missing"; tail -20 app-run.log; exit 1; }
           kill "$run_pid" 2>/dev/null || pkill -f site.jrtx.taskly || true
           kill "$xvfb_pid" 2>/dev/null || true
       - name: Dump build dirs (diagnosis)
-        if: failure()
+        if: failure() && steps.payload.outputs.glaze == 'true'
         run: |
           find .flatpak-builder/build -maxdepth 3 | head -40 || true
           find . -maxdepth 2 -name "taskly-linux-*" -o -maxdepth 2 -name "*.tar.gz" | head -10
       - uses: actions/upload-artifact@v4
+        if: steps.payload.outputs.glaze == 'true'
         with:
           name: flatpak-smoke-${{ matrix.arch }}
           path: taskly-*.flatpak*

@@ -16,17 +16,31 @@ concurrency:
   group: acceptance-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Same pins as ci.yml (scripts/check-dependency-pins.sh gates the alignment).
 env:
   RIVET_PIN: 33de65ccb5d72f9ac38ff982aa4495467f89f213
   KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
+  GLAZE_PIN: 2ec4533c4663cd058018c669af56b85c137a4a2a
 
+# Executable acceptance for the glaze rewrite (issue #141): verify.rkt boots
+# the REAL packaged-shape app (thin host + web UI + in-process engine) in a
+# real window on every platform and asserts the product journeys verdict by
+# verdict, with screenshots as evidence. Slice 5 extends the journey set and
+# re-lands the acceptance contract manifest on this runner shape.
 jobs:
   windows:
-    name: Windows packaged WinUI acceptance
+    name: Windows glaze window acceptance
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - uses: Bogdanp/setup-racket@v1.15
         with:
           architecture: x64
@@ -35,8 +49,7 @@ jobs:
           version: '9.3'
       # Racket 9.3's Windows root-store importer can crash on an invalid
       # runner certificate (X509*->C #f). Export valid local trust anchors
-      # from the current GitHub runner only; no third-party CA downloads.
-      # and keep TLS certificate/hostname verification enabled.
+      # from the current GitHub runner only; TLS verification stays enabled.
       - name: Export trusted Windows root certificates for Racket TLS
         shell: pwsh
         run: |
@@ -68,35 +81,25 @@ jobs:
         run: |
           racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs "https://github.com/turlamai/keel.git#$env:KEEL_PIN"
           racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs "https://github.com/turlamai/rivet.git#$env:RIVET_PIN"
-      # First-run acceptance installs the packaged MSI for real, so the
-      # WiX toolchain ships in this job (the trust-roots wrapper above
-      # covers the Racket TLS legs of the same install).
-      - name: Install WiX (v5; MSI packaging for installed-app acceptance)
+          racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs "https://github.com/turlamai/glaze.git#$env:GLAZE_PIN"
+          racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs crypto
+      - name: Run executable acceptance (all manifest suites, real window)
         shell: pwsh
-        run: dotnet tool install --global wix --version 5.0.2
-      - name: Verify Windows installer artwork
-        shell: pwsh
-        run: python scripts/check-windows-installer-bitmaps.py
-      - name: Run executable acceptance contract
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force .rivet\acceptance | Out-Null
-          $report = & raco rivet acceptance --json
-          $status = $LASTEXITCODE
-          $report | Tee-Object -FilePath .rivet\acceptance\report.json
-          exit $status
+        run: racket scripts/acceptance/run-suites.rkt
       - name: Upload Windows evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: taskly-acceptance-windows
-          path: .rivet/acceptance
+          path: |
+            .glaze/verify
+            .glaze/acceptance
           if-no-files-found: warn
 
   macos:
-    name: macOS packaged SwiftUI acceptance (${{ matrix.arch }})
+    name: macOS glaze window acceptance (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -105,77 +108,79 @@ jobs:
           - { arch: x64, runner: macos-15-intel, racket-arch: x64 }
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - uses: Bogdanp/setup-racket@v1.15
         with:
           architecture: ${{ matrix.racket-arch }}
           distribution: full
           variant: CS
           version: '9.3'
-      # Cache only pinned Racket packages, not app source, host builds, or
-      # acceptance evidence. A pin or architecture change invalidates cache.
-      - name: Isolate Racket dependency packages
-        run: echo "PLTADDONDIR=$RUNNER_TEMP/taskly-racket-addons" >> "$GITHUB_ENV"
-      - name: Restore pinned Racket dependency cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/taskly-racket-addons
-          key: taskly-macos-racket93-v1-${{ matrix.arch }}-${{ env.RIVET_PIN }}-${{ env.KEEL_PIN }}
-      # Always execute the original dependency-install verification below.
-      # --skip-installed reuses the restored packages when present.
       - name: Install pinned dependencies
         run: |
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/keel.git#${KEEL_PIN}"
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
-      - name: Render DMG artwork from SVG
-        run: |
-          brew install librsvg
-          bash scripts/render-dmg-background.sh
-      - name: Run executable acceptance contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p .rivet/acceptance
-          raco rivet acceptance --json | tee .rivet/acceptance/report.json
+          bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/glaze.git#${GLAZE_PIN}"
+          bash scripts/install-racket-packages-with-retry.sh crypto
+      - name: Run executable acceptance (all manifest suites, real window)
+        run: racket scripts/acceptance/run-suites.rkt
       - name: Upload macOS evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: taskly-acceptance-macos-${{ matrix.arch }}
-          path: .rivet/acceptance
+          path: |
+            .glaze/verify
+            .glaze/acceptance
           if-no-files-found: warn
 
   linux:
-    name: Linux packaged GTK4 acceptance
+    name: Linux glaze window acceptance
     runs-on: ubuntu-24.04
-    # A single Racket catalog request can consume its built-in 30-minute
-    # timeout. Leave room for one bounded retry plus the actual product run.
-    timeout-minutes: 90
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@33de65ccb5d72f9ac38ff982aa4495467f89f213
-      - name: Install native and pinned Racket dependencies
-        shell: bash
+      - name: Install glaze Linux runtime + headless display session
         run: |
-          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --yes at-spi2-core dbus-x11 libgtk-4-dev \
-            desktop-file-utils file libadwaita-1-dev libjson-glib-dev \
-            libsecret-1-dev python3-pyatspi rpm weston xvfb openbox x11-utils xdotool
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-1 \
+            xvfb dbus-x11 x11-utils
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: Bogdanp/setup-racket@v1.15
+        with:
+          architecture: x64
+          distribution: full
+          variant: CS
+          version: '9.3'
+      - name: Install pinned dependencies
+        run: |
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/keel.git#${KEEL_PIN}"
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
-          bash scripts/install-racket-packages-with-retry.sh db-lib crypto-lib
-      - name: Run executable acceptance contract
-        shell: bash
+          bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/glaze.git#${GLAZE_PIN}"
+          bash scripts/install-racket-packages-with-retry.sh crypto
+      - name: Run executable acceptance (all manifest suites, real window under Xvfb)
         run: |
           set -euo pipefail
-          mkdir -p .rivet/acceptance
-          dbus-run-session -- bash -c \
-            'set -euo pipefail; raco rivet acceptance --json | tee .rivet/acceptance/report.json'
+          export WEBKIT_DISABLE_DMABUF_RENDERER=1
+          dbus-run-session -- xvfb-run -a racket scripts/acceptance/run-suites.rkt
       - name: Upload Linux evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: taskly-acceptance-linux
-          path: .rivet/acceptance
+          path: |
+            .glaze/verify
+            .glaze/acceptance
           if-no-files-found: warn

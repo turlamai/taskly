@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# Generate the Ed25519 keypair used to sign update manifests (macOS/Linux
-# contract: shared/spec/UPDATE.md).
+# Generate the Ed25519 keypair used to sign update manifests
+# (contract: shared/spec/UPDATE.md).
 #
 #   scripts/update-keys.sh [private-key-path]
 #
 # Default private key location: ~/.taskly/update-signing-key.pem — OUTSIDE
 # the repository. `raco rivet update-keys` prints every embedding form:
-# the DER base64 for UPDATE_ED25519_PRIVATE_KEY, the SPKI hex/base64 for
-# the Racket verifier, and the raw 32-byte base64 for
-# macos-host/Sources/RivetHost/UpdateService.swift.
+# the DER base64 for UPDATE_ED25519_PRIVATE_KEY and the SPKI hex/base64 for
+# the Racket verifier (the single trust root since the glaze rewrite, #141).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

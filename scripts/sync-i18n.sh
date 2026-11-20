@@ -2,10 +2,10 @@
 # Verifies the shared string sources stay coherent (shared/spec/UPDATE.md,
 # DATA-FORMAT §"i18n").
 #
-# The hosts no longer carry file copies: Linux/Windows/macOS all read the
-# staged res/i18n at runtime (the release pipeline copies shared/i18n into
-# the package), so there is nothing to sync — this check validates the
-# source of truth instead:
+# The single glaze web host consumes a generated table
+# (apps/desktop/src/i18n.ts, via scripts/gen-web-i18n.py); the tray reads
+# shared/i18n directly at install time. There is nothing to sync by hand —
+# this check validates the source of truth instead:
 #   - shared/i18n/{zh,en}.json parse as flat string→string objects
 #   - both languages expose the exact same key set
 #   - shared/emoji.json parses as JSON
@@ -17,7 +17,9 @@ cd "$(dirname "$0")/.."
 
 check() {
   local status=0
-  python3 - <<'PY' || status=1
+  local pybin=python3
+  "$pybin" -c 'pass' >/dev/null 2>&1 || pybin=python
+  "$pybin" - <<'PY' || status=1
 import json, sys
 
 def load(path):

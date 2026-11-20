@@ -2,7 +2,7 @@
 Type=Application
 Name=Taskly
 Comment=Local task manager with lists, quick capture and reminders
-Exec=RivetHost
+Exec=Taskly
 Icon=site.jrtx.taskly
 Terminal=false
 Categories=Utility;

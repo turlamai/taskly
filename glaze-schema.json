@@ -1,0 +1,974 @@
+{
+  "format": "glaze-schema",
+  "format-version": 1,
+  "glz": 1,
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/health"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/open_database"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/create_database"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/migrate_database"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/close_database"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/default_database"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/load_snapshot"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/add_task"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/update_task"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/update_task_text"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/set_completed"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/delete_task"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/search_tasks"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/create_list"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/update_list"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/delete_list"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/parse_due"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/parse_quick_add"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/reminder_decisions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/acknowledge_reminder"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/get_settings"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/set_setting"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/get_setting"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/export_backup"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/preview_backup"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/restore_backup"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/check_updates"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/start_download"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rpc/update_state"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/pick_folder"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/pick_file"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/save_file"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/reveal"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/shortcut"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/autostart"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/autostart_set"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/capture_done"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/e2e"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/e2e_report"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/e2e_fs"
+    }
+  ],
+  "schema": {
+    "commands": [
+      {
+        "errors": [],
+        "name": "health",
+        "parameters": [],
+        "result": {
+          "kind": "reference",
+          "name": "Health"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostAutostart",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostAutostart_set",
+        "parameters": [
+          {
+            "name": "enabled",
+            "type": {
+              "kind": "scalar",
+              "name": "Bool"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostCapture_done",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "Bool"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostE2e",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostE2e_fs",
+        "parameters": [
+          {
+            "name": "op",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          },
+          {
+            "name": "path",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          },
+          {
+            "name": "data",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostE2e_report",
+        "parameters": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          },
+          {
+            "name": "ok",
+            "type": {
+              "kind": "scalar",
+              "name": "Bool"
+            }
+          },
+          {
+            "name": "detail",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Bool"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostPick_file",
+        "parameters": [
+          {
+            "name": "title",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "filters",
+            "type": {
+              "kind": "scalar",
+              "name": "Value"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostPick_folder",
+        "parameters": [
+          {
+            "name": "title",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostReveal",
+        "parameters": [
+          {
+            "name": "path",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Bool"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostSave_file",
+        "parameters": [
+          {
+            "name": "title",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "defaultName",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "filters",
+            "type": {
+              "kind": "scalar",
+              "name": "Value"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostShortcut",
+        "parameters": [
+          {
+            "name": "accelerator",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcAcknowledge_reminder",
+        "parameters": [
+          {
+            "name": "token",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          },
+          {
+            "name": "phase",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Bool"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcAdd_task",
+        "parameters": [
+          {
+            "name": "text",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          },
+          {
+            "name": "listId",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "Int64"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "dueDate",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "dueTime",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "notes",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcCheck_updates",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcClose_database",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcCreate_database",
+        "parameters": [
+          {
+            "name": "folder",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          },
+          {
+            "name": "name",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcCreate_list",
+        "parameters": [
+          {
+            "name": "name",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          },
+          {
+            "name": "icon",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "String"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "color",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "Int64"
+              },
+              "kind": "optional"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcDefault_database",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "String"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcDelete_list",
+        "parameters": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "scalar",
+              "name": "Int64"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Bool"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcDelete_task",
+        "parameters": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "scalar",
+              "name": "Int64"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Bool"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcExport_backup",
+        "parameters": [
+          {
+            "name": "path",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Int64"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcGet_setting",
+        "parameters": [
+          {
+            "name": "key",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "String"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcGet_settings",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcLoad_snapshot",
+        "parameters": [
+          {
+            "name": "view",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          },
+          {
+            "name": "listId",
+            "type": {
+              "element": {
+                "kind": "scalar",
+                "name": "Int64"
+              },
+              "kind": "optional"
+            }
+          },
+          {
+            "name": "showCompleted",
+            "type": {
+              "kind": "scalar",
+              "name": "Bool"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcMigrate_database",
+        "parameters": [
+          {
+            "name": "folder",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcOpen_database",
+        "parameters": [
+          {
+            "name": "path",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcParse_due",
+        "parameters": [
+          {
+            "name": "expression",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "String"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcParse_quick_add",
+        "parameters": [
+          {
+            "name": "text",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcPreview_backup",
+        "parameters": [
+          {
+            "name": "path",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcReminder_decisions",
+        "parameters": [
+          {
+            "name": "startup",
+            "type": {
+              "kind": "scalar",
+              "name": "Bool"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcRestore_backup",
+        "parameters": [
+          {
+            "name": "path",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcSearch_tasks",
+        "parameters": [
+          {
+            "name": "keyword",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcSet_completed",
+        "parameters": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "scalar",
+              "name": "Int64"
+            }
+          },
+          {
+            "name": "completed",
+            "type": {
+              "kind": "scalar",
+              "name": "Bool"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcSet_setting",
+        "parameters": [
+          {
+            "name": "key",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcStart_download",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcUpdate_list",
+        "parameters": [
+          {
+            "name": "item",
+            "type": {
+              "kind": "scalar",
+              "name": "Value"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcUpdate_state",
+        "parameters": [],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcUpdate_task",
+        "parameters": [
+          {
+            "name": "task",
+            "type": {
+              "kind": "scalar",
+              "name": "Value"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcUpdate_task_text",
+        "parameters": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "scalar",
+              "name": "Int64"
+            }
+          },
+          {
+            "name": "text",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      }
+    ],
+    "contract": 1,
+    "enums": [],
+    "events": [],
+    "id": "glaze-routes",
+    "records": [
+      {
+        "fields": [
+          {
+            "name": "ok",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          },
+          {
+            "name": "version",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "name": "Health"
+      }
+    ],
+    "revision": 1,
+    "states": []
+  }
+}

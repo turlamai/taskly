@@ -16,18 +16,21 @@ concurrency:
   group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Single source of truth for the rivet pin; every install step below
-# references this so a bump is one edit, not a grep-replace across jobs.
+# Single source of truth for the dependency pins; every install step below
+# references these so a bump is one edit, not a grep-replace across jobs.
+# RIVET/KEEL stay for the unchanged engine (contract tooling + tests + the
+# signed update feed); GLAZE is the UI/host framework (issue #141).
 env:
   RIVET_PIN: 33de65ccb5d72f9ac38ff982aa4495467f89f213
   KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
+  GLAZE_PIN: 2ec4533c4663cd058018c669af56b85c137a4a2a
 jobs:
   contract:
-    name: Contract preflight (i18n + release metadata)
+    name: Contract preflight (i18n + release metadata + generated surfaces)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify platform i18n copies match shared/i18n
+      - name: Verify i18n sources are coherent
         run: scripts/sync-i18n.sh --check
       - name: Verify release version alignment
         run: bash scripts/check-release-version.sh
@@ -43,13 +46,35 @@ jobs:
         run: python3 scripts/check-update-feed-urls.py
       - name: Verify dependency pins stay aligned
         run: bash scripts/check-dependency-pins.sh
-      - name: Verify Windows installer bitmap and checkbox surface
-        run: python3 scripts/check-windows-installer-bitmaps.py
-      - name: Verify cross-platform design-token parity and contrast
-        run: python3 scripts/check-design-tokens.py
+      # Generated surfaces are do-not-edit: regenerate and require a clean
+      # diff, so a schema/i18n change can never ship a stale rpc.ts/i18n.ts.
+      - name: Generated RPC types and web i18n are fresh
+        run: |
+          set -euo pipefail
+          python3 scripts/gen-rpc-types.py
+          python3 scripts/gen-web-i18n.py
+          git diff --exit-code -- packages/core/src/rpc.ts apps/desktop/src/i18n.ts
+      - name: RPC surface gate (glaze routes == rivet schema)
+        run: python3 scripts/check-rpc-surface.py
+
+  frontend:
+    name: Web UI (type-check + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Type-check
+        run: pnpm check
+      - name: Build frontend
+        run: pnpm build
 
   core:
-    name: Racket core (contract tests)
+    name: Racket core (engine contract tests, unchanged)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,7 +91,7 @@ jobs:
         # tests/documentation module and fails every install (upstream
         # issue filed against keel). Drop this pin once the rename lands.
         run: |
-          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#76a5b9fdd01bde284d310ff5c05ec73972f64201'
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
           bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
       - name: Schema baseline is compatible
         run: raco rivet schema check rivet-schema.json --json
@@ -78,137 +103,19 @@ jobs:
       - name: Golden CLI suite
         run: python3 shared/cli-golden/runner.py --binary scripts/taskly-cli.sh
 
-  linux-host:
-    name: Linux host (GTK4 build)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Racket CS 9.3
-        uses: Bogdanp/setup-racket@v1.15
-        with:
-          architecture: x64
-          distribution: full
-          variant: CS
-          version: '9.3'
-      - name: Install GTK toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build pkg-config \
-            libgtk-4-dev libadwaita-1-dev libjson-glib-dev \
-            libsecret-1-dev libglib2.0-dev
-      # Builds and caches the embeddable Racket CS runtime and exports
-      # RIVET_RACKET_* (rivet's own composite action).
-      - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@33de65ccb5d72f9ac38ff982aa4495467f89f213
-      # Installed after the embeddable runtime so the catalog dependency
-      # closure (cext-lib, crypto-lib, keel) resolves against the minimal
-      # build — it ships no packages of its own. db-lib backs taskly's storage;
-      # crypto-lib backs the updater's signing without pulling documentation
-      # from the broader meta-packages.
-      - name: Install Rivet (catalog) and backend packages
-        run: |
-          # keel pinned below the tests/documentation collision commit
-          # (upstream issue filed); drop once keel renames the module.
-          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#76a5b9fdd01bde284d310ff5c05ec73972f64201'
-          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
-          bash scripts/install-racket-packages-with-retry.sh db-lib crypto-lib
-      - name: Toolchain doctor
-        run: raco rivet doctor --json
-      - name: Build host
-        run: raco rivet build
-      - name: Headless boot smoke
-        run: |
-          sudo apt-get install -y xvfb
-          xvfb-run -a ./.rivet/stage/RivetHost &
-          APP_PID=$!
-          sleep 8
-          kill -0 $APP_PID
-          kill $APP_PID
-
-  macos-host:
-    name: macOS host (${{ matrix.arch }} build)
-    runs-on: ${{ matrix.runner }}
+  backend:
+    name: Glaze adapter (${{ matrix.os }} compile + tests)
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - arch: arm64
-            runner: macos-15
-            racket-arch: arm64
-          - arch: x64
-            runner: macos-15-intel
-            racket-arch: x64
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Racket CS 9.3
         uses: Bogdanp/setup-racket@v1.15
         with:
-          # Each leg builds the architecture it will package (release.yml
-          # macos matrix matches).
-          architecture: ${{ matrix.racket-arch }}
-          distribution: full
-          variant: CS
-          version: '9.3'
-      # Cache only pinned Racket packages, not app source, host builds, or
-      # acceptance evidence. A pin or architecture change invalidates cache.
-      - name: Isolate Racket dependency packages
-        run: echo "PLTADDONDIR=$RUNNER_TEMP/taskly-racket-addons" >> "$GITHUB_ENV"
-      - name: Restore pinned Racket dependency cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/taskly-racket-addons
-          key: taskly-macos-racket93-v1-${{ matrix.arch }}-${{ env.RIVET_PIN }}-${{ env.KEEL_PIN }}
-      # Always execute the original dependency-install verification below.
-      # --skip-installed reuses the restored packages when present.
-      - name: Install Rivet (catalog)
-        # keel pinned just below the commit that added
-        # tests/documentation — it collides with rivet v0.11.0's own
-        # tests/documentation module and fails every install (upstream
-        # issue filed against keel). Drop this pin once the rename lands.
-        run: |
-          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#76a5b9fdd01bde284d310ff5c05ec73972f64201'
-          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
-      - name: Build host
-        run: raco rivet build
-      - name: Boot smoke
-        shell: bash
-        run: |
-          set -euo pipefail
-          smoke_home="$RUNNER_TEMP/taskly-smoke-home"
-          smoke_log="$RUNNER_TEMP/taskly-smoke.log"
-          mkdir -p "$smoke_home"
-          HOME="$smoke_home" ./.rivet/stage/RivetHost >"$smoke_log" 2>&1 &
-          APP_PID=$!
-          cleanup() {
-            if kill -0 "$APP_PID" 2>/dev/null; then
-              kill -TERM "$APP_PID" 2>/dev/null || true
-              for _ in 1 2 3 4 5; do
-                kill -0 "$APP_PID" 2>/dev/null || break
-                sleep 1
-              done
-              kill -KILL "$APP_PID" 2>/dev/null || true
-            fi
-            wait "$APP_PID" 2>/dev/null || true
-          }
-          trap cleanup EXIT
-          sleep 8
-          if ! kill -0 "$APP_PID" 2>/dev/null; then
-            cat "$smoke_log" || true
-            echo "::error::RivetHost exited before the 8-second smoke window"
-            exit 1
-          fi
-          cleanup
-          trap - EXIT
-
-  windows-host:
-    name: Windows host (WinRT build)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Racket CS 9.3
-        uses: Bogdanp/setup-racket@v1.15
-        with:
-          architecture: x64
+          architecture: ${{ matrix.os == 'macos-latest' && 'arm64' || 'x64' }}
           distribution: full
           variant: CS
           version: '9.3'
@@ -216,6 +123,7 @@ jobs:
       # Windows root-store entry (X509*->C #f). Re-export valid trust anchors
       # from THIS machine as PEM. TLS/hostname verification stays enabled.
       - name: Export trusted Windows root certificates for Racket TLS
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -241,12 +149,97 @@ jobs:
           [IO.File]::WriteAllText($path, ($certs -join "`n"), [Text.Encoding]::ASCII)
           "TASKLY_WINDOWS_TRUSTED_ROOTS=$path" |
             Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Install Rivet (verified Windows trust roots)
+      - name: Install glaze + engine deps (verified Windows trust roots)
         shell: bash
-        # Keep pinned keel below its known tests/documentation collision.
         run: |
-          racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs 'https://github.com/turlamai/keel.git#76a5b9fdd01bde284d310ff5c05ec73972f64201'
-          racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
-      - name: Build host
-        shell: pwsh
-        run: raco rivet build
+          set -euo pipefail
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
+            racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
+            racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs 'https://github.com/turlamai/glaze.git#${{ env.GLAZE_PIN }}'
+            racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs crypto
+          else
+            bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
+            bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
+            bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/glaze.git#${{ env.GLAZE_PIN }}'
+            bash scripts/install-racket-packages-with-retry.sh crypto
+          fi
+      - name: Compile adapter + thin host
+        run: raco make backend/main.rkt
+      - name: Adapter contract tests (28 RPC routes over the real engine)
+        run: racket backend/tests/adapter-test.rkt
+      - name: Glaze schema baseline is compatible
+        run: raco glaze schema check --json
+
+  package-smoke:
+    name: Linux package + HTTP adapter smoke
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install WebKitGTK and Xvfb (glaze Linux runtime)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev xvfb
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Setup Racket CS 9.3
+        uses: Bogdanp/setup-racket@v1.15
+        with:
+          architecture: x64
+          distribution: full
+          variant: CS
+          version: '9.3'
+      - name: Install glaze + engine deps
+        run: |
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/glaze.git#${{ env.GLAZE_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh crypto
+      - name: Package (Linux portable)
+        run: |
+          raco glaze build \
+            --entry backend/main.rkt \
+            --name Taskly \
+            --version "$(tr -d '[:space:]' < VERSION)" \
+            --identifier app.taskly.Taskly \
+            --out dist
+      - name: HTTP adapter smoke (packaged binary serves API and frontend)
+        run: |
+          set -euo pipefail
+          export WEBKIT_DISABLE_DMABUF_RENDERER=1
+          export TASKLY_TRANSPORT=http GLAZE_API_TOKEN=smoke-token
+          BIN="$(find dist -type f -name 'Taskly' ! -name '*.sha256' | head -1)"
+          test -n "$BIN" || { echo "::error::packaged binary not found"; ls -R dist | head -40; exit 1; }
+          chmod +x "$BIN"
+          cd "$(dirname "$BIN")"
+          setsid xvfb-run -a "./$(basename "$BIN")" &
+          run_pid=$!
+          trap 'kill -9 -- "-$run_pid" 2>/dev/null || true' exit
+          # setsid detaches the app from $!, so probe every listening TCP
+          # port system-wide; the token-protected health endpoint decides
+          # which port is the app (family policy).
+          port=""
+          for _ in $(seq 1 15); do
+            sleep 2
+            kill -0 "$run_pid" 2>/dev/null || { echo "::error::packaged app exited early"; exit 1; }
+            ports="$(lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null | grep -oE ':[0-9]+' | tr -d ':' | sort -u || true)"
+            for p in $ports; do
+              if curl -fsS -m 5 -X POST -H "X-Glaze-Token: smoke-token" "http://127.0.0.1:$p/api/health" 2>/dev/null | grep -q '"ok":true'; then
+                port="$p"; break
+              fi
+            done
+            [ -n "$port" ] && break
+          done
+          [ -n "$port" ] || { echo "::error::packaged app never listened"; exit 1; }
+          code="$(curl -s -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:$port/")"
+          [ "$code" = "200" ] || { echo "::error::frontend returned $code"; exit 1; }
+          # One real RPC round-trip through the packaged adapter.
+          curl -fsS -m 5 -X POST -H "X-Glaze-Token: smoke-token" \
+            -H 'Content-Type: application/json' -d '{}' \
+            "http://127.0.0.1:$port/api/rpc/get_settings" | grep -q '"language"'

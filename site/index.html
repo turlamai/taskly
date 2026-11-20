@@ -190,12 +190,12 @@
             <div class="kit-container">
                 <span class="kit-kicker" data-i18n="release.eyebrow">发布</span>
                 <h2 class="kit-h2" data-i18n="release.title">三大桌面，一个核心。</h2>
-                <p class="kit-lead" data-i18n="release.subtitle">Taskly 覆盖 macOS（SwiftUI）、Windows（WinUI 3）与 Linux（GTK4）——共享 Racket 核心驱动轻薄的第一方宿主，JSON CLI 由 63 例 golden 套件钉死，数据就是单个本地 SQLite 文件。桌面 GUI 可下载安装；CLI 目前需从源码运行。</p>
+                <p class="kit-lead" data-i18n="release.subtitle">Taskly 覆盖 macOS、Windows 与 Linux——共享 Racket 核心驱动单一第一方 glaze 宿主（web UI），JSON CLI 由 63 例 golden 套件钉死，数据就是单个本地 SQLite 文件。桌面 GUI 可下载安装；CLI 目前需从源码运行。</p>
                 <div class="kit-grid kit-grid--2" style="margin-top: 44px;">
                     <div class="kit-card">
                         <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
-                        <h3 data-i18n="r1.title">三端原生 · 一个核心</h3>
-                        <p data-i18n="r1.body">macOS 用 SwiftUI，Windows 用 WinUI 3，Linux 用 GTK4——每个平台都是第一方手感，全部逻辑在一个 Racket CS 核心里经类型化 RPC 驱动它们。</p>
+                        <h3 data-i18n="r1.title">单一宿主 · 一个核心</h3>
+                        <p data-i18n="r1.body">macOS、Windows、Linux 共用同一个 glaze web 宿主——同一套界面与交互，全部逻辑在一个 Racket CS 核心里经类型化 RPC 驱动。</p>
                     </div>
                     <div class="kit-card">
                         <span class="kit-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><path d="M12 15V3"/></svg></span>
@@ -226,7 +226,7 @@
                     <a class="kit-btn kit-btn--secondary" href="manual.html" data-i18n="cta.manual">阅读手册</a>
                     <a class="kit-btn kit-btn--ghost" href="https://github.com/turlamai/taskly/releases"><span data-i18n="cta.all-releases">全部版本</span><span class="kit-btn-arrow">›</span></a>
                 </div>
-                <p class="kit-text-2" style="margin-top: 22px; max-width: 68ch; font-size: 14px;" data-i18n="release.note">每个版本都带 SHA256SUMS 与签名更新清单；macOS 包为 ad-hoc 签名，预览版被 Gatekeeper 拦截属预期——不要关闭系统防护，请核对校验和并使用可信构建（`/Applications/taskly.app`）。</p>
+                <p class="kit-text-2" style="margin-top: 22px; max-width: 68ch; font-size: 14px;" data-i18n="release.note">每个版本都带 SHA256SUMS 与签名更新清单；macOS 包为 ad-hoc 签名，预览版被 Gatekeeper 拦截属预期——不要关闭系统防护，请核对校验和并使用可信构建（`/Applications/Taskly.app`）。</p>
             </div>
         </section>
 
@@ -247,10 +247,10 @@
                     </div>
                     <div class="kit-step">
                         <h3>03</h3>
-                        <p data-i18n="start.s3">使用提醒前允许系统通知，在应用运行时测试一次；不要假定退出应用或电脑休眠后仍能送达。</p>
+                        <p data-i18n="start.s3">提醒字段会持久化，但 OS 通知投递仍在 staged（#131）——任何状态下都暂不要期待横幅。</p>
                     </div>
                 </div>
-                <p class="kit-text-2" style="margin-top: 30px; max-width: 62ch;"><span data-i18n="start.limits-a">提醒选择逻辑仍需跨宿主收敛（</span><a href="https://github.com/turlamai/taskly/issues/62">#62</a><span data-i18n="start.limits-b">）。桌面发行包尚未附带独立 CLI；源码 CLI 用法见 README。</span></p>
+                <p class="kit-text-2" style="margin-top: 30px; max-width: 62ch;"><span data-i18n="start.limits-a">提醒选择逻辑仍需跨宿主收敛（</span><a href="https://github.com/turlamai/taskly/issues/62">#62</a><span data-i18n="start.limits-b">）。OS 通知投递仍在 staged（#131）。桌面发行包尚未附带独立 CLI；源码 CLI 用法见 README。</span></p>
                 <div class="start-links">
                     <a href="https://github.com/turlamai/taskly/blob/main/docs/USER-GUIDE.zh-CN.md" data-i18n="start.guide">安装、隐私与恢复</a>
                     <a href="https://github.com/turlamai/taskly/issues" data-i18n="start.help">反馈与帮助</a>
@@ -357,11 +357,11 @@
     "lists.body": "将工作、生活与创意分入各自着色的列表，互不干扰。",
     "lists.title": "井井有条的列表",
     "release.eyebrow": "发布",
-    "release.note": "每个版本都带 SHA256SUMS 与签名更新清单；macOS 包为 ad-hoc 签名，预览版被 Gatekeeper 拦截属预期——不要关闭系统防护，请核对校验和并使用可信构建（`/Applications/taskly.app`）。",
-    "release.subtitle": "Taskly 覆盖 macOS（SwiftUI）、Windows（WinUI 3）与 Linux（GTK4）——共享 Racket 核心驱动轻薄的第一方宿主，JSON CLI 由 63 例 golden 套件钉死，数据就是单个本地 SQLite 文件。桌面 GUI 可下载安装；CLI 目前需从源码运行。",
+    "release.note": "每个版本都带 SHA256SUMS 与签名更新清单；macOS 包为 ad-hoc 签名，预览版被 Gatekeeper 拦截属预期——不要关闭系统防护，请核对校验和并使用可信构建（`/Applications/Taskly.app`）。",
+    "release.subtitle": "Taskly 覆盖 macOS、Windows 与 Linux——共享 Racket 核心驱动单一第一方 glaze 宿主（web UI），JSON CLI 由 63 例 golden 套件钉死，数据就是单个本地 SQLite 文件。桌面 GUI 可下载安装；CLI 目前需从源码运行。",
     "release.title": "三大桌面，一个核心。",
-    "r1.body": "macOS 用 SwiftUI，Windows 用 WinUI 3，Linux 用 GTK4——每个平台都是第一方手感，全部逻辑在一个 Racket CS 核心里经类型化 RPC 驱动它们。",
-    "r1.title": "三端原生 · 一个核心",
+    "r1.body": "macOS、Windows、Linux 共用同一个 glaze web 宿主——同一套界面与交互，全部逻辑在一个 Racket CS 核心里经类型化 RPC 驱动。",
+    "r1.title": "单一宿主 · 一个核心",
     "r2.body": "启动时静默检查 + 设置里手动检查。后端验证 Ed25519 签名的更新清单并下载产物，宿主负责安装——绝不碰你的数据。",
     "r2.title": "应用内更新 · 三平台",
     "r3.body": "无头 CLI，稳定的 JSON 输出与退出码：`taskly add \"买牛奶\" --due tomorrow --json`。跨平台字节级一致由 CI 中的 63 例 golden 套件钉死。",
@@ -374,11 +374,11 @@
     "start.help": "反馈与帮助",
     "start.kicker": "开始使用",
     "start.limits-a": "提醒选择逻辑仍需跨宿主收敛（",
-    "start.limits-b": "）。桌面发行包尚未附带独立 CLI；源码 CLI 用法见 README。",
+    "start.limits-b": "）。OS 通知投递仍在 staged（#131）。桌面发行包尚未附带独立 CLI；源码 CLI 用法见 README。",
     "start.note": "提供 macOS、Windows、Linux 桌面预览版。按发布附件标注选择系统与 CPU；移动端和手表端尚未交付。",
     "start.s1": "创建清单，添加一条不含敏感信息的任务；保存前核对解析出的日期。",
     "start.s2": "完成任务，重新打开应用，确认状态已保存。",
-    "start.s3": "使用提醒前允许系统通知，在应用运行时测试一次；不要假定退出应用或电脑休眠后仍能送达。",
+    "start.s3": "提醒字段会持久化，但 OS 通知投递仍在 staged（#131）——任何状态下都暂不要期待横幅。",
     "start.title": "从一次有效使用开始。",
     "footer.changelog": "更新日志",
     "footer.family": "家族",
@@ -396,11 +396,11 @@
     "nav.manual": "Manual",
     "nav.release": "Release",
     "hero.availability": "Development preview. Focused on interaction, data recovery and reliable updates; no checkout, trial expiry or paid feature restrictions.",
-    "hero.eyebrow": "Open source · Local-first · Native on every desktop",
+    "hero.eyebrow": "Open source · Local-first · One host on every desktop",
     "hero.github": "View on GitHub",
     "hero.h1a": "Organize your life,",
     "hero.h1b": "one task at a time.",
-    "hero.lead": "Taskly is a clean, focused task manager with keyboard-friendly scheduling shortcuts, a CLI runnable from source for automation, and native apps for every desktop. Your data stays yours.",
+    "hero.lead": "Taskly is a clean, focused task manager with keyboard-friendly scheduling shortcuts, a CLI runnable from source for automation, and one first-party app on every desktop. Your data stays yours.",
     "dl.generic": "Get Taskly",
     "dl.linux": "For Linux",
     "dl.mac": "For macOS",
@@ -427,7 +427,7 @@
     "f1.title": "Scheduling shortcuts",
     "f2.body": "Your tasks live in a local SQLite database. No account, no cloud, your data never leaves your device.",
     "f2.title": "Private by design",
-    "f3.body": "Native apps for macOS, Windows, and Linux — same clean interface everywhere.",
+    "f3.body": "One first-party glaze host (web UI) on macOS, Windows, and Linux — same clean interface everywhere.",
     "f3.title": "Truly cross-platform",
     "f4.body": "Quit all Taskly processes, then back up the whole data directory. Do not concurrently edit a cloud-synced SQLite file across devices; WAL is not cross-device synchronization.",
     "f4.tag": "Keep your own copy.",
@@ -442,11 +442,11 @@
     "lists.body": "Separate Work, Life, and Ideas into color-coded lists that stay out of each other’s way.",
     "lists.title": "Organized lists",
     "release.eyebrow": "Release",
-    "release.note": "Every release carries SHA256SUMS plus a signed update manifest; macOS builds are ad-hoc signed. A Gatekeeper rejection is expected for these previews — do not disable system-wide protections; verify the checksum and use a trusted build (`/Applications/taskly.app`).",
-    "release.subtitle": "Taskly ships on macOS (SwiftUI), Windows (WinUI 3), and Linux (GTK4) — one shared Racket core behind thin first-party hosts, a JSON CLI pinned by a 63-case golden suite, and a single local SQLite file. Download and install the desktop GUI; the CLI currently runs from source.",
+    "release.note": "Every release carries SHA256SUMS plus a signed update manifest; macOS builds are ad-hoc signed. A Gatekeeper rejection is expected for these previews — do not disable system-wide protections; verify the checksum and use a trusted build (`/Applications/Taskly.app`).",
+    "release.subtitle": "Taskly ships on macOS, Windows, and Linux — one shared Racket core behind a single first-party glaze host (web UI), a JSON CLI pinned by a 63-case golden suite, and a single local SQLite file. Download and install the desktop GUI; the CLI currently runs from source.",
     "release.title": "Three desktops. One core.",
-    "r1.body": "SwiftUI on macOS, WinUI 3 on Windows, GTK4 on Linux — first-party feel on every desktop, with all logic in one Racket CS core driving them over typed RPC.",
-    "r1.title": "Three native hosts · One core",
+    "r1.body": "One glaze web host on macOS, Windows, and Linux — the same interface and interactions everywhere, with all logic in one Racket CS core driving it over typed RPC.",
+    "r1.title": "One host · One core",
     "r2.body": "Silent checks at launch plus a manual check in Settings. The backend verifies an Ed25519-signed update manifest and downloads the artifact; the host installs it — your data is never touched.",
     "r2.title": "In-app updates · all platforms",
     "r3.body": "A headless CLI with stable JSON output and exit codes: `taskly add \"Buy milk\" --due tomorrow --json`. Byte-level cross-platform parity is pinned by a 63-case golden suite in CI.",
@@ -459,11 +459,11 @@
     "start.help": "Get help",
     "start.kicker": "Get started",
     "start.limits-a": "Notification selection still needs cross-host consolidation (",
-    "start.limits-b": "). The standalone packaged CLI is not yet part of desktop releases; source CLI instructions remain in the README.",
+    "start.limits-b": "). OS notification delivery is staged (#131). The standalone packaged CLI is not yet part of desktop releases; source CLI instructions remain in the README.",
     "start.note": "Desktop previews for macOS, Windows and Linux. Select the OS and CPU shown on the release asset; mobile and watch applications are not delivered products.",
     "start.s1": "Create a list and add one non-sensitive task. Check the parsed date before saving.",
     "start.s2": "Complete the task, reopen the application and confirm the saved state.",
-    "start.s3": "For reminders, allow OS notifications and test one while the app is running. Do not assume delivery while it is closed or the computer sleeps.",
+    "start.s3": "Reminder fields persist, but OS notification delivery is staged (#131) — do not expect banners yet, in any state.",
     "start.title": "Start with one useful session.",
     "footer.changelog": "Changelog",
     "footer.family": "Family",

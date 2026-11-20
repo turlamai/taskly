@@ -17,40 +17,40 @@ Please do not open public issues for security problems.
 In scope:
 
 - The RVT1 RPC/Event/State boundary between the embedded Racket core and
-  the hosts (`racket/taskly/backend.rkt` and the generated clients under
-  `macos-host/Sources/RivetHost/`, `windows/`, `linux/`)
+  the glaze host (`racket/taskly/backend.rkt`, the adapter routes in
+  `backend/main.rkt` and the generated client `packages/core/src/rpc.ts`)
 - Update trust: Ed25519 manifest verification, embedded key handling and
-  artifact integrity (`racket/taskly/updater.rkt`,
-  `macos-host/Sources/RivetHost/UpdateService.swift`,
-  `scripts/make-update-manifest.sh`; contract: `shared/spec/UPDATE.md`)
+  artifact integrity (`racket/taskly/updater.rkt`, the adapter update
+  routes, `scripts/make-update-manifest.sh`; contract:
+  `shared/spec/UPDATE.md`)
 - Local data handling: the `~/.taskly/` directory (`tasks.db`,
   `config.ini`, WAL sidecars) and the CLI — its database access, the
   `check-update` network path, and `install-cli`/`uninstall-cli` writes
   to `~/.local/bin`, shell rc files and `HKCU\Environment\Path`
-- Reminder eligibility and notification failure handling: a denied
-  permission or failed delivery must disable notifications for the
-  session, never crash
+- Reminder eligibility and notification failure handling: delivery is
+  staged (#131); when OS notifications return, a denied permission or
+  failed delivery must disable notifications for the session, never crash
 - Documented claims in `shared/spec/` that exceed actual behavior
 
 Out of scope: social engineering, physical access attacks, and
-vulnerabilities in the OS-provided UI toolkits the hosts consume
-(SwiftUI/AppKit, WinUI 3, GTK 4).
+vulnerabilities in the OS webview engines and glaze runtime the host
+consumes (WebView2, WKWebView, WebKitGTK).
 
 ## Design notes reviewers should know
 
-- The backend binds no network ports. The Racket core is embedded in
-  each host process through Rivet's stable C ABI; host/core traffic is
-  the typed RVT1 boundary, not a socket. The update feed is the
-  application's only network use — no telemetry, no accounts. The macOS
-  bundle ships an `InternetAccessPolicy.plist` declaring the feed hosts.
+- The production host binds no network ports: UI/core traffic rides the
+  native GLZ1 carrier into the in-process RVT1 boundary. The Racket core
+  is embedded in the host process; `TASKLY_TRANSPORT=http` selects an
+  explicit dev/CI adapter (loopback-only, per-process token, refused
+  cross-origin) — never the default. The update feed is the
+  application's only outbound network use — no telemetry, no accounts.
 - **Updates and installer trust are different layers.** The Ed25519
   signed manifest (key id `taskly-2026-10`) and the artifact's signed
-  size + SHA-256 are verified before any install step — in the backend
-  updater (`racket/taskly/updater.rkt`) and, on macOS, again in the host
-  via CryptoKit (`UpdateService.swift`). The public key is embedded in
-  both files; feed URLs are pinned to the canonical GitHub release
-  location and checked by `scripts/check-update-feed-urls.py`. A
-  plain-http feed fails closed.
+  size + SHA-256 are verified before any install step in the backend
+  updater (`racket/taskly/updater.rkt`), reached through the adapter
+  update routes. The public key is embedded there; feed URLs are pinned
+  to the canonical GitHub release location and checked by
+  `scripts/check-update-feed-urls.py`. A plain-http feed fails closed.
 - **The signed feed does not imply a publisher-signed installer.** macOS
   artifacts are ad-hoc signed, not Developer ID signed or notarized —
   release titles deliberately carry "(unsigned evaluation)". Production

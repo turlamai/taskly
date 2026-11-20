@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taskly</title>
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <div class="window" id="app" data-database-main>
+    <!-- Startup gate (PRODUCT-SPEC §2a) -->
+    <section class="database-gate" id="databaseGate" aria-labelledby="databaseWelcomeTitle" hidden>
+      <div class="database-intro">
+        <span class="database-wordmark">Taskly</span>
+        <h1 id="databaseWelcomeTitle" data-i18n="dbGateTitle">任务有归处，位置由你定。</h1>
+        <p data-i18n="dbGateBody">选择自己的文件夹，创建任务数据库。也可以打开已有数据库，继续记录。</p>
+      </div>
+      <div class="database-choice">
+        <button class="btn primary" type="button" data-db-action="create" data-i18n="dbGateCreate">创建数据库</button>
+        <button class="btn" type="button" data-db-action="open" data-i18n="dbGateOpen">打开已有数据库…</button>
+      </div>
+      <div class="database-recovery" id="databaseRecovery" hidden>
+        <h2 data-i18n="dbRecoveryTitle">找不到上次的数据库</h2>
+        <p id="databaseMissingPath"></p>
+        <p data-i18n="dbRecoveryBody">文件可能已移动，或所在磁盘尚未连接。重新定位原文件即可继续，不会自动新建或覆盖。</p>
+        <div class="database-actions">
+          <button class="btn" type="button" data-db-action="relocate" data-i18n="dbRelocate">重新定位…</button>
+          <button class="btn" type="button" data-db-action="retry" data-i18n="dbRetry">重试</button>
+        </div>
+      </div>
+      <p class="database-error" id="databaseGateError" role="alert" hidden></p>
+      <p class="database-principle" data-i18n="dbGatePrinciple">无需绑定账号或云服务。数据的位置与同步方式由你管理。</p>
+    </section>
+
+    <div class="app">
+      <aside class="sidebar" data-i18n-aria="sectionMyLists" aria-label="侧栏">
+        <div class="tiles" id="tiles"></div>
+
+        <div class="sect"><span data-i18n="sectionMyLists">我的列表</span>
+          <button class="addlink" data-i18n-aria="dialogCreateList" aria-label="新建清单" title="新建清单"><span data-icon="plus"></span></button>
+        </div>
+        <div id="lists"></div>
+
+        <div class="sect" data-i18n="fieldTags">标签</div>
+        <div id="tags"></div>
+        <div class="sidebar-footer">
+          <div class="database-identity"><strong data-db-name></strong><span data-i18n="sidebarDbManaged">数据库由你管理</span></div>
+          <button class="sidebar-settings" data-i18n="menuSettings">设置</button>
+        </div>
+      </aside>
+
+      <section class="pane">
+        <div class="phead">
+          <div>
+            <h1 id="vTitle">今天</h1>
+            <div class="sub" id="vSub"></div>
+          </div>
+          <div class="sp"></div>
+          <button class="btn panehead-btn" id="editListBtn" hidden><span data-icon="pencil"></span><span data-i18n="dialogEditList">编辑清单</span></button>
+          <div class="search">
+            <span data-icon="search"></span>
+            <input id="q" type="search" data-i18n-placeholder="searchHint" placeholder="搜索任务" data-i18n-aria="searchHint" aria-label="搜索任务" autocomplete="off">
+            <kbd>/</kbd>
+          </div>
+        </div>
+
+        <div class="filterbar" id="filterBar" hidden></div>
+
+        <div class="quickadd">
+          <span data-icon="plus"></span>
+          <input id="quickAdd" type="text" data-i18n-placeholder="quickAddPlaceholder" placeholder="添加任务，支持 #标签、@14:00、+1d" data-i18n-aria="taskListInputHint" aria-label="添加任务" autocomplete="off">
+        </div>
+
+        <div class="rows" id="rows"></div>
+
+        <div class="undo-banner" id="undoBanner" hidden>
+          <span id="undoText"></span>
+          <button class="btn ghost" id="undoBtn" data-i18n="bannerUndo">撤销</button>
+        </div>
+
+        <div class="statusbar">
+          <span id="statusLeft"></span>
+          <span class="sp"></span>
+          <span data-i18n="statusHintKeys">⌘K 搜索 · Enter 保存 · Esc 取消</span>
+        </div>
+
+        <!-- Anchored task detail (per-field autosave) -->
+        <div class="dpop" id="dpop" role="dialog" aria-labelledby="dpopTitle" aria-modal="false" hidden>
+          <div class="dhead">
+            <h2 id="dpopTitle" data-i18n="dialogTaskDetail">任务详情</h2>
+            <button class="iconbtn" data-icon="x" data-act="close-detail" data-i18n-aria="closeDetail" aria-label="关闭详情"></button>
+          </div>
+          <div class="dbody">
+            <label class="field">
+              <span class="flabel" data-i18n="fieldTitle">标题</span>
+              <input class="input" id="fTitle" type="text" autocomplete="off">
+            </label>
+            <label class="field"><span class="flabel" data-i18n="fieldDate">日期</span><input class="input" id="fDate" type="date"></label>
+            <label class="field"><span class="flabel" data-i18n="fieldNotes">备注</span><textarea class="input" id="fNote" rows="3"></textarea></label>
+            <label class="field">
+              <span class="flabel" data-i18n="fieldList">所属清单</span>
+              <select class="input" id="fList"></select>
+            </label>
+            <div class="detail-options">
+              <details class="detail-option" data-detail-field="time"><summary data-i18n="detailTimeRemindSummary">时间与提醒</summary><div class="option-body">
+                <label class="field"><span class="flabel" data-i18n="fieldTime">时间</span><input class="input" id="fTime" type="time"></label>
+                <label class="field">
+                  <span class="flabel" data-i18n="reminderTitle">提醒</span>
+                  <select class="input" id="fRemind">
+                    <option value="none" data-i18n="reminderNone">不提醒</option>
+                    <option value="0" data-i18n="reminderOnTime">准时</option>
+                    <option value="10m" data-i18n="reminder10m">提前 10 分钟</option>
+                    <option value="1h" data-i18n="reminder1h">提前 1 小时</option>
+                  </select>
+                </label>
+              </div></details>
+              <details class="detail-option" data-detail-field="priority"><summary data-i18n="fieldPriority">优先级</summary><div class="option-body"><div class="field">
+                <span class="flabel" id="prioLabel" data-i18n="fieldPriority">优先级</span>
+                <div class="seg" role="group" aria-labelledby="prioLabel" id="fPrio">
+                  <button data-prio="0" data-i18n="prioNone">无</button>
+                  <button data-prio="1" data-i18n="prioLow">低</button>
+                  <button data-prio="2" data-i18n="prioMedium">中</button>
+                  <button data-prio="3" data-i18n="prioHigh">高</button>
+                </div>
+              </div></div></details>
+              <details class="detail-option" data-detail-field="tags"><summary data-i18n="fieldTags">标签</summary><div class="option-body"><div class="field">
+                <span class="flabel" data-i18n="fieldTags">标签</span>
+                <div class="taglist" id="fTags"></div>
+                <input class="input" id="fTagAdd" type="text" data-i18n-placeholder="tagAddPlaceholder" placeholder="输入标签后回车" data-i18n-aria="fieldTags" aria-label="添加标签" autocomplete="off">
+              </div></div></details>
+              <details class="detail-option" data-detail-field="subtasks"><summary data-i18n="fieldSubtasks">子任务</summary><div class="option-body"><div class="field">
+                <span class="flabel" data-i18n="fieldSubtasks">子任务</span>
+                <div class="sublist" id="fSubs"></div>
+                <input class="input" id="fSubAdd" type="text" data-i18n-placeholder="subtaskAddPlaceholder" placeholder="输入子任务后回车" data-i18n-aria="fieldSubtasks" aria-label="添加子任务" autocomplete="off">
+              </div></div></details>
+              <details class="detail-option" data-detail-field="url"><summary data-i18n="fieldUrl">链接</summary><div class="option-body">
+                <label class="field"><span class="flabel" data-i18n="fieldUrl">链接</span><input class="input" id="fUrl" type="url" placeholder="https://"></label>
+              </div></details>
+            </div>
+          </div>
+          <div class="dacts">
+            <button class="btn danger" id="fDelete" data-i18n="taskDelete">删除</button>
+            <span class="sp"></span>
+            <span class="hint-inline" data-i18n="detailAutoSaved">更改自动保存</span>
+            <button class="btn primary" data-act="close-detail" data-i18n="detailClose">完成</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Database dialog (create / open / migrate / relocate) -->
+    <dialog class="database-dialog" id="databaseDialog" aria-labelledby="databaseDialogTitle">
+      <h2 id="databaseDialogTitle">创建数据库</h2>
+      <p id="databaseDialogDescription"></p>
+      <div id="databaseFields">
+        <label class="field" id="databaseNameField"><span class="flabel" data-i18n="dbNameLabel">数据库名称</span><input class="input" id="databaseName" maxlength="64" autocomplete="off" value="我的任务"></label>
+        <label class="field"><span class="flabel" id="databasePathLabel">保存文件夹</span><input class="input" id="databasePath" maxlength="500" autocomplete="off" readonly aria-describedby="databaseError"></label>
+        <button class="btn" type="button" id="databaseChoose">选择文件夹…</button>
+      </div>
+      <p class="database-confirm" id="databaseConfirm" hidden></p>
+      <p class="database-error" id="databaseError" role="alert" hidden></p>
+      <div class="database-actions">
+        <button class="btn" type="button" id="databaseCancel" data-i18n="dialogCancel">取消</button>
+        <button class="btn primary" type="button" id="databaseApply">创建并打开</button>
+      </div>
+    </dialog>
+
+    <!-- List editor sheet -->
+    <div class="sheetwrap" id="listSheetWrap" hidden>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" id="listSheet">
+        <div class="shd">
+          <h2 id="sheetTitle">编辑清单</h2>
+          <span class="saved" id="savedBadge" data-i18n="savedBadge">已保存</span>
+        </div>
+        <div class="field">
+          <label class="flabel" for="listName" data-i18n="dialogListName">列表名称</label>
+          <div class="namewrap">
+            <span class="ldot" id="previewDot" style="background:var(--list-blue)">📋</span>
+            <input class="input" id="listName" type="text" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <span class="flabel" id="iconLabel" data-i18n="dialogListIcon">列表图标</span>
+          <div class="tabs" role="tablist" data-i18n-aria="dialogSelectIcon" aria-label="图标分类" id="iconTabs"></div>
+          <div class="grid" role="group" aria-labelledby="iconLabel" id="iconGrid"></div>
+        </div>
+        <div class="field">
+          <span class="flabel" id="colorLabel" data-i18n="dialogListColor">列表颜色</span>
+          <div class="swatches" role="group" aria-labelledby="colorLabel" id="swatches"></div>
+        </div>
+        <p class="note" data-i18n="listEditorNote">三平台共用同一套图标目录与 12 色板；色值以语义令牌渲染。</p>
+        <div class="sacts">
+          <button class="btn danger" id="listDelete" hidden>删除列表</button>
+          <span class="sp"></span>
+          <button class="btn" id="listCancel" data-i18n="dialogCancel">取消</button>
+          <button class="btn primary" id="listSave" data-i18n="dialogSave">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings sheet -->
+    <div class="sheetwrap" id="settingsSheetWrap" hidden>
+      <div class="sheet setsheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" id="settingsSheet">
+        <div class="shd">
+          <h2 id="settingsTitle" data-i18n="menuSettings">设置</h2>
+          <button class="btn" id="settingsBack" data-i18n="backToTasks">返回任务</button>
+        </div>
+        <div class="group">
+          <h3 class="gtitle" data-i18n="settingsGroupGeneral">通用</h3>
+          <div class="frow">
+            <div><div class="flabel" id="langLabel" data-i18n="menuLanguage">界面语言</div></div>
+            <div class="selectwrap">
+              <select id="lang" aria-labelledby="langLabel">
+                <option value="zh">中文（简体）</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+          </div>
+          <div class="frow">
+            <div><div class="flabel" id="themeLabel" data-i18n="menuTheme">主题</div></div>
+            <div class="seg" role="radiogroup" aria-labelledby="themeLabel" id="themeSeg">
+              <label class="segopt"><input type="radio" name="theme" value="system"><span data-i18n="themeFollowSystem">跟随系统</span></label>
+              <label class="segopt"><input type="radio" name="theme" value="light"><span data-i18n="themeLight">浅色</span></label>
+              <label class="segopt"><input type="radio" name="theme" value="dark"><span data-i18n="themeDark">深色</span></label>
+            </div>
+          </div>
+          <div class="frow">
+            <div><div class="flabel" id="autostartLabel" data-i18n="autostartLabel">开机时启动</div><div class="fhelp" id="autostartHelp" data-i18n="autostartHelp">登录后自动运行 Taskly（安装版可用）</div></div>
+            <label class="checkrow"><input type="checkbox" id="autostartChk" aria-labelledby="autostartLabel"></label>
+          </div>
+          <div class="frow">
+            <div><div class="flabel" id="closeTrayLabel" data-i18n="closeToTrayLabel">关闭主窗口时留在托盘</div></div>
+            <label class="checkrow"><input type="checkbox" id="closeTrayChk" aria-labelledby="closeTrayLabel"></label>
+          </div>
+        </div>
+        <div class="group">
+          <h3 class="gtitle" data-i18n="settingsGroupNewTasks">新任务</h3>
+          <div class="frow">
+            <div><div class="flabel" id="listLabel" data-i18n="defaultListLabel">默认清单</div><div class="fhelp" data-i18n="defaultListHelp">快速添加的任务会进入这里</div></div>
+            <div class="selectwrap"><select id="defaultList" aria-labelledby="listLabel"></select></div>
+          </div>
+          <div class="frow">
+            <div><div class="flabel" id="scLabel" data-i18n="globalQuickAddLabel">全局快速添加</div><div class="fhelp" data-i18n="globalQuickAddHelp">仅记录组合键，不注册系统快捷键</div></div>
+            <div class="shortcut">
+              <button class="keybtn" id="scBtn" aria-labelledby="scLabel" aria-describedby="scValue">⌃⌥Space</button>
+              <span class="sr-only" id="scValue"></span>
+              <div class="sclinks">
+                <button class="linkbtn" id="scReset" data-i18n="shortcutReset">恢复默认</button>
+                <button class="linkbtn" id="scClear" data-i18n="shortcutClear">清除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="group">
+          <h3 class="gtitle" data-i18n="settingsGroupData">数据</h3>
+          <div class="frow">
+            <div><div class="flabel" data-i18n="dbCurrentLabel">当前数据库</div><div class="fhelp" data-db-name>尚未打开数据库</div><div class="fhelp" data-db-path>创建或打开数据库后显示位置</div></div>
+            <button class="btn" type="button" data-db-action="reveal" data-db-requires-open data-i18n="dbReveal">所在文件夹…</button>
+          </div>
+          <div class="frow">
+            <div><div class="flabel" data-i18n="dbLocationLabel">存储位置</div><div class="fhelp" data-i18n="dbLocationHelp">位置由你选择，迁移时保留全部任务</div></div>
+            <button class="btn" type="button" data-db-action="migrate" data-db-requires-open data-i18n="dbMigrateBtn">迁移位置…</button>
+          </div>
+          <div class="frow">
+            <div><div class="flabel" data-i18n="dbSwitchLabel">切换数据库</div><div class="fhelp" data-i18n="dbSwitchHelp">当前数据库保留，打开另一个继续使用</div></div>
+            <button class="btn" type="button" data-db-action="open" data-i18n="dbOpenBtn">打开已有…</button>
+          </div>
+          <div class="frow">
+            <div><div class="flabel" data-i18n="dbNewLabel">新建数据库</div><div class="fhelp" data-i18n="dbNewHelp">选择自己的文件夹，从空白开始</div></div>
+            <button class="btn" type="button" data-db-action="create" data-i18n="dbCreateBtn">创建…</button>
+          </div>
+          <div class="frow">
+            <div><div class="flabel" data-i18n="dbExportLabel">备份与导出</div><div class="fhelp" data-i18n="dbExportHelp">导出当前库的全部清单与任务</div></div>
+            <button class="btn" id="exportBtn" data-db-requires-open data-i18n="dbExportBtn">导出 JSON</button>
+          </div>
+          <div class="frow">
+            <div><div class="flabel" data-i18n="dbRestoreLabel">恢复备份</div><div class="fhelp" data-i18n="dbRestoreHelp">先查看备份内容，再确认替换当前库</div></div>
+            <button class="btn" id="restoreBtn" data-db-requires-open data-i18n="dbRestoreBtn">选择备份…</button>
+          </div>
+          <p class="data-note" data-i18n="dbDataNote">数据库由你持有，不绑定账号或云服务。</p>
+          <p class="data-feedback" id="dataFeedback" role="status"></p>
+        </div>
+        <div class="setnote"><span data-i18n="settingsSavedNote">偏好保存在引擎设置中，随数据库同步。</span></div>
+      </div>
+    </div>
+
+    <!-- Restore confirmation -->
+    <dialog class="settings-dialog" id="dataDialog" aria-labelledby="dataDialogTitle">
+      <h2 id="dataDialogTitle" data-i18n="dbRestorePreviewTitle">恢复备份</h2>
+      <p id="restoreDescription" hidden></p>
+      <div class="dialog-actions">
+        <button class="btn" id="dialogCancel" data-i18n="dialogCancel">取消</button>
+        <button class="btn primary" id="dialogApply" data-i18n="dbRestoreApply">替换当前任务</button>
+      </div>
+    </dialog>
+  </div>
+
+  <div class="sr-only" id="live" aria-live="polite"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

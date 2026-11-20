@@ -9,11 +9,12 @@ change date as the rest of the Work.
 
 1. **The wire contract is cross-platform.** `racket/taskly/backend.rkt`
    declares the typed RPC/Event/State surface. Changing any of it is a
-   three-platform release: regenerate the checked-in clients with
-   `raco rivet build` (`linux/GeneratedBackend.hpp`,
-   `windows/GeneratedBackend.hpp`,
-   `macos-host/Sources/RivetHost/GeneratedBackend.swift`) in the same
-   commit — they are build inputs, never hand-edit them. User-visible
+   three-platform release: regenerate the checked-in client and route
+   baseline with `python3 scripts/gen-rpc-types.py`
+   (`packages/core/src/rpc.ts`) and `raco glaze schema write`
+   (`glaze-schema.json`) in the same commit, add the 1:1 adapter route in
+   `backend/main.rkt`, and keep `scripts/check-rpc-surface.py` green —
+   generated files are build inputs, never hand-edit them. User-visible
    strings live in `shared/i18n/{zh,en}.json`; both languages must keep
    exact key parity (`scripts/sync-i18n.sh --check`).
 2. **The golden suite pins the CLI contract.** Identical argv must
@@ -23,10 +24,10 @@ change date as the rest of the Work.
    and implementation land in the same commit. Never weaken a
    requirement in `rivet-acceptance.rktd` to make a change green.
 3. **Fail honestly.** Unopenable databases exit 4 with the error on
-   stderr; denied notification permission disables notifications for
-   the session; a failed update verification aborts and the running
-   version keeps working. Report what failed and what to do next. No
-   silent fallbacks.
+   stderr; reminder delivery is staged (#131) and when OS notifications
+   return, denied permission disables them for the session; a failed
+   update verification aborts and the running version keeps working.
+   Report what failed and what to do next. No silent fallbacks.
 4. **Privacy is a feature.** The signed update feed is the
    application's only network use. No telemetry, no accounts. New
    storage stays under the platform data directory (`~/.taskly/`,
@@ -42,14 +43,17 @@ python3 shared/cli-golden/runner.py --binary scripts/taskly-cli.sh
 scripts/sync-i18n.sh --check
 bash scripts/check-release-version.sh
 python3 scripts/check-update-feed-urls.py
-python3 scripts/check-design-tokens.py
-python3 scripts/check-windows-installer-bitmaps.py
+python3 scripts/check-rpc-surface.py
 bash scripts/check-dependency-pins.sh
+pnpm install && pnpm check && pnpm build                      # web UI
+racket backend/tests/adapter-test.rkt                         # headless adapter contract
 ```
 
-These mirror the CI `contract` and `core` jobs. Platform hosts compile
-in their own CI jobs via `raco rivet build`; if you touch `macos-host/`,
-`windows/` or `linux/`, say whether you were able to build locally.
+These mirror the CI `contract`, `frontend` and `core` jobs. The glaze
+host builds and runs its real-window acceptance in its own CI jobs
+(`acceptance.yml`); if you touch `backend/` or `apps/desktop/`, say
+whether you were able to run `racket verify.rkt` locally (needs a
+graphical session).
 
 ## Areas that especially want help
 

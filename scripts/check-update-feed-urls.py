@@ -19,8 +19,6 @@ REQUIRED = {
         + '/releases/download/$TAG}"',
     "racket/taskly/updater.rkt":
         '"' + CANONICAL + '/releases/latest/download"',
-    "macos-host/Sources/RivetHost/UpdateService.swift":
-        '"' + CANONICAL + '/releases/latest/download/update-manifest.json"',
     "shared/spec/UPDATE.md":
         CANONICAL + '/releases/latest/download/update-manifest.json',
 }

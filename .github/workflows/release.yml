@@ -14,17 +14,31 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-# Single source of truth for the rivet pin; every install step below
-# references this so a bump is one edit, not a grep-replace across jobs.
+# Same pins as ci.yml (scripts/check-dependency-pins.sh gates the alignment).
+# RIVET/KEEL remain release tooling: the unchanged engine's updater verifies
+# the rivet-format signed feed, so `raco rivet sign-manifest` still signs it
+# (issue #141 Keep clause). GLAZE builds and packages every host.
 env:
   RIVET_PIN: 33de65ccb5d72f9ac38ff982aa4495467f89f213
+  KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
+  GLAZE_PIN: 2ec4533c4663cd058018c669af56b85c137a4a2a
 jobs:
-  signing-preflight:
-    name: Verify update signing key before native packaging
+  validate:
+    name: Validate release tag + signing key
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check Ed25519 private key against both updater trust roots
+      - name: Version preflight (VERSION == rivet.rktd == updater == package.json == tag)
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            bash scripts/check-release-version.sh
+          else
+            bash scripts/check-release-version.sh "$GITHUB_REF_NAME"
+          fi
+      # Fail-closed: the signed update feed is part of the release contract,
+      # so a missing secret stops the release before the expensive builds.
+      - name: Require Ed25519 update signing secret before packaging
+        if: github.event_name == 'push'
         env:
           UPDATE_ED25519_PRIVATE_KEY: ${{ secrets.UPDATE_ED25519_PRIVATE_KEY }}
         run: |
@@ -39,250 +53,9 @@ jobs:
           printf '%s\n' "$UPDATE_ED25519_PRIVATE_KEY" > "$KEY_PEM"
           bash scripts/check-release-signing-key.sh "$KEY_PEM"
 
-  macos:
-    needs: [signing-preflight]
-    name: macOS (${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { arch: arm64, runner: macos-latest, racket-arch: arm64 }
-          - { arch: x64, runner: macos-15-intel, racket-arch: x64 }
-    env:
-      # Production signing lights up as soon as the account-level secrets
-      # exist (Developer ID p12 + App Store Connect API key) and applies to
-      # every workflow run that has them. Credential contract:
-      # DEVELOPER_ID_P12_B64 / DEVELOPER_ID_P12_PASSWORD / ASC_KEY_ID /
-      # ASC_ISSUER_ID / ASC_KEY_P8_B64; see rivet docs/production-signing.md.
-      MACOS_SIGNING_CONFIGURED: ${{ secrets.DEVELOPER_ID_P12_B64 != '' && secrets.ASC_KEY_P8_B64 != '' }}
-      # A tag push is a release: without credentials it must fail closed
-      # instead of silently shipping ad-hoc signed artifacts.
-      IS_TAG_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Racket CS
-        uses: Bogdanp/setup-racket@v1.15
-        with:
-          architecture: ${{ matrix.racket-arch }}
-          distribution: full
-          variant: CS
-          version: '9.3'
-      - name: Export trusted Windows root certificates for Racket TLS
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $path = Join-Path $env:RUNNER_TEMP 'taskly-trusted-roots.pem'
-          $certs = @()
-          foreach ($store in @('Cert:\LocalMachine\Root', 'Cert:\CurrentUser\Root')) {
-            foreach ($cert in (Get-ChildItem -Path $store)) {
-              try {
-                $raw = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)
-                if ($raw.Length -gt 0) {
-                  $base64 = [Convert]::ToBase64String(
-                    $raw, [Base64FormattingOptions]::InsertLineBreaks)
-                  $certs += "-----BEGIN CERTIFICATE-----`n$base64`n-----END CERTIFICATE-----"
-                }
-              } catch {
-                Write-Warning "Skipped an unreadable root certificate entry"
-              }
-            }
-          }
-          if ($certs.Count -lt 10) {
-            throw 'Windows root CA export returned too few anchors; refusing to bypass TLS'
-          }
-          [IO.File]::WriteAllText($path, ($certs -join "`n"), [Text.Encoding]::ASCII)
-          "TASKLY_WINDOWS_TRUSTED_ROOTS=$path" |
-            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Install Rivet (catalog; verified Windows trust roots)
-        # keel pinned just below the commit that added
-        # tests/documentation — it collides with rivet v0.11.0's own
-        # tests/documentation module and fails every install (upstream
-        # issue filed against keel). Drop this pin once the rename lands.
-        # Windows: Racket 9.3 crashes in its OS root-store importer
-        # (X509*->C #f), so pkg installs go through the PEM trust wrapper
-        # exported above (same workaround as ci.yml).
-        shell: bash
-        run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs 'https://github.com/turlamai/keel.git#76a5b9fdd01bde284d310ff5c05ec73972f64201'
-            racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
-          else
-            raco pkg install --auto --no-docs 'https://github.com/turlamai/keel.git#76a5b9fdd01bde284d310ff5c05ec73972f64201'
-            raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
-          fi
-      - name: Version preflight (VERSION == rivet.rktd == updater == tag)
-        run: bash scripts/check-release-version.sh "${{ github.ref_name }}"
-      # The Finder DMG uses the PNG, not the editable SVG. Regenerate it so
-      # artwork changes always land in the release (Rivet uses a 660x400 view).
-      - name: Render DMG artwork from SVG
-        run: |
-          brew install librsvg
-          bash scripts/render-dmg-background.sh
-      - name: Provision Developer ID certificate
-        if: env.MACOS_SIGNING_CONFIGURED == 'true'
-        env:
-          DEVELOPER_ID_P12_B64: ${{ secrets.DEVELOPER_ID_P12_B64 }}
-          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
-        run: |
-          set -euo pipefail
-          P12="$RUNNER_TEMP/developer-id.p12"
-          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
-          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
-          printf '%s' "$DEVELOPER_ID_P12_B64" | base64 --decode > "$P12"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$P12" -k "$KEYCHAIN" -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
-          security list-keychains -s "$KEYCHAIN" $(security list-keychains | tr -d '"')
-          rm -f "$P12"
-          IDENTITY_NAME="$(security find-identity -v -p codesigning "$KEYCHAIN" | grep 'Developer ID Application' | head -1 | sed -E 's/^[^"]*"(.*)"$/\1/')"
-          test -n "$IDENTITY_NAME"
-          # rivet reads exactly these two (rivet docs/production-signing.md);
-          # release defaults to production mode, so exporting them alone
-          # flips packaging over once --development is dropped below.
-          {
-            echo "RIVET_MACOS_SIGN_IDENTITY=$IDENTITY_NAME"
-            echo "RIVET_MACOS_NOTARY_PROFILE=ASC_NOTARY"
-          } >> "$GITHUB_ENV"
-      - name: Store notarytool keychain profile
-        if: env.MACOS_SIGNING_CONFIGURED == 'true'
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
-        run: |
-          set -euo pipefail
-          P8="$RUNNER_TEMP/asc-api-key.p8"
-          printf '%s' "$ASC_KEY_P8_B64" | base64 --decode > "$P8"
-          xcrun notarytool store-credentials ASC_NOTARY \
-            --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --key "$P8"
-          rm -f "$P8"
-      # DMG (human installer) + portable zip + SBOM + notices, launch
-      # smoke included. The macOS update feed entry is the portable zip,
-      # assembled by scripts/make-update-manifest.sh in the publish job.
-      # `raco rivet release` defaults to production packaging: with the
-      # credentials exported above it Developer ID-signs, notarizes,
-      # staples, and re-verifies inside rivet itself.
-      - name: Release (DMG + portable zip, Developer ID + notarized)
-        if: env.MACOS_SIGNING_CONFIGURED == 'true'
-        run: raco rivet release --without-updates
-      - name: Release (DMG + portable zip, ad-hoc dispatch smoke)
-        if: env.MACOS_SIGNING_CONFIGURED != 'true' && env.IS_TAG_RELEASE != 'true'
-        run: raco rivet release --without-updates --development
-      - name: Release requires signing credentials
-        if: env.MACOS_SIGNING_CONFIGURED != 'true' && env.IS_TAG_RELEASE == 'true'
-        run: |
-          echo "::error::Tag releases must be production-signed: set the macOS signing secrets (DEVELOPER_ID_P12_B64, DEVELOPER_ID_P12_PASSWORD, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_B64) on this repository before tagging."
-          exit 1
-      - name: Family naming + checksums
-        run: |
-          set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          ARCH="${{ matrix.arch }}"
-          cd dist
-          # rivet (pinned RIVET_PIN) names the portable zip in family form
-          # already; only the DMG lacks the architecture.
-          mv "taskly-${VERSION}-macos.dmg" "taskly-${VERSION}-macos-${ARCH}.dmg"
-          mv sbom.cdx.json "taskly-${VERSION}-macos-${ARCH}.sbom.cdx.json"
-          mv THIRD_PARTY_NOTICES.txt "taskly-${VERSION}-macos-${ARCH}-THIRD_PARTY_NOTICES.txt"
-          for f in taskly-*; do
-            case "$f" in
-              *.sha256) ;;
-              # The sbom/notices/wixpdb bodies stay in the CI artifact only;
-              # a sidecar without its body on the release is a dangling
-              # reference (the 1.4.0 leftover). Checksum what we upload.
-              *.sbom.cdx.json | *-THIRD_PARTY_NOTICES.txt | *.wixpdb) ;;
-              *) [ -f "$f" ] || continue; [ -f "$f.sha256" ] || shasum -a 256 "$f" > "$f.sha256";;
-            esac
-          done
-      # The update feed consumes the portable zip, not the DMG. A zip that
-      # flattens framework symlinks ships an app whose signature fails
-      # `codesign --deep --strict`; check the exact payload clients install.
-      # Production-signed releases additionally re-check the staple and the
-      # Gatekeeper policy on the payload after the zip round-trip.
-      - name: Verify the update zip preserves the code signature
-        run: |
-          set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          ARCH="${{ matrix.arch }}"
-          CHECK_DIR="$RUNNER_TEMP/zip-signature-check"
-          rm -rf "$CHECK_DIR"
-          mkdir -p "$CHECK_DIR"
-          ditto -x -k "dist/taskly-${VERSION}-macos-${ARCH}.zip" "$CHECK_DIR"
-          codesign --verify --deep --strict "$CHECK_DIR/taskly.app"
-          if [[ "$MACOS_SIGNING_CONFIGURED" == "true" ]]; then
-            xcrun stapler validate "$CHECK_DIR/taskly.app"
-            spctl --assess --type execute "$CHECK_DIR/taskly.app"
-          fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos-${{ matrix.arch }}
-          path: dist/taskly-*
-
-  windows:
-    needs: [signing-preflight]
-    name: Windows (x64)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Racket CS
-        uses: Bogdanp/setup-racket@v1.15
-        with:
-          architecture: x64
-          distribution: full
-          variant: CS
-          version: '9.3'
-      - name: Install Rivet (catalog)
-        shell: pwsh
-        # keel pinned below the tests/documentation collision commit
-        # (upstream issue filed); drop once keel renames the module.
-        run: raco pkg install --auto --no-docs 'https://github.com/turlamai/keel.git#76a5b9fdd01bde284d310ff5c05ec73972f64201' && raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
-      - name: Install WiX (v5; rivet's MSI toolchain)
-        run: dotnet tool install --global wix --version 5.0.2
-        shell: bash
-      - name: Install crypto (updater dependency)
-        run: raco pkg install --auto --no-docs crypto-lib
-        shell: pwsh
-      - name: Version preflight (VERSION == rivet.rktd == updater == tag)
-        shell: bash
-        run: bash scripts/check-release-version.sh "${{ github.ref_name }}"
-      - name: Verify Windows installer checkbox surface
-        shell: pwsh
-        run: python scripts/check-windows-installer-bitmaps.py
-      - name: Release (MSI + portable zip)
-        shell: pwsh
-        run: raco rivet release --without-updates --development
-      - name: Family naming + checksums
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          cd dist
-          # rivet (pinned RIVET_PIN) names msi and portable zip in family
-          # form already.
-          mv sbom.cdx.json "taskly-${VERSION}-windows-x64.sbom.cdx.json"
-          mv THIRD_PARTY_NOTICES.txt "taskly-${VERSION}-windows-x64-THIRD_PARTY_NOTICES.txt"
-          for f in taskly-*; do
-            case "$f" in
-              *.sha256) ;;
-              # The sbom/notices/wixpdb bodies stay in the CI artifact only;
-              # a sidecar without its body on the release is a dangling
-              # reference (the 1.4.0 leftover). Checksum what we upload.
-              *.sbom.cdx.json | *-THIRD_PARTY_NOTICES.txt | *.wixpdb) ;;
-              *) [ -f "$f" ] || continue; [ -f "$f.sha256" ] || sha256sum "$f" > "$f.sha256";;
-            esac
-          done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows
-          path: dist/taskly-*
-
   linux:
-    needs: [signing-preflight]
-    name: Linux (${{ matrix.arch }})
+    name: Linux package (${{ matrix.arch }})
+    needs: validate
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -292,288 +65,414 @@ jobs:
           - { arch: arm64, runner: ubuntu-24.04-arm, racket-arch: arm64 }
     steps:
       - uses: actions/checkout@v4
-      - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@33de65ccb5d72f9ac38ff982aa4495467f89f213
-      # Installed after the embeddable runtime so the catalog dependency
-      # closure (cext-lib, crypto-lib, keel) resolves against the minimal
-      # build — it ships no packages of its own. db backs taskly's storage;
-      # crypto backs the updater's signing.
-      - name: Install Rivet (catalog) and backend packages
+      - name: Resolve version + package suffixes
         run: |
-          # keel pinned below the tests/documentation collision commit
-          # (upstream issue filed); drop once keel renames the module.
-          raco pkg install --auto --no-docs 'https://github.com/turlamai/keel.git#76a5b9fdd01bde284d310ff5c05ec73972f64201'
-          raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
-          raco pkg install --auto --no-docs db-lib crypto-lib
-      - name: Install GTK4, rpm and packaging tooling
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$(tr -d '[:space:]' < VERSION)"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          case "${{ matrix.arch }}" in
+            x64)   DEBARCH=amd64; RPMARCH=x86_64 ;;
+            arm64) DEBARCH=arm64; RPMARCH=aarch64 ;;
+          esac
+          {
+            echo "VERSION=$VERSION"
+            echo "DEBARCH=$DEBARCH"
+            echo "RPMARCH=$RPMARCH"
+          } >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: Bogdanp/setup-racket@v1.15
+        with:
+          architecture: ${{ matrix.racket-arch }}
+          distribution: full
+          variant: CS
+          version: '9.3'
+      - name: Install glaze + engine deps
+        run: |
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/glaze.git#${{ env.GLAZE_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh crypto
+      # The installer toolchains glaze degrades across: dpkg-deb is stock on
+      # ubuntu runners, rpmbuild comes from apt, appimagetool ships as an
+      # AppImage (APPIMAGE_EXTRACT_AND_RUN=1 — no FUSE on CI).
+      - name: Install packaging toolchains
         run: |
           sudo apt-get update
-          sudo apt-get install --yes \
-            libgtk-4-dev libadwaita-1-dev libjson-glib-dev libsecret-1-dev \
-            libglib2.0-dev cmake ninja-build pkg-config file \
-            rpm desktop-file-utils
-      - name: Version preflight (VERSION == rivet.rktd == updater == tag)
-        run: bash scripts/check-release-version.sh "${{ github.ref_name }}"
-      # tar.gz (the update-feed payload) + deb + rpm + AppImage + portable
-      # zip + SBOM, launch smoke included. The AppImage carries its own
-      # GTK4 dependency closure; APPIMAGE_EXTRACT_AND_RUN lets
-      # appimagetool run on the runner.
-      - name: Release (tar.gz + deb + rpm + AppImage + portable zip)
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: '1'
-        run: raco rivet release --without-updates --development
-      # Wraps the tar.gz payload into a Flatpak bundle from the flatpak/
-      # manifest template (family contract: deb+rpm+AppImage+Flatpak+tar.gz).
-      # The manifest's module closure covers the two NEEDED entries outside
-      # the GNOME Platform runtime (liblz4.so.1, libtinfo.so.6). Like deb/rpm,
-      # the flatpak install shape is manual-by-design and stays out of the
-      # signed update feed.
+          sudo apt-get install -y rpm desktop-file-utils file
+          case "${{ matrix.arch }}" in
+            x64)   TOOLARCH="x86_64" ;;
+            arm64) TOOLARCH="aarch64" ;;
+          esac
+          curl -sL -o /usr/local/bin/appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${TOOLARCH}.AppImage"
+          chmod +x /usr/local/bin/appimagetool
+          appimagetool --version || true
+      - name: Package (deb + rpm + AppImage + portable runtime)
+        run: |
+          set -euo pipefail
+          # --installer runs glaze's native installer chain; the test -f
+          # gates turn a silent toolchain degradation into a hard failure.
+          raco glaze build \
+            --entry backend/main.rkt \
+            --name Taskly \
+            --version "$VERSION" \
+            --identifier app.taskly.Taskly \
+            --installer \
+            --out dist
+          test -f dist/Taskly.deb
+          test -f dist/Taskly.rpm
+          test -f dist/Taskly.AppImage
+          # Public names keep the historical Taskly matrix (the signed feed
+          # and UPDATE.md name the AppImage by uname arch).
+          mv dist/Taskly.deb      "taskly-$VERSION-linux-$DEBARCH.deb"
+          mv dist/Taskly.rpm      "taskly-$VERSION-linux-$RPMARCH.rpm"
+          mv dist/Taskly.AppImage "taskly-$VERSION-linux-$RPMARCH.AppImage"
+          (cd dist && tar czf "../taskly-$VERSION-linux-${{ matrix.arch }}.tar.gz" .)
+      # Flatpak bundle from the tarball (the Linux distribution contract's
+      # last format; flatpak/ manifest describes the glaze payload closure).
       - name: Flatpak bundle
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          ARCH="${{ matrix.arch }}"
-          case "$ARCH" in x64) FPARCH=x86_64 ;; arm64) FPARCH=aarch64 ;; esac
           sudo apt-get install --yes flatpak flatpak-builder
-          # User-level everything: runner accounts install runtimes and
-          # build without root. GNOME 50 is the oldest supported platform
-          # runtime (48 went EOL 2026-03-24); its glibc covers the
-          # ubuntu-built payload.
           flatpak --user remote-add --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo
+          case "${{ matrix.arch }}" in
+            x64)   FPARCH="x86_64" ;;
+            arm64) FPARCH="aarch64" ;;
+          esac
           flatpak --user install -y --noninteractive flathub \
             "org.gnome.Platform/${FPARCH}/50" "org.gnome.Sdk/${FPARCH}/50"
-          # The manifest template carries version/arch/sha placeholders so
-          # the archive source's checksum is exact per release.
-          cp "dist/taskly-${VERSION}-linux-${ARCH}.tar.gz" .
-          SHA="$(sha256sum "taskly-${VERSION}-linux-${ARCH}.tar.gz" | cut -d' ' -f1)"
-          sed -e "s/__VERSION__/${VERSION}/" -e "s/__ARCH__/${ARCH}/" \
+          tarball="taskly-$VERSION-linux-${{ matrix.arch }}.tar.gz"
+          test -s "$tarball"
+          SHA="$(sha256sum "$tarball" | cut -d' ' -f1)"
+          sed -e "s/__VERSION__/${VERSION}/" -e "s/__ARCH__/${{ matrix.arch }}/" \
               -e "s/__SHA256__/${SHA}/" \
               flatpak/site.jrtx.taskly.yml > site.jrtx.taskly.gen.yml
           # --disable-rofiles-fuse: runners have no /dev/fuse.
           flatpak-builder --user --force-clean --disable-rofiles-fuse \
             --repo=flatpak-repo flatpak-build site.jrtx.taskly.gen.yml
           flatpak build-bundle flatpak-repo \
-            "taskly-${VERSION}-linux-${ARCH}.flatpak" site.jrtx.taskly stable
-          mv "taskly-${VERSION}-linux-${ARCH}.flatpak" dist/
-          rm -rf flatpak-build flatpak-repo \
-            "taskly-${VERSION}-linux-${ARCH}.tar.gz" site.jrtx.taskly.gen.yml
-          test -f "dist/taskly-${VERSION}-linux-${ARCH}.flatpak"
-      - name: Family naming + checksums
+            "taskly-$VERSION-linux-${{ matrix.arch }}.flatpak" site.jrtx.taskly stable
+          rm -rf flatpak-build flatpak-repo site.jrtx.taskly.gen.yml
+          test -f "taskly-$VERSION-linux-${{ matrix.arch }}.flatpak"
+      - name: Per-asset .sha256 sidecars
         run: |
-          set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          ARCH="${{ matrix.arch }}"
-          cd dist
-          mv sbom.cdx.json "taskly-${VERSION}-linux-${ARCH}.sbom.cdx.json"
-          mv THIRD_PARTY_NOTICES.txt "taskly-${VERSION}-linux-${ARCH}-THIRD_PARTY_NOTICES.txt"
-          for f in taskly-*; do
-            case "$f" in
-              *.sha256) ;;
-              # The sbom/notices/wixpdb bodies stay in the CI artifact only;
-              # a sidecar without its body on the release is a dangling
-              # reference (the 1.4.0 leftover). Checksum what we upload.
-              *.sbom.cdx.json | *-THIRD_PARTY_NOTICES.txt | *.wixpdb) ;;
-              *) [ -f "$f" ] || continue; [ -f "$f.sha256" ] || sha256sum "$f" > "$f.sha256" ;;
-            esac
+          for f in taskly-$VERSION-linux-${{ matrix.arch }}.tar.gz \
+                   taskly-$VERSION-linux-$DEBARCH.deb \
+                   taskly-$VERSION-linux-$RPMARCH.rpm \
+                   taskly-$VERSION-linux-$RPMARCH.AppImage \
+                   taskly-$VERSION-linux-${{ matrix.arch }}.flatpak; do
+            sha256sum "$f" > "$f.sha256"
           done
       - uses: actions/upload-artifact@v4
         with:
           name: linux-${{ matrix.arch }}
-          path: dist/taskly-*
+          path: |
+            taskly-*-linux-*.tar.gz
+            taskly-*-linux-*.tar.gz.sha256
+            taskly-*-linux-*.deb
+            taskly-*-linux-*.deb.sha256
+            taskly-*-linux-*.rpm
+            taskly-*-linux-*.rpm.sha256
+            taskly-*-linux-*.AppImage
+            taskly-*-linux-*.AppImage.sha256
+            taskly-*-linux-*.flatpak
+            taskly-*-linux-*.flatpak.sha256
+          if-no-files-found: error
 
-  publish:
-    name: Publish
-    needs: [macos, windows, linux]
-    runs-on: ubuntu-latest
-    # The title states the real trust status: with the macOS signing
-    # secrets present, every tagged build is Developer ID-signed and
-    # notarized fail-closed (the macos job refuses to publish otherwise),
-    # so the "(unsigned evaluation)" caveat only applies to ad-hoc builds.
-    env:
-      MACOS_SIGNING_SECRETS_SET: ${{ secrets.DEVELOPER_ID_P12_B64 != '' }}
+  macos:
+    name: macOS package (${{ matrix.arch }})
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm64, runner: macos-latest, racket-arch: arm64 }
+          - { arch: x64, runner: macos-15-intel, racket-arch: x64 }
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Racket CS
-        uses: Bogdanp/setup-racket@v1.15
+      - name: Resolve version
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$(tr -d '[:space:]' < VERSION)"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: Bogdanp/setup-racket@v1.15
+        with:
+          architecture: ${{ matrix.racket-arch }}
+          distribution: full
+          variant: CS
+          version: '9.3'
+      - name: Install glaze + engine deps
+        run: |
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/glaze.git#${{ env.GLAZE_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh crypto
+      # Ad-hoc signature (family glaze-line baseline): Developer ID +
+      # notarization light up in a later slice once the credentials exist;
+      # the release title states the trust status explicitly.
+      - name: Package app bundle
+        run: |
+          raco glaze build \
+            --entry backend/main.rkt \
+            --name Taskly \
+            --version "$VERSION" \
+            --identifier app.taskly.Taskly \
+            --icon assets/taskly.icns \
+            --sign - \
+            --out dist
+      - name: Portable zip (.app at the archive root)
+        run: |
+          (cd dist && zip -qry "../taskly-$VERSION-macos-${{ matrix.arch }}.zip" Taskly.app)
+      - name: DMG (drag to Applications)
+        run: |
+          set -euo pipefail
+          dmg="taskly-$VERSION-macos-${{ matrix.arch }}.dmg"
+          staging="$(mktemp -d)/dmg-stage"
+          mkdir -p "$staging"
+          cp -R dist/Taskly.app "$staging/"
+          ln -s /Applications "$staging/Applications"
+          created=""
+          for attempt in 1 2 3; do
+            if hdiutil create -volname Taskly -srcfolder "$staging" -ov -format UDZO "$dmg"; then
+              created="yes"; break
+            fi
+            echo "hdiutil create attempt $attempt failed; retrying in 5s"
+            sleep 5
+          done
+          [ -n "$created" ] || { echo "::error::hdiutil create failed after 3 attempts"; exit 1; }
+      - name: Verify the update zip preserves the code signature
+        run: |
+          set -euo pipefail
+          CHECK_DIR="$RUNNER_TEMP/zip-signature-check"
+          rm -rf "$CHECK_DIR"
+          mkdir -p "$CHECK_DIR"
+          ditto -x -k "taskly-$VERSION-macos-${{ matrix.arch }}.zip" "$CHECK_DIR"
+          codesign --verify --deep --strict "$CHECK_DIR/Taskly.app"
+      - name: Per-asset .sha256 sidecars
+        run: |
+          for f in taskly-$VERSION-macos-${{ matrix.arch }}.zip taskly-$VERSION-macos-${{ matrix.arch }}.dmg; do
+            shasum -a 256 "$f" > "$f.sha256"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: |
+            taskly-*-macos-*.zip
+            taskly-*-macos-*.zip.sha256
+            taskly-*-macos-*.dmg
+            taskly-*-macos-*.dmg.sha256
+          if-no-files-found: error
+
+  windows:
+    name: Windows package (x64)
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$(tr -d '[:space:]' < VERSION)"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: Bogdanp/setup-racket@v1.15
         with:
           architecture: x64
           distribution: full
           variant: CS
           version: '9.3'
-      - name: Install Rivet (catalog)
-        # keel pinned just below the commit that added
-        # tests/documentation — it collides with rivet v0.11.0's own
-        # tests/documentation module and fails every install (upstream
-        # issue filed against keel). Drop this pin once the rename lands.
+      - name: Install glaze + engine deps
+        shell: bash
         run: |
-          raco pkg install --auto --no-docs 'https://github.com/turlamai/keel.git#76a5b9fdd01bde284d310ff5c05ec73972f64201'
-          raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
+          raco pkg install --auto --no-docs --skip-installed 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
+          raco pkg install --auto --no-docs --skip-installed 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
+          raco pkg install --auto --no-docs --skip-installed 'https://github.com/turlamai/glaze.git#${{ env.GLAZE_PIN }}'
+          raco pkg install --auto --no-docs --skip-installed crypto
+      # WiX pinned to v5.0.2 (family MSI toolchain): v7 gates builds behind
+      # the OSMF EULA acceptance (WIX7015). glaze falls back to NSIS, then
+      # zip, by tool availability — the test -f gate makes that a failure.
+      - name: Install WiX (v5)
+        shell: bash
+        run: dotnet tool install --global wix --version 5.0.2
+      - name: Package (MSI + portable runtime)
+        shell: bash
+        run: |
+          set -euo pipefail
+          raco glaze build \
+            --entry backend/main.rkt \
+            --name Taskly \
+            --version "$VERSION" \
+            --identifier app.taskly.Taskly \
+            --icon assets/taskly.ico \
+            --installer \
+            --out dist
+          test -f dist/Taskly.msi
+          mv dist/Taskly.msi "taskly-$VERSION-windows-x64.msi"
+      - name: Portable zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/* -DestinationPath "taskly-$env:VERSION-windows-x64.zip"
+      - name: Per-asset .sha256 sidecars
+        shell: bash
+        run: |
+          sha256sum taskly-$VERSION-windows-x64.zip > taskly-$VERSION-windows-x64.zip.sha256
+          sha256sum taskly-$VERSION-windows-x64.msi > taskly-$VERSION-windows-x64.msi.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: |
+            taskly-*-windows-x64.zip
+            taskly-*-windows-x64.zip.sha256
+            taskly-*-windows-x64.msi
+            taskly-*-windows-x64.msi.sha256
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    needs: [linux, macos, windows]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      # The signed feed is rivet-format (the unchanged engine verifies it):
+      # signing needs rivet's sign-manifest + the crypto package's libcrypto.
+      - uses: Bogdanp/setup-racket@v1.15
+        with:
+          architecture: x64
+          distribution: full
+          variant: CS
+          version: '9.3'
+      - name: Install rivet + crypto (feed signing + release update suite)
+        run: |
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
+          bash scripts/install-racket-packages-with-retry.sh crypto
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
       # Release-kind acceptance (#58): signed-feed rejection, download
-      # cancel, the N→N+1 lifecycle, and data preservation must pass on
-      # the exact tree being published — bound here so a release cannot
-      # ship without its update evidence.
+      # cancel, the N→N+1 lifecycle, and data preservation must pass on the
+      # exact tree being published — bound here so a release cannot ship
+      # without its update evidence.
       - name: Release update suite (signed-reject, cancel, N→N+1, data preservation)
         run: raco test racket/tests/release-update-test.rkt
-      - name: Gather + sign the update feed + publish
+      - name: Verify payload set and build SHA256SUMS
+        run: |
+          set -euo pipefail
+          mkdir -p public
+          for suffix in \
+            macos-arm64.dmg macos-arm64.zip \
+            macos-x64.dmg macos-x64.zip \
+            windows-x64.msi windows-x64.zip \
+            linux-x64.tar.gz linux-arm64.tar.gz \
+            linux-amd64.deb linux-arm64.deb \
+            linux-x86_64.rpm linux-aarch64.rpm \
+            linux-x86_64.AppImage linux-aarch64.AppImage \
+            linux-x64.flatpak linux-arm64.flatpak; do
+            name="taskly-$VERSION-$suffix"
+            test -s "artifacts/$name" || { echo "::error::Missing or empty $name"; exit 1; }
+            cp "artifacts/$name" public/
+          done
+          expected=16
+          found="$(find public -maxdepth 1 -type f | wc -l)"
+          test "$found" -eq "$expected" || { echo "::error::public/ holds $found files, expected $expected"; exit 1; }
+          (cd public && sha256sum taskly-* | LC_ALL=C sort -k2 > SHA256SUMS && sha256sum --check SHA256SUMS)
+          test "$(grep -c '^' public/SHA256SUMS)" -eq "$expected"
+      # The signed update feed is a release asset (the engine updater reads
+      # releases/latest/download/update-manifest.json). Fail-closed.
+      - name: Sign and require trusted update feed (update-manifest.json)
         env:
-          GH_TOKEN: ${{ github.token }}
           UPDATE_ED25519_PRIVATE_KEY: ${{ secrets.UPDATE_ED25519_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          bash scripts/check-release-version.sh "$GITHUB_REF_NAME"
-          mkdir -p dist
-          # cp -R merges: rivet releases leave a dist/taskly-linux-<arch>/
-          # staging bundle in the artifacts, and a plain mv dies on the
-          # directory collision ("Directory not empty").
-          for a in macos-arm64 macos-x64 windows linux-x64 linux-arm64; do
-            cp -R "artifacts/$a/." dist/
-          done
-          # All supported hosts require the signed release feed for
-          # in-app updates. Never publish an un-updatable release if the
-          # signing secret is missing, malformed, or signing fails.
-          if [[ -z "${UPDATE_ED25519_PRIVATE_KEY:-}" ]]; then
-            echo "::error::UPDATE_ED25519_PRIVATE_KEY is missing; refusing to publish without a signed update manifest"
-            exit 1
-          fi
-          KEY_PEM="$RUNNER_TEMP/update-signing-key.pem"
-          printf '%s\n' "$UPDATE_ED25519_PRIVATE_KEY" > "$KEY_PEM"
-          chmod 600 "$KEY_PEM"
-          # Re-check immediately before publication; never silently downgrade.
-          bash scripts/check-release-signing-key.sh "$KEY_PEM"
-          scripts/make-update-manifest.sh "$GITHUB_REF_NAME" dist "$KEY_PEM"
-          test -s dist/update-manifest.json || {
-            echo "::error::Signed update manifest was not generated"
+          [[ -n "${UPDATE_ED25519_PRIVATE_KEY:-}" ]] || {
+            echo "::error::UPDATE_ED25519_PRIVATE_KEY missing; refusing unsigned release"
             exit 1
           }
-          awk -v header="## [${VERSION}]" '
+          umask 077
+          KEY_PEM="$RUNNER_TEMP/update-signing-key.pem"
+          trap 'rm -f "$KEY_PEM"' EXIT
+          printf '%s\n' "$UPDATE_ED25519_PRIVATE_KEY" > "$KEY_PEM"
+          bash scripts/check-release-signing-key.sh "$KEY_PEM"
+          scripts/make-update-manifest.sh "$GITHUB_REF_NAME" public "$KEY_PEM"
+          test -s public/update-manifest.json || {
+            echo "::error::Signed update manifest missing; refusing to publish"
+            exit 1
+          }
+          test "$(find public -maxdepth 1 -type f | wc -l)" -eq 18
+      - name: Extract changelog section
+        run: |
+          awk -v header="## [$VERSION]" '
             index($0, header) == 1 {on=1; next}
             on && /^## / {exit}
             on {print}
-          ' CHANGELOG.md > /tmp/notes.md
-          if [[ ! -s /tmp/notes.md ]]; then
-            echo "::error::CHANGELOG.md lacks release notes for ${VERSION}"
-            exit 1
-          fi
-          cd dist
-          for f in *.sha256; do [ -s "$f" ] || rm -f "$f"; done
-          # Normalize: the Windows runner's sha256sum emits binary-mode
-          # "HASH *name" lines; keep SHA256SUMS uniform in the two-space
-          # text form (the msi row was the lone starred line in 0.2.0).
-          cat *.sha256 | sed 's/ \*/  /' | LC_ALL=C sort -k2 > SHA256SUMS
-          # Check the actual bytes and enforce the complete public matrix.
-          # Developer artifacts stay inside the Actions artifacts.
-          sha256sum --check SHA256SUMS
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
-          prefix = f"taskly-{version}-"
-          required = {
-              prefix + suffix for suffix in (
-                  "macos-arm64.dmg", "macos-arm64.zip",
-                  "macos-x64.dmg", "macos-x64.zip",
-                  "windows-x64.msi", "windows-x64.zip",
-                  "linux-arm64.tar.gz", "linux-arm64.zip",
-                  "linux-x64.tar.gz", "linux-x64.zip",
-                  "linux-arm64.deb", "linux-amd64.deb",
-                  "linux-aarch64.AppImage", "linux-x86_64.AppImage",
-                  "linux-arm64.flatpak", "linux-x64.flatpak",
-              )
-          }
-          rows = [line.split() for line in Path("SHA256SUMS").read_text().splitlines()]
-          actual = [row[1] for row in rows if len(row) == 2]
-          # RPM release-number is a packaging revision, not app SemVer;
-          # enforce exactly one per CPU without hard-coding the revision.
-          import re
-          rpm_arches = ("aarch64", "x86_64")
-          rpm = [
-              name for name in actual
-              if re.fullmatch(re.escape(prefix) + r"[0-9]+-linux-(aarch64|x86_64)\.rpm", name)
-          ]
-          for arch in rpm_arches:
-              matching = [name for name in rpm if name.endswith(f"-linux-{arch}.rpm")]
-              if len(matching) != 1:
-                  raise SystemExit(f"Expected one RPM for {arch}, found {matching}")
-          required.update(rpm)
-          if len(rows) != len(actual) or set(actual) != required or len(actual) != len(required):
-              raise SystemExit(
-                  f"Invalid release matrix: missing={sorted(required - set(actual))}, "
-                  f"unexpected={sorted(set(actual) - required)}, duplicates={len(actual)-len(set(actual))}"
-              )
-          for name in actual:
-              if not Path(name).is_file() or Path(name).stat().st_size == 0:
-                  raise SystemExit(f"Missing or empty public artifact: {name}")
-          PY
-          # Canonical versioned packages only. SHA256SUMS replaces public
-          # per-package checksums; the signed updater manifest stays mandatory.
-          mapfile -t uploads < <(awk '{print $2}' SHA256SUMS)
+          ' CHANGELOG.md > RELEASE-NOTES.md
+          test -s RELEASE-NOTES.md || { echo "::error::CHANGELOG.md lacks release notes for $VERSION"; exit 1; }
+      - name: Create or update the release (idempotent)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Normal releases, not prereleases: the updater reads the moving
+          # releases/latest/download manifest and GitHub's `latest` resolves
+          # only non-prerelease releases. The title states the trust status
+          # (ad-hoc macOS signature until Developer ID credentials land).
+          title="Taskly ${VERSION} (unsigned evaluation)"
+          mapfile -t uploads < <(awk '{print $2}' public/SHA256SUMS)
           uploads+=( SHA256SUMS update-manifest.json )
-          # Idempotent publish: a failed run leaves the release (and some
-          # assets) behind; re-runs edit + re-upload over it instead of
-          # colliding with "release already exists".
-          #
-          # These builds must be normal releases, not prereleases: the
-          # updater reads the moving `releases/latest/download` manifest
-          # (UPDATE.md), and GitHub's `latest` resolves only non-prerelease
-          # releases. Publishing with --prerelease made every new version
-          # invisible to 0.2.x clients (the feed kept pointing at the
-          # previous stable). The title keeps the trust status explicit;
-          # signing/notarization is a separate gate (#80).
-          title="Taskly ${VERSION}"
-          if [[ "$MACOS_SIGNING_SECRETS_SET" != "true" ]]; then
-            title="Taskly ${VERSION} (unsigned evaluation)"
-          fi
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release edit "$GITHUB_REF_NAME" --title "$title" --notes-file /tmp/notes.md --latest
+            gh release edit "$GITHUB_REF_NAME" --title "$title" --notes-file RELEASE-NOTES.md --latest
           else
-            gh release create "$GITHUB_REF_NAME" \
-              --title "$title" \
-              --latest \
-              --notes-file /tmp/notes.md
+            gh release create "$GITHUB_REF_NAME" --title "$title" --latest --notes-file RELEASE-NOTES.md
           fi
-          gh release upload "$GITHUB_REF_NAME" --clobber "${uploads[@]}"
-          # A retry against a previously partially published tag must also
-          # remove old sidecars and stale aliases; --clobber only replaces
-          # assets with matching names.
+          (cd public && gh release upload "$GITHUB_REF_NAME" --clobber "${uploads[@]}")
+          # A retry against a partially published tag must also remove old
+          # sidecars and stale aliases; --clobber only replaces matching names.
           mapfile -t published < <(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
           for name in "${published[@]}"; do
             if ! printf '%s\n' "${uploads[@]}" | grep -Fxq "$name"; then
               gh release delete-asset "$GITHUB_REF_NAME" "$name" --yes
             fi
           done
-      # Family standard (movebit-origin): every public release asset carries
-      # verifiable build provenance. The globs match exactly the published
-      # matrix — sidecars, sbom/notices and rivet's staging dir stay out.
+      # Family standard: every public release asset carries verifiable build
+      # provenance. The globs match exactly the published matrix.
       - name: Attest public build provenance
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
-            dist/taskly-*-macos-arm64.dmg
-            dist/taskly-*-macos-arm64.zip
-            dist/taskly-*-macos-x64.dmg
-            dist/taskly-*-macos-x64.zip
-            dist/taskly-*-windows-x64.msi
-            dist/taskly-*-windows-x64.zip
-            dist/taskly-*-linux-x64.tar.gz
-            dist/taskly-*-linux-arm64.tar.gz
-            dist/taskly-*-linux-x64.zip
-            dist/taskly-*-linux-arm64.zip
-            dist/taskly-*-linux-amd64.deb
-            dist/taskly-*-linux-arm64.deb
-            dist/taskly-*-linux-x86_64.AppImage
-            dist/taskly-*-linux-aarch64.AppImage
-            dist/taskly-*-linux-x64.flatpak
-            dist/taskly-*-linux-arm64.flatpak
-            dist/taskly-*-linux-x86_64.rpm
-            dist/taskly-*-linux-aarch64.rpm
-            dist/SHA256SUMS
-            dist/update-manifest.json
-      # Evaluation builds deliberately do not populate versionless stable aliases.
-      # Restore a stable publication path only after #80 production installer trust
-      # and the full release gate have independent evidence.
+            public/taskly-*
+            public/SHA256SUMS
+            public/update-manifest.json

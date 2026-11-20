@@ -1,5 +1,12 @@
 # Taskly installation, first-run and visual audit — 2026-10
 
+> **Historical audit (superseded host line).** This document audits the
+> three-native-host line (WinUI / SwiftUI / GTK) as it stood in 2026-10.
+> Those hosts retired with the glaze rewrite (issue #141); current
+> installation/first-run evidence lives in `rivet-acceptance.rktd` +
+> `scripts/acceptance/run-suites.rkt` (real-window §6 journeys) and the
+> release workflow. Kept unedited as the record of what was measured then.
+
 This audit treats Taskly as a Rivet reference application. A source build,
 archive creation or green unrelated check is not evidence that a person can
 install, understand and remove the product.

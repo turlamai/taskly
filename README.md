@@ -1,23 +1,26 @@
 # Taskly
 
 A focused, keyboard-friendly task manager for macOS, Windows and Linux —
-one Racket core driving a first-party native host on every desktop, an
-agent-facing CLI, and a single local SQLite file.
+one Racket core driving a single first-party glaze host (web UI) on every
+desktop, an agent-facing CLI, and a single local SQLite file.
 
 [![release](https://img.shields.io/github/v/release/turlamai/taskly)](https://github.com/turlamai/taskly/releases/latest) ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey) ![built with](https://img.shields.io/badge/built%20with-Rivet-9333ea) [![CI](https://github.com/turlamai/taskly/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/taskly/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE)
 
 **English** · [中文](README.zh-CN.md)
 
-Taskly is built on [Rivet](https://github.com/turlamai/rivet): the
-entire domain — SQLite storage, scheduling, natural-language dates,
-validation, and the CLI — lives in one Racket CS core, and every desktop
-gets a thin first-party host over typed RPC. Shared domain logic belongs in the backend; host reminder-selection consolidation remains tracked in #62.
+Taskly is built on [Rivet](https://github.com/turlamai/rivet) (typed RPC
+contract) and [glaze](https://github.com/turlamai/glaze) (window/tray/
+hotkey runtime): the entire domain — SQLite storage, scheduling,
+natural-language dates, validation, and the CLI — lives in one Racket CS
+core, and every desktop gets the same thin first-party host over typed
+RPC. Shared domain logic belongs in the backend; host reminder-selection
+consolidation remains tracked in #62.
 
 | Desktop | Host |
 |---|---|
-| macOS 14+ (Apple Silicon) | SwiftUI |
-| Windows 10+ (x64) | WinUI 3 |
-| Linux (x64) | GTK 4 |
+| macOS 14+ (Apple Silicon + Intel) | glaze web UI (WKWebView) |
+| Windows 10+ (x64) | glaze web UI (WebView2) |
+| Linux (x64 + ARM64) | glaze web UI (WebKitGTK) |
 
 Mobile is on the roadmap: iOS/iPadOS, watchOS and Android hosts are planned
 after the desktop line, gated on Rivet's first-class mobile application
@@ -37,21 +40,22 @@ Development preview; no paid checkout is open. A future official desktop purchas
   custom lists with emoji icons and 12-color palette, light/dark that
   follows the system, bilingual zh/en with live switch.
 - **Quick add with natural-language dates** — type 明天买菜 or
-  `standup @9am +1d` and see the parsed schedule in a live preview chip
-  before you hit Enter.
-- **Reminders-parity interactions** — ⌘/⇧ multi-select with batch
-  actions and a one-step undo banner for deletes; ↑/↓ navigation,
-  Return expands the row in place (title, date/time chips, notes),
-  Esc collapses; completed tasks fold under a collapsible header.
-  The full set — including the shared app accelerators (Ctrl/⌘+1…4,
-  N, F, ⇧C) — ships on all three platforms
-  ([status](docs/UX-BENCHMARKS.md)).
-- **Anchored task details (macOS preview)** — ⓘ opens one layer with
+  `standup @9am +1d`; the engine parses the schedule, and the inline
+  editor shows it in live date/priority chips as you type.
+- **Reminders-parity interactions** — Return expands the row in place
+  (title, date/time chips, notes), Esc collapses without leaking the
+  draft, click-away commits; completed tasks fold under a collapsible
+  header; deletes stage behind a one-step undo banner that restores the
+  original row. One web host means the same interaction set on all three
+  platforms ([benchmark notes](docs/UX-BENCHMARKS.md)).
+- **Anchored task details (all platforms)** — ⓘ opens one layer with
   completion, title, date/time, priority, tags, subtasks, notes, URL and
   list membership; every change saves immediately and closing never
-  discards. Windows and Linux previews follow.
-- **Due-task notifications** — a 60 s poll plus a startup check, deduped,
-  capped at three separate banners (more → one summary).
+  discards.
+- **Reminders (staged)** — the reminder field is editable and persisted,
+  but OS notification delivery is staged
+  ([#131](https://github.com/turlamai/taskly/issues/131)); no banners are
+  promised yet.
 - **One data file** — your tasks live in a single SQLite file
   (`~/.taskly/tasks.db`, WAL). Back it up after closing the app;
   live cloud-folder replication is not safe concurrent database sync. The format is documented and stable:
@@ -61,8 +65,7 @@ Development preview; no paid checkout is open. A future official desktop purchas
   cross-platform parity pinned by a 63-case golden suite. Spec:
   [CLI-SPEC](shared/spec/CLI-SPEC.md).
 - **Online updates (all platforms)** — silent check at launch plus a
-  manual check from the app menu on macOS and the Help menu on
-  Windows/Linux; the backend verifies the signed
+  manual check from Settings; the backend verifies the signed
   [update manifest](shared/spec/UPDATE.md) (Ed25519) and downloads the
   artifact, the host installs it. macOS swaps the bundle in place,
   Windows swaps the install directory via a quit-and-install handoff,
@@ -75,6 +78,13 @@ Development preview; no paid checkout is open. A future official desktop purchas
 - **The release packages don't include a standalone CLI binary yet** —
   the CLI runs from source today (see below); a packaged CLI distribution
   is on the roadmap.
+- **Multi-select / batch actions, ↑/↓ row navigation and the shared app
+  accelerators (Ctrl/⌘+1…4, N, F, ⇧C)** are benchmark targets, not yet in
+  the glaze host ([notes](docs/UX-BENCHMARKS.md)).
+- **OS notification delivery is staged** (#131); reminder fields persist
+  but nothing fires yet.
+- **macOS builds are ad-hoc signed** — no Developer ID / notarization yet
+  ([#80](https://github.com/turlamai/taskly/issues/80)).
 
 ## Install
 
@@ -100,11 +110,11 @@ artifact is selected from and verified against the signed manifest.
 macOS builds are ad-hoc signed, not Developer ID signed or notarized. A
 Gatekeeper rejection is expected for these previews: do not disable
 system-wide protections. Verify the release checksum and use a trusted
-build; the installed bundle is `/Applications/taskly.app`.
+build; the installed bundle is `/Applications/Taskly.app`.
 
-Linux needs a GTK 4 desktop (unpack the tarball and run `RivetHost`;
-GTK 4 and its system libraries are the only runtime dependencies —
-everything else is bundled).
+Linux needs a WebKitGTK 4.1 desktop runtime (unpack the tarball and run
+`Taskly`; the webview engine and its system libraries are the only
+runtime dependencies — everything else is bundled).
 
 ## CLI from source
 
@@ -118,12 +128,16 @@ racket racket/taskly/cli.rkt install-cli   # shim at ~/.local/bin/taskly
 
 ## Building from source
 
-Racket CS 9.3+ plus the native toolchain of your desktop (Xcode/Swift on
-macOS, CMake + GTK 4 headers on Linux, Windows App SDK on Windows):
+Racket CS 9.3+ plus Node 22 / pnpm (web UI) and the glaze runtime deps of
+your desktop (WebView2 on Windows, WKWebView on macOS, WebKitGTK 4.1 on
+Linux):
 
 ```bash
-raco rivet build        # generate clients, compile the core, build the host
-raco rivet acceptance --json # full current-platform product evidence
+raco pkg install --auto --no-docs https://github.com/turlamai/glaze.git
+pnpm install && pnpm check && pnpm build   # web UI
+raco glaze build --entry backend/main.rkt --name Taskly \
+  --version "$(cat VERSION)" --identifier app.taskly.Taskly --out dist
+racket scripts/acceptance/run-suites.rkt   # full current-platform evidence
 raco test racket/       # contract tests
 python3 shared/cli-golden/runner.py --binary scripts/taskly-cli.sh   # 63-case golden suite
 ```
@@ -132,9 +146,9 @@ python3 shared/cli-golden/runner.py --binary scripts/taskly-cli.sh   # 63-case g
 
 ```
 ┌─────────────────────────────┐            ┌────────────────────────────┐
-│ First-party host            │            │ Racket CS core             │
-│  SwiftUI · WinUI 3 · GTK 4  │◀── typed ──▶│  db · scheduling ·         │
-│  render + interaction only  │  RPC (RVT1)│  validation · reminders    │
+│ glaze host (single)         │            │ Racket CS core             │
+│  web UI + tray/hotkey/      │◀── typed ──▶│  db · scheduling ·         │
+│  capture/autostart          │  RPC (RVT1)│  validation · reminders    │
 │  embedded Racket CS runtime │            │  agent CLI (same domain)   │
 └─────────────────────────────┘            └────────────────────────────┘
 ```
@@ -144,9 +158,9 @@ One spec keeps every surface consistent: product behavior
 design tokens, and the update contract — all under
 [shared/spec/](shared/spec/). CI enforces the CLI contract with the golden
 suite and byte-identical i18n on every push. The source-controlled
-`rivet-acceptance.rktd` additionally requires real RVT1, native build,
-verified package, and accessibility-driven product behavior on Windows,
-macOS arm64/x64, and Linux.
+`rivet-acceptance.rktd` additionally requires real RVT1, a glaze build,
+and real-window §6 journey evidence on Windows, macOS arm64/x64, and
+Linux (executed by `scripts/acceptance/run-suites.rkt`).
 
 ## Feedback
 

@@ -89,12 +89,14 @@ then test restoration from a copy rather than the only original.
 | Linux tarball/ZIP | verified archive is retained and its folder opened; the user extracts to a separate program directory | no automatic overwrite occurs | return to the previous program directory or extract the previous trusted archive again |
 
 End-to-end user scenario: first launch opens/creates the selected database →
-the user creates a task → the running app evaluates and hands off reminders →
-inline editing and staged delete/undo retain the task's stable identity → quit
-and relaunch reload the same database → an upgrade replaces only application
-files → recovery reopens the preserved database. The release acceptance suite
-proves the shared update/data boundary; packaged native-UI suites prove the
-host interaction boundary on each release candidate.
+the user creates a task → the running app evaluates reminder eligibility
+(OS delivery staged, #131) → inline editing and staged delete/undo retain
+the task's stable identity → quit and relaunch reload the same database →
+an upgrade replaces only application files → recovery reopens the preserved
+database. The release acceptance suite proves the shared update/data
+boundary; the real-window journey suite (`web-ui-journeys`,
+`scripts/acceptance/run-suites.rkt`) proves the host interaction boundary on
+each release candidate.
 
 ## `update-manifest.json`
 
@@ -183,11 +185,9 @@ backend boundary every host shares:
 ## Network transparency
 
 The update feed is the application's only network use: Taskly ships no
-telemetry, accounts, or any other connection. The macOS bundle carries
-an `InternetAccessPolicy.plist` (packaged via rivet's
-`macos-resource-files`) declaring the `github.com` feed hosts, their
-purpose, and the deny consequences — firewall apps such as Little
-Snitch surface that policy to the user verbatim. Denying the feed
+telemetry, accounts, or any other connection. (The macOS
+`InternetAccessPolicy.plist` retired with the native hosts, issue #141;
+this section is the transparency record instead.) Denying the feed
 leaves every other feature fully functional offline.
 
 ## Ed25519 signature

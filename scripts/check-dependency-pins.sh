@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+# Dependency-pin preflight for the glaze-line tree (issue #141 slice 4).
+#
+# Three pins travel together:
+#   RIVET_PIN — engine contract tooling (schema check, sign-manifest) and the
+#               engine test suite; the engine itself is unchanged (Keep).
+#   KEEL_PIN  — rivet's dependency, pinned below its tests/documentation
+#               collision commit (upstream issue filed).
+#   GLAZE_PIN — the UI/host framework every build and acceptance leg installs.
+# Every workflow that installs one of them must carry the same value in its
+# top-level env block, so a bump is one edit per pin, not a grep-replace.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -6,9 +16,6 @@ WORKFLOWS=(
   "$ROOT/.github/workflows/ci.yml"
   "$ROOT/.github/workflows/acceptance.yml"
   "$ROOT/.github/workflows/release.yml"
-  # Client regeneration must use the same rivet as CI and release; it was
-  # previously pinned to an older commit and drifted silently.
-  "$ROOT/.github/workflows/release-version-client-sync.yml"
 )
 
 fail() {
@@ -22,49 +29,36 @@ env_pin() {
   sed -nE "s/^[[:space:]]*${name}:[[:space:]]*([0-9a-f]{40})[[:space:]]*$/\\1/p" "$file" | head -n1
 }
 
-RIVET_PIN="$(env_pin "${WORKFLOWS[0]}" RIVET_PIN)"
-[[ -n "$RIVET_PIN" ]] || fail "missing RIVET_PIN in ci.yml"
-
-for workflow in "${WORKFLOWS[@]}"; do
-  pin="$(env_pin "$workflow" RIVET_PIN)"
-  [[ -n "$pin" ]] || fail "missing RIVET_PIN in ${workflow#"$ROOT/"}"
-  [[ "$pin" == "$RIVET_PIN" ]] ||     fail "RIVET_PIN drift: ${workflow#"$ROOT/"} has $pin, expected $RIVET_PIN"
+for name in RIVET_PIN KEEL_PIN GLAZE_PIN; do
+  base="$(env_pin "${WORKFLOWS[0]}" "$name")"
+  [[ -n "$base" ]] || fail "missing $name in ci.yml"
+  for workflow in "${WORKFLOWS[@]}"; do
+    pin="$(env_pin "$workflow" "$name")"
+    [[ -n "$pin" ]] || fail "missing $name in ${workflow#"$ROOT/"}"
+    [[ "$pin" == "$base" ]] || \
+      fail "$name drift: ${workflow#"$ROOT/"} has $pin, expected $base"
+  done
+  # Every install reference in the workflows must use the env pin (or the
+  # same literal), never a drifting hard-coded commit.
+  while IFS= read -r ref; do
+    [[ "$ref" == "$base" ]] || \
+      fail "$name install ref $ref does not match env pin $base"
+  done < <(
+    case "$name" in
+      RIVET_PIN) grep -h -oE 'turlamai/rivet\.git#[0-9a-f]{40}' "${WORKFLOWS[@]}" | sed -E 's/.*#//' ;;
+      KEEL_PIN)  grep -h -oE 'turlamai/keel\.git#[0-9a-f]{40}' "${WORKFLOWS[@]}" | sed -E 's/.*#//' ;;
+      GLAZE_PIN) grep -h -oE 'turlamai/glaze\.git#[0-9a-f]{40}' "${WORKFLOWS[@]}" | sed -E 's/.*#//' ;;
+    esac
+  )
 done
 
 # Migration must not hide dependency refs from the checker: reject old remote
 # names and verify that the current namespace is explicitly represented.
-if grep -qE 'turinglambdaai/(rivet|keel)' "${WORKFLOWS[@]}"; then
+if grep -qE 'turinglambdaai/(rivet|keel|glaze)' "${WORKFLOWS[@]}"; then
   fail "legacy GitHub namespace in workflow dependency references"
 fi
-grep -qE 'turlamai/rivet/\.github/actions/setup-embed-racket@' "${WORKFLOWS[@]}" ||
-  fail "missing pinned setup-embed-racket action"
 
-while IFS= read -r action_pin; do
-  [[ "$action_pin" == "$RIVET_PIN" ]] ||     fail "setup-embed-racket ref $action_pin does not match RIVET_PIN $RIVET_PIN"
-done < <(
-  grep -h -oE 'turlamai/rivet/\.github/actions/setup-embed-racket@[0-9a-f]{40}'     "${WORKFLOWS[@]}" |
-    sed -E 's/.*@//'
-)
-
-KEEL_PIN="$(env_pin "$ROOT/.github/workflows/acceptance.yml" KEEL_PIN)"
-[[ -n "$KEEL_PIN" ]] || fail "missing KEEL_PIN in acceptance.yml"
-
-# CI and acceptance must have the same source pin, or one workflow could
-# silently reuse a different macOS Racket dependency cache.
-MACOS_DEP_CACHE_KEY='key: taskly-macos-racket93-v1-${{ matrix.arch }}-${{ env.RIVET_PIN }}-${{ env.KEEL_PIN }}'
-for workflow in "${WORKFLOWS[0]}" "${WORKFLOWS[1]}"; do
-  cache_keel_pin="$(env_pin "$workflow" KEEL_PIN)"
-  [[ "$cache_keel_pin" == "$KEEL_PIN" ]] ||
-    fail "KEEL_PIN drift: ${workflow#"$ROOT/"} has $cache_keel_pin, expected $KEEL_PIN"
-  grep -Fq "$MACOS_DEP_CACHE_KEY" "$workflow" ||
-    fail "missing architecture- and pin-scoped macOS dependency cache in ${workflow#"$ROOT/"}"
-done
-
-while IFS= read -r keel_pin; do
-  [[ "$keel_pin" == "$KEEL_PIN" ]] ||     fail "Keel pin drift: found $keel_pin, expected $KEEL_PIN"
-done < <(
-  grep -h -oE 'turlamai/keel\.git#[0-9a-f]{40}' "${WORKFLOWS[@]}" |
-    sed -E 's/.*#//'
-)
-
-echo "dependency pin preflight: aligned (Rivet $RIVET_PIN, Keel $KEEL_PIN)"
+RIVET_PIN="$(env_pin "${WORKFLOWS[0]}" RIVET_PIN)"
+KEEL_PIN="$(env_pin "${WORKFLOWS[0]}" KEEL_PIN)"
+GLAZE_PIN="$(env_pin "${WORKFLOWS[0]}" GLAZE_PIN)"
+echo "dependency pin preflight: aligned (Rivet $RIVET_PIN, Keel $KEEL_PIN, Glaze $GLAZE_PIN)"
