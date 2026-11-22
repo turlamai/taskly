@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="mobile-page">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taskly — 清单 · iPhone</title>
+<script src="theme-boot.js"></script>
+<link rel="stylesheet" href="shared.css">
+<style>
+/* Mobile geometry only; all colors and type families come from shared.css. */
+html.mobile-page { height: auto; background: var(--sidebar); }
+.mobile-page body { display: block; min-height: 100dvh; padding: 0; background: var(--sidebar); color: var(--ink); }
+.mobile-canvas { width: 100%; max-width: 390px; min-height: 100dvh; margin: 0 auto; background: var(--bg); color: var(--ink); display: flex; flex-direction: column; font-size: 16px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.mobile-page :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mobile-page .icon { width: 20px; height: 20px; }
+.m-top { padding: 16px 16px 8px; }
+.m-toolbar { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.m-toolbar h2 { font-size: 16px; font-weight: 600; }
+.m-title { font-size: 28px; line-height: 1.3; font-weight: 600; overflow-wrap: anywhere; }
+.m-subtitle { margin-top: 4px; font-size: 13px; color: var(--ink2); }
+.m-content { flex: 1; min-width: 0; padding: 16px 16px 24px; }
+.m-content.with-add { padding-bottom: 24px; }
+.m-quiet, .m-icon-button, .m-button { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; padding: 8px 12px; font-size: 15px; line-height: 1.5; font-weight: 500; color: var(--ink); }
+.m-quiet { padding: 8px; }
+.m-icon-button { width: 44px; padding: 0; flex: none; }
+.m-button { border: 1px solid var(--input-border); background: var(--surface); }
+.m-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.m-danger { color: var(--danger); }
+.m-full { width: 100%; }
+.m-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--divider); }
+.m-tabs button { min-width: 44px; min-height: 44px; border-bottom: 2px solid transparent; color: var(--ink2); font-size: 15px; text-align: center; }
+.m-tabs button[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); font-weight: 600; }
+.m-group { margin-bottom: 24px; }
+.m-group h2 { font-size: 13px; font-weight: 600; color: var(--ink2); margin-bottom: 8px; }
+.m-task { border-bottom: 1px solid var(--divider); touch-action: pan-y; }
+.m-task-line { display: flex; align-items: flex-start; gap: 4px; min-height: 64px; }
+.m-check { width: 44px; min-height: 48px; flex: none; display: grid; place-items: center; }
+.m-circle { display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--ink3); border-radius: 50%; color: var(--accent-ink); }
+.m-circle .icon { width: 16px; height: 16px; }
+.m-check[aria-checked="true"] .m-circle { background: var(--accent); border-color: var(--accent); }
+.m-task-link { display: block; flex: 1; min-width: 0; min-height: 48px; padding: 12px 0; text-align: left; }
+.m-task-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.m-task-meta { display: block; font-size: 12px; line-height: 1.5; color: var(--ink2); margin-top: 4px; overflow-wrap: anywhere; }
+.m-task.is-done .m-task-title { text-decoration: line-through; color: var(--ink2); }
+.m-task-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 0 0 8px; }
+.m-list-row { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--divider); min-height: 64px; }
+.m-list-open { display: flex; align-items: center; gap: 12px; min-height: 64px; flex: 1; min-width: 0; padding: 8px 0; text-align: left; }
+.m-list-symbol { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; background: var(--hover); color: var(--ink); }
+.m-list-copy { min-width: 0; flex: 1; }
+.m-list-copy strong { display: block; font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
+.m-list-copy small { display: block; font-size: 12px; color: var(--ink2); margin-top: 4px; }
+.m-marker { display: inline-block; width: 8px; height: 8px; border: 1px solid var(--ink3); border-radius: 50%; margin-right: 4px; }
+.m-empty { padding: 48px 8px; text-align: center; }
+.m-empty h2 { font-size: 20px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+.m-empty p { font-size: 15px; line-height: 1.6; color: var(--ink2); }
+.m-feedback { display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid var(--divider); border-radius: 8px; margin-bottom: 16px; font-size: 13px; line-height: 1.5; }
+.m-feedback p { flex: 1; }
+.m-error { border-color: var(--danger); color: var(--ink); }
+.m-error strong { display: block; color: var(--danger); }
+.m-note { font-size: 12px; line-height: 1.6; color: var(--ink2); }
+.m-bottom { position: sticky; bottom: 0; z-index: 3; background: var(--bg); border-top: 1px solid var(--divider); margin-top: auto; }
+.m-bottom-inner { display: grid; grid-template-columns: repeat(3, 1fr); padding: 8px 16px max(8px, env(safe-area-inset-bottom)); }
+.m-tab { min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink2); font-size: 12px; }
+.m-tab[aria-current="page"] { color: var(--accent); font-weight: 600; }
+.m-add-dock { position: sticky; bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 2; display: flex; justify-content: flex-end; padding: 0 16px; height: 56px; flex: none; }
+.m-add { width: 56px; height: 56px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--accent); color: var(--accent-ink); }
+.m-add .icon { width: 24px; height: 24px; }
+.m-undo { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px; background: var(--sidebar); color: var(--ink); border-bottom: 1px solid var(--divider); font-size: 13px; }
+.m-undo span { min-width: 0; overflow-wrap: anywhere; }
+.m-field { display: block; margin-bottom: 16px; min-width: 0; }
+.m-label { display: block; margin-bottom: 8px; font-size: 13px; color: var(--ink2); font-weight: 500; }
+.m-input { display: block; width: 100%; min-height: 44px; border: 1px solid var(--input-border); border-radius: 8px; padding: 8px 12px; background: var(--bg); color: var(--ink); font-size: 16px; line-height: 1.5; }
+textarea.m-input { min-height: 96px; resize: vertical; }
+.m-input::placeholder { color: var(--ink3); opacity: 1; }
+.m-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.m-detail-title { font-size: 24px; line-height: 1.4; font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; }
+.m-detail-note { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; color: var(--ink2); margin-top: 16px; }
+.m-properties { margin-top: 24px; }
+.m-property { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--divider); min-height: 48px; }
+.m-property dt { font-size: 13px; color: var(--ink2); }
+.m-property dd { font-size: 15px; overflow-wrap: anywhere; }
+.m-detail-actions { display: flex; gap: 8px; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); }
+.m-detail-actions .m-button { flex: 1; }
+.m-settings-row { display: grid; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--divider); }
+.m-settings-row > label { font-size: 15px; }
+.m-theme { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border: 0; }
+.m-theme label { min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 13px; border: 1px solid var(--input-border); border-radius: 8px; padding: 8px 4px; }
+.m-theme label:has(input:checked) { border-color: var(--accent); background: var(--sel); }
+.m-theme input { width: 16px; height: 16px; accent-color: var(--accent); }
+.m-disclosure summary { min-height: 44px; cursor: pointer; padding: 12px 0; font-size: 15px; }
+.m-save-status { font-size: 12px; color: var(--ink2); min-height: 24px; }
+.m-dialog { position: fixed; inset: auto 0 0; margin: 0 auto; width: min(390px, 100%); max-height: calc(100dvh - 24px); overflow-y: auto; border: 0; border-radius: 12px 12px 0 0; background: var(--bg); color: var(--ink); padding: 16px 16px max(16px, env(safe-area-inset-bottom)); }
+.m-dialog:not([open]) { display: none; }
+.m-dialog::backdrop { background: var(--scrim); }
+.m-dialog h2 { font-size: 18px; font-weight: 600; }
+.m-quick-sheet { min-height: 50dvh; max-height: 85dvh; }
+.m-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.m-shortcuts button { display: flex; flex-direction: column; gap: 4px; padding: 8px 4px; min-height: 64px; font-size: 12px; border: 1px solid var(--input-border); border-radius: 8px; align-items: center; justify-content: center; }
+.m-shortcut-panel { padding-top: 16px; }
+.m-sheet-footer { margin-top: 24px; }
+.m-parse { font-size: 13px; line-height: 1.6; color: var(--ink2); margin-top: 8px; min-height: 24px; overflow-wrap: anywhere; }
+.m-palette { display: grid; grid-template-columns: repeat(6, minmax(44px, 1fr)); gap: 8px; }
+.m-color { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid transparent; border-radius: 8px; }
+.m-color[aria-pressed="true"] { border-color: var(--ink); background: var(--sel); }
+.m-color span { display: block; width: 20px; height: 20px; border: 1px solid var(--ink3); border-radius: 4px; }
+.m-icons { display: flex; flex-wrap: wrap; gap: 8px; }
+.m-icons button { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--input-border); border-radius: 8px; }
+.m-icons button[aria-pressed="true"] { border-color: var(--accent); background: var(--sel); }
+.m-underlay { pointer-events: none; }
+@media (hover: hover) { .m-quiet:hover, .m-icon-button:hover, .m-task-link:hover, .m-list-open:hover { background: var(--hover); } .m-button:not(.m-primary):hover { background: var(--hover); } }
+@media (max-width: 360px) { .m-palette { grid-template-columns: repeat(5, minmax(44px, 1fr)); } .m-two { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: no-preference) { .m-task-actions { animation: mobile-reveal var(--t-exit) var(--e-out); } @keyframes mobile-reveal { from { opacity: 0; } to { opacity: 1; } } }
+
+</style>
+</head>
+<body data-page="lists">
+<div class="mobile-canvas" id="mobileRoot"></div>
+<div class="sr-only" id="live" role="status" aria-live="polite"></div>
+<script src="shared.js"></script>
+<script>
+/* Shared inline prototype behavior; no filesystem, notification, or network APIs. */
+(function () {
+  'use strict';
+  const T = window.Taskly;
+  const I = T.ICONS;
+  const esc = T.esc;
+  const TODAY = T.TODAY;
+  const page = document.body.dataset.page;
+  const params = new URLSearchParams(location.search);
+  const sample = ['empty', 'complete'].includes(params.get('sample')) ? params.get('sample') : 'default';
+  const key = 'taskly.mobile.v1.' + sample;
+  let storageMode = 'local';
+  let model;
+  let saveTimer = null;
+  let afterSave = null;
+  let loading = params.get('state') === 'loading';
+  let loadError = params.get('state') === 'error';
+  let expanded = null;
+  let editing = params.get('edit') === '1';
+  let transient = '';
+  const root = document.getElementById('mobileRoot');
+  const $ = function (s, r) { return (r || document).querySelector(s); };
+  const $$ = function (s, r) { return Array.from((r || document).querySelectorAll(s)); };
+  function icon(name) { return I[name] || I.lines; }
+  function seed() {
+    const lists = {
+      work: { name: '工作', color: '--list-cyan', icon: 'lines' },
+      home: { name: '家', color: '--list-green', icon: 'lines' },
+      important: { name: '重要', color: '--list-orange', icon: 'flag' },
+      reading: { name: '读书', color: '--list-indigo', icon: 'lines' }
+    };
+    const task = function (id, title, list, date, time, note, tags, done) {
+      return { id: id, title: title, list: list, date: date, time: time, remind: time ? '10m' : 'none', note: note, tags: tags, done: done, priority: 0, url: '', subtasks: [] };
+    };
+    let tasks = [
+      task('m1', '回复出版社的排版确认函', 'work', T.addDays(TODAY, -1), '', '', ['等回复'], false),
+      task('m2', '预约牙医复诊', 'important', TODAY, '09:30', '带上上次拍的片子，确认下次复诊时间。', ['健康'], false),
+      task('m3', '整理季度复盘笔记', 'work', TODAY, '14:00', '整理结论，再同步给同事。', ['工作'], false),
+      task('m4', '预约周末的羽毛球场地', 'home', T.addDays(TODAY, 1), '', '', [], false),
+      task('m5', '整理《深度工作》读书笔记', 'reading', T.addDays(TODAY, 3), '', '回顾关于注意力残留的章节。', ['读书'], false)
+    ];
+    if (sample === 'empty') tasks = [];
+    if (sample === 'complete') tasks.forEach(function (t) { if (t.date <= TODAY) t.done = true; });
+    return { version: 1, lists: lists, tasks: tasks, defaultList: T.preferences.defaultList(), undo: null, quick: { raw: '', list: '', date: '', remind: 'none', time: '' }, detailDrafts: {}, navigation: {}, todayView: 'today' };
+  }
+  function load() {
+    let raw = null;
+    try { raw = localStorage.getItem(key); }
+    catch (error) { storageMode = 'session'; }
+    if (!raw) {
+      try { raw = sessionStorage.getItem(key); if (raw) storageMode = 'session'; }
+      catch (error) { if (storageMode === 'session') storageMode = 'memory'; }
+    }
+    try { model = raw ? JSON.parse(raw) : seed(); }
+    catch (error) { model = seed(); loadError = true; }
+    if (!model || model.version !== 1 || !Array.isArray(model.tasks) || !model.lists || !model.quick || !model.navigation) { model = seed(); loadError = true; }
+  }
+  function persist() {
+    const payload = JSON.stringify(model);
+    if (storageMode === 'local') {
+      try { localStorage.setItem(key, payload); return true; }
+      catch (error) { storageMode = 'session'; }
+    }
+    if (storageMode === 'session') {
+      try { sessionStorage.setItem(key, payload); return true; }
+      catch (error) { storageMode = 'memory'; }
+    }
+    return false;
+  }
+  function status(text) {
+    $$('.m-save-status').forEach(function (node) { node.textContent = text; });
+  }
+  function flush() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    const saved = persist();
+    status(saved ? '已保存' : '仅保存在本页，浏览器存储不可用');
+    if (afterSave) { const fn = afterSave; afterSave = null; fn(saved); }
+    return saved;
+  }
+  function save(callback) {
+    status('保存中…');
+    if (saveTimer) clearTimeout(saveTimer);
+    afterSave = callback || null;
+    saveTimer = setTimeout(flush, 160);
+  }
+  function href(file, values) {
+    const q = new URLSearchParams(values || {});
+    if (sample !== 'default') q.set('sample', sample);
+    return file + (q.size ? '?' + q.toString() : '');
+  }
+  function returnValues() {
+    const from = params.get('from') === 'lists' ? 'lists' : 'today';
+    const list = params.get('list');
+    return { from: from, list: model.lists[list] ? list : '' };
+  }
+  function backHref() {
+    const v = returnValues();
+    return href(v.from === 'lists' ? 'mobile-lists.html' : 'mobile-today.html', v.list && v.from === 'lists' ? { list: v.list } : {});
+  }
+  function navigate(url) { remember(); flush(); location.href = url; }
+  function remember() {
+    model.navigation[page + ':' + (params.get('list') || '')] = { scroll: window.scrollY };
+  }
+  function restoreScroll() {
+    const state = model.navigation[page + ':' + (params.get('list') || '')];
+    if (state) requestAnimationFrame(function () { window.scrollTo(0, state.scroll || 0); });
+  }
+  function announce(text) { const n = $('#live'); if (n) n.textContent = text; }
+  function saveNotice() { return '<p class="m-save-status" role="status" aria-live="polite"></p>'; }
+  function taskById(id) { return model.tasks.find(function (t) { return t.id === id; }); }
+  function listName(id) { return model.lists[id] ? model.lists[id].name : '未分类'; }
+  function formatDate(date) { return !date ? '无日期' : date === TODAY ? '今天' : date === T.addDays(TODAY, 1) ? '明天' : T.fmtDate(date); }
+  function reminder(value) { return { none: '不提醒', '0': '准时', '10m': '提前 10 分钟', '1h': '提前 1 小时' }[value] || '不提醒'; }
+  function options(selected) { return Object.entries(model.lists).map(function (entry) { return '<option value="' + esc(entry[0]) + '"' + (entry[0] === selected ? ' selected' : '') + '>' + esc(entry[1].name) + '</option>'; }).join(''); }
+  function reminderOptions(selected) { return ['none', '0', '10m', '1h'].map(function (value) { return '<option value="' + value + '"' + (value === selected ? ' selected' : '') + '>' + reminder(value) + '</option>'; }).join(''); }
+  function bottom(active, detailActions) {
+    const undo = model.undo ? '<div class="m-undo" role="status"><span>已删除「' + esc(model.undo.task.title) + '」</span><button class="m-quiet" data-action="undo">撤销</button></div>' : '';
+    if (detailActions) return '<footer class="m-bottom">' + undo + detailActions + '</footer>';
+    return '<footer class="m-bottom">' + undo + '<nav class="m-bottom-inner" aria-label="主导航">' + [
+      ['today', 'mobile-today.html', 'today', '今天'], ['lists', 'mobile-lists.html', 'lines', '清单'], ['settings', 'mobile-settings.html', 'theme', '设置']
+    ].map(function (item) { return '<a class="m-tab" data-nav href="' + href(item[1]) + '"' + (active === item[0] ? ' aria-current="page"' : '') + '>' + icon(item[2]) + '<span>' + item[3] + '</span></a>'; }).join('') + '</nav></footer>';
+  }
+  function addDock(from, list) { return '<div class="m-add-dock"><a class="m-add" data-nav href="' + href('mobile-quick-add.html', { from: from || 'today', list: list || '' }) + '" aria-label="添加任务">' + icon('plus') + '</a></div>'; }
+  function meta(task) {
+    const bits = [listName(task.list)];
+    if (task.date) bits.push((task.date < TODAY && !task.done ? '逾期 · ' : '') + formatDate(task.date) + (task.time ? ' ' + task.time : ''));
+    if (task.tags.length) bits.push(task.tags.map(function (tag) { return '#' + tag; }).join(' '));
+    return bits.join(' · ');
+  }
+  function row(task, from, list) {
+    const open = expanded === task.id;
+    return '<article class="m-task' + (task.done ? ' is-done' : '') + '" data-task="' + esc(task.id) + '"><div class="m-task-line">' +
+      '<button class="m-check" role="checkbox" aria-checked="' + task.done + '" aria-label="' + (task.done ? '恢复未完成：' : '完成：') + esc(task.title) + '" data-action="toggle" data-id="' + esc(task.id) + '"><span class="m-circle">' + (task.done ? icon('check') : '') + '</span></button>' +
+      '<a class="m-task-link" data-nav href="' + href('mobile-task-detail.html', { id: task.id, from: from || 'today', list: list || '' }) + '"><span class="m-task-title">' + esc(task.title) + '</span><span class="m-task-meta">' + esc(meta(task)) + '</span></a>' +
+      '<button class="m-icon-button" data-action="actions" data-id="' + esc(task.id) + '" aria-label="更多操作：' + esc(task.title) + '" aria-expanded="' + open + '" aria-controls="actions-' + esc(task.id) + '">' + icon('chevDown') + '</button></div>' +
+      '<div class="m-task-actions" id="actions-' + esc(task.id) + '"' + (open ? '' : ' hidden') + '><button class="m-quiet" data-action="toggle" data-id="' + esc(task.id) + '">' + icon('checkCircle') + (task.done ? '恢复未完成' : '完成') + '</button><button class="m-quiet m-danger" data-action="delete" data-id="' + esc(task.id) + '">' + icon('trash') + '删除</button></div></article>';
+  }
+  function group(title, tasks, from, list) { return tasks.length ? '<section class="m-group"><h2>' + esc(title) + ' · ' + tasks.length + '</h2>' + tasks.map(function (task) { return row(task, from, list); }).join('') + '</section>' : ''; }
+  function empty(title, description) { return '<section class="m-empty"><h2>' + title + '</h2><p>' + description + '</p></section>'; }
+  function header(title, sub, toolbar) { return '<header class="m-top">' + (toolbar || '') + '<h1 class="m-title">' + esc(title) + '</h1>' + (sub ? '<p class="m-subtitle">' + esc(sub) + '</p>' : '') + '</header>'; }
+  function dateHeading() { const parts = TODAY.split('-').map(Number); return T.fmtDate(TODAY) + ' 星期' + '日一二三四五六'[new Date(parts[0], parts[1] - 1, parts[2]).getDay()]; }
+  function loadingHTML() { return '<div class="m-feedback" role="status" aria-busy="true">正在载入本地任务…</div>'; }
+  function errorHTML() { return '<div class="m-feedback m-error" role="alert"><p><strong>暂时无法载入任务</strong>已有内容保留，请重试。</p><button class="m-quiet" data-action="retry">重试</button></div>'; }
+  function todayBody(underlay) {
+    const upcoming = model.todayView === 'upcoming';
+    const items = model.tasks.filter(function (task) { return task.date && (upcoming ? task.date > TODAY : task.date <= TODAY); });
+    const open = items.filter(function (task) { return !task.done; });
+    const done = items.filter(function (task) { return task.done; });
+    let html = '';
+    if (loading && !underlay) return loadingHTML();
+    if (loadError && !underlay) return errorHTML();
+    if (!items.length) html = empty(upcoming ? '还没有未来的安排' : '今天还没有任务', '点右下角的添加按钮，记下接下来要做的事。');
+    else if (!open.length) html = '<div class="m-feedback" role="status">' + icon('checkCircle') + '<p>' + (upcoming ? '这些安排都已完成。' : '今天的任务全部完成了，做得不错。') + '</p></div>';
+    if (upcoming) {
+      const dates = Array.from(new Set(open.map(function (t) { return t.date; }))).sort();
+      dates.forEach(function (date) { html += group(formatDate(date), open.filter(function (t) { return t.date === date; })); });
+    } else {
+      html += group('逾期', open.filter(function (t) { return t.date < TODAY; }));
+      html += group('今天', open.filter(function (t) { return t.date === TODAY; }));
+    }
+    if (done.length) html += '<details class="m-disclosure"' + (model.doneOpen ? ' open' : '') + ' id="doneDisclosure"><summary>已完成 · ' + done.length + '</summary>' + done.map(function (task) { return row(task, 'today'); }).join('') + '</details>';
+    return html;
+  }
+  function renderToday() {
+    root.innerHTML = header('今天', dateHeading()) + '<div class="m-tabs" role="group" aria-label="任务时间"><button data-action="today" aria-pressed="' + (model.todayView !== 'upcoming') + '">今天</button><button data-action="upcoming" aria-pressed="' + (model.todayView === 'upcoming') + '">即将到来</button></div><main class="m-content with-add">' + todayBody(false) + '</main>' + addDock('today') + bottom('today');
+    const disclosure = $('#doneDisclosure');
+    if (disclosure) disclosure.addEventListener('toggle', function () { model.doneOpen = this.open; persist(); });
+  }
+  function parseQuick(raw) {
+    const tags = [];
+    for (const match of raw.matchAll(/#([\p{L}\p{N}_-]+)/gu)) if (!tags.includes(match[1])) tags.push(match[1]);
+    const at = raw.match(/@(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+    let time = '';
+    if (at) {
+      let h = Number(at[1]); const ap = (at[3] || '').toLowerCase();
+      if (ap === 'pm' && h < 12) h += 12;
+      if (ap === 'am' && h === 12) h = 0;
+      time = String(h).padStart(2, '0') + ':' + (at[2] || '00');
+    }
+    let date = TODAY;
+    const plus = raw.match(/\+(\d{1,2})d/);
+    if (plus) date = T.addDays(TODAY, Number(plus[1]));
+    if (raw.includes('+今天')) date = TODAY;
+    if (raw.includes('+明天')) date = T.addDays(TODAY, 1);
+    return { title: raw.replace(/#([\p{L}\p{N}_-]+)/gu, '').replace(/@\d{1,2}(?::\d{2})?\s*(am|pm)?/gi, '').replace(/\+\d{1,2}d|\+今天|\+明天/g, '').replace(/\s+/g, ' ').trim(), tags: tags, date: date, time: time };
+  }
+  function quickResult() {
+    const parsed = parseQuick(model.quick.raw);
+    return Object.assign(parsed, { date: model.quick.date || parsed.date, time: model.quick.time || parsed.time, list: model.lists[model.quick.list] ? model.quick.list : model.defaultList, remind: model.quick.remind || 'none' });
+  }
+  function quickPreview() {
+    const result = quickResult();
+    $('#quickParse').textContent = (result.title || '尚未填写任务') + ' · ' + listName(result.list) + ' · ' + formatDate(result.date) + (result.time ? ' ' + result.time : '') + (result.tags.length ? ' · ' + result.tags.map(function (tag) { return '#' + tag; }).join(' ') : '');
+    $('#quickListLabel').textContent = listName(result.list);
+    $('#quickDateLabel').textContent = formatDate(result.date);
+    $('#quickRemindLabel').textContent = reminder(result.remind);
+  }
+  function renderQuick() {
+    const q = model.quick;
+    const v = returnValues();
+    if (!q.list && v.list) q.list = v.list;
+    const r = quickResult();
+    root.innerHTML = '<div class="m-underlay" inert aria-hidden="true">' + header('今天', dateHeading()) + '<div class="m-content">' + todayBody(true) + '</div></div>' +
+      '<dialog class="m-dialog m-quick-sheet" id="quickSheet" aria-labelledby="quickHeading"><div class="m-toolbar"><button class="m-quiet" data-action="quick-cancel">取消</button><h2 id="quickHeading">快速添加</h2><span aria-hidden="true" style="display:block;width:44px"></span></div>' +
+      '<label class="m-field"><span class="m-label">任务</span><textarea id="quickRaw" class="m-input" rows="2" placeholder="例如：整理笔记 #工作 @14:00 +明天">' + esc(q.raw) + '</textarea></label>' +
+      '<p class="m-note">支持 #标签、@时间、+Nd、+今天与+明天</p><p class="m-parse" id="quickParse" aria-live="polite"></p>' +
+      '<div class="m-shortcuts"><button data-action="quick-panel" data-panel="list" aria-expanded="false">' + icon('lines') + '<span id="quickListLabel"></span></button><button data-action="quick-panel" data-panel="remind" aria-expanded="false">' + icon('clock') + '<span id="quickRemindLabel"></span></button><button data-action="quick-panel" data-panel="date" aria-expanded="false">' + icon('calendar') + '<span id="quickDateLabel"></span></button></div>' +
+      '<div class="m-shortcut-panel" id="quickPanel-list" hidden><label class="m-field"><span class="m-label">所属清单</span><select class="m-input" id="quickList">' + options(r.list) + '</select></label></div>' +
+      '<div class="m-shortcut-panel" id="quickPanel-remind" hidden><label class="m-field"><span class="m-label">提醒</span><select class="m-input" id="quickRemind">' + reminderOptions(r.remind) + '</select></label><label class="m-field"><span class="m-label">时间</span><input class="m-input" type="time" id="quickTime" value="' + esc(r.time) + '"></label><p class="m-note">提醒相对任务时间设置；原型不发送系统通知。</p></div>' +
+      '<div class="m-shortcut-panel" id="quickPanel-date" hidden><label class="m-field"><span class="m-label">截止</span><input class="m-input" type="date" id="quickDate" value="' + esc(r.date) + '"></label></div>' +
+      '<div id="quickError" class="m-feedback m-error" role="alert" hidden></div><div class="m-sheet-footer">' + saveNotice() + '<button class="m-button m-primary m-full" id="quickSubmit" data-action="quick-save">添加任务</button></div></dialog>';
+    quickPreview();
+    const sheet = $('#quickSheet'); sheet.showModal(); $('#quickRaw').focus({ preventScroll: true });
+    sheet.addEventListener('cancel', function (event) { event.preventDefault(); navigate(backHref()); });
+    sheet.addEventListener('click', function (event) { if (event.target === sheet) { const box = sheet.getBoundingClientRect(); if (event.clientY < box.top || event.clientX < box.left || event.clientX > box.right) navigate(backHref()); } });
+    $('#quickRaw').addEventListener('input', function () { q.raw = this.value; quickPreview(); save(); });
+    $('#quickList').addEventListener('change', function () { q.list = this.value; quickPreview(); save(); });
+    $('#quickDate').addEventListener('change', function () { q.date = this.value; quickPreview(); save(); });
+    $('#quickTime').addEventListener('change', function () { q.time = this.value; quickPreview(); save(); });
+    $('#quickRemind').addEventListener('change', function () { q.remind = this.value; quickPreview(); save(); });
+    $('#quickRaw').addEventListener('keydown', function (event) { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing) { event.preventDefault(); submitQuick(); } });
+  }
+  function submitQuick() {
+    const r = quickResult(); const error = $('#quickError');
+    function invalid(message) { error.hidden = false; error.textContent = message; }
+    if (!r.title) { invalid('请填写任务内容，输入会保留。'); $('#quickRaw').focus(); return; }
+    if (r.time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(r.time)) { invalid('时间格式不正确，请使用 @14:00 这样的时间。'); return; }
+    if (r.remind !== 'none' && !r.time) { invalid('请先设置时间，或将提醒改为“不提醒”。'); return; }
+    const button = $('#quickSubmit'); if (button.disabled) return;
+    button.disabled = true; error.hidden = true;
+    const task = { id: 'm' + Date.now(), title: r.title, list: r.list, date: r.date, time: r.time, remind: r.remind, note: '', tags: r.tags, done: false, priority: 0, url: '', subtasks: [] };
+    model.tasks.unshift(task);
+    const previousDraft = model.quick;
+    model.quick = { raw: '', list: '', date: '', remind: 'none', time: '' };
+    save(function (saved) {
+      if (!saved) { model.tasks = model.tasks.filter(function (t) { return t.id !== task.id; }); model.quick = previousDraft; button.disabled = false; invalid('浏览器存储不可用，无法跨页保存。任务内容保留，请启用本地存储后重试。'); return; }
+      navigate(backHref());
+    });
+  }
+  function activeTask() {
+    const requested = params.get('id');
+    return requested ? taskById(requested) : model.tasks.find(function (t) { return !t.done; }) || model.tasks[0];
+  }
+  function detailDraft(task) {
+    return model.detailDrafts[task.id] || { title: task.title, note: task.note, list: task.list, date: task.date, time: task.time, remind: task.remind };
+  }
+  function renderDetail() {
+    const task = activeTask();
+    const toolbar = '<div class="m-toolbar"><a class="m-quiet" data-nav href="' + backHref() + '">返回</a><h2>任务详情</h2>' + (task ? '<button class="m-quiet" data-action="detail-edit">' + (editing ? '完成' : '编辑') + '</button>' : '<span></span>') + '</div>';
+    if (!task) {
+      root.innerHTML = '<header class="m-top">' + toolbar + '</header><main class="m-content">' + empty(model.undo ? '任务已删除' : '没有找到这条任务', model.undo ? '可以在下方撤销删除，或返回继续查看任务。' : '任务可能已移除。返回列表选择其他任务。') + '</main>' + bottom('', '<div class="m-detail-actions"><a class="m-button m-full" data-nav href="' + backHref() + '">返回任务列表</a></div>'); return;
+    }
+    const d = detailDraft(task);
+    let content = '';
+    if (editing) {
+      content = '<label class="m-field"><span class="m-label">标题</span><textarea class="m-input" id="detailTitle" rows="2">' + esc(d.title) + '</textarea></label>' +
+        '<label class="m-field"><span class="m-label">备注</span><textarea class="m-input" id="detailNote" rows="3" placeholder="添加备注">' + esc(d.note) + '</textarea></label>' +
+        '<label class="m-field"><span class="m-label">所属清单</span><select class="m-input" id="detailList">' + options(d.list) + '</select></label>' +
+        '<div class="m-two"><label class="m-field"><span class="m-label">截止</span><input class="m-input" id="detailDate" type="date" value="' + esc(d.date) + '"></label><label class="m-field"><span class="m-label">时间</span><input class="m-input" id="detailTime" type="time" value="' + esc(d.time) + '"></label></div>' +
+        '<label class="m-field"><span class="m-label">提醒</span><select class="m-input" id="detailRemind">' + reminderOptions(d.remind) + '</select></label>' +
+        '<p class="m-note">改动自动保存。提醒仅记录设置，原型不发送系统通知。</p><p id="detailValidation" class="m-note" role="alert"></p>';
+    } else {
+      content = '<h1 class="m-detail-title">' + esc(task.title) + '</h1><p class="m-detail-note">' + esc(task.note || '暂无备注') + '</p><dl class="m-properties">' +
+        [['状态', task.done ? '已完成' : '未完成'], ['清单', listName(task.list)], ['截止', formatDate(task.date) + (task.time ? ' ' + task.time : '')], ['提醒', reminder(task.remind)]]
+          .map(function (pair) { return '<div class="m-property"><dt>' + pair[0] + '</dt><dd>' + esc(pair[1]) + '</dd></div>'; }).join('') + '</dl>';
+      if (task.tags.length) content += '<p class="m-detail-note">' + task.tags.map(function (tag) { return '#' + esc(tag); }).join(' ') + '</p>';
+      if (task.subtasks.length) content += '<section class="m-group"><h2>子任务</h2>' + task.subtasks.map(function (sub, i) { return '<label class="m-quiet m-full" style="justify-content:flex-start"><input type="checkbox" data-subtask="' + i + '"' + (sub.done ? ' checked' : '') + '> <span>' + esc(sub.t) + '</span></label>'; }).join('') + '</section>';
+    }
+    root.innerHTML = '<header class="m-top">' + toolbar + '</header><main class="m-content">' + content + saveNotice() + '</main>' + bottom('', '<div class="m-detail-actions"><button class="m-button m-danger" data-action="delete" data-id="' + esc(task.id) + '">' + icon('trash') + '删除</button><button class="m-button m-primary" data-action="toggle" data-id="' + esc(task.id) + '">' + icon('check') + (task.done ? '恢复未完成' : '完成任务') + '</button></div>');
+    if (editing) {
+      const update = function () {
+        const draft = { title: $('#detailTitle').value, note: $('#detailNote').value, list: $('#detailList').value, date: $('#detailDate').value, time: $('#detailTime').value, remind: $('#detailRemind').value };
+        model.detailDrafts[task.id] = draft;
+        const valid = draft.title.trim() && (draft.remind === 'none' || (draft.date && draft.time));
+        $('#detailValidation').textContent = !draft.title.trim() ? '标题不能为空；已保留输入和原任务。' : draft.remind !== 'none' && (!draft.date || !draft.time) ? '设置提醒还需要截止日期和时间，或选择“不提醒”。' : '';
+        if (valid) Object.assign(task, draft, { title: draft.title.trim() });
+        save();
+      };
+      ['detailTitle', 'detailNote'].forEach(function (id) { $('#' + id).addEventListener('input', update); });
+      ['detailList', 'detailDate', 'detailTime', 'detailRemind'].forEach(function (id) { $('#' + id).addEventListener('change', update); });
+    }
+  }
+  function listId() { const id = params.get('list'); return model.lists[id] ? id : ''; }
+  function renderLists() {
+    const id = listId();
+    let content = '';
+    if (id) {
+      const items = model.tasks.filter(function (t) { return t.list === id; });
+      const open = items.filter(function (t) { return !t.done; });
+      const done = items.filter(function (t) { return t.done; });
+      content = group('待完成', open, 'lists', id) + group('已完成', done, 'lists', id);
+      if (!items.length) content = empty('这个清单还是空的', '添加一条任务，它会直接进入这个清单。');
+      const toolbar = '<div class="m-toolbar"><button class="m-quiet" data-action="list-back">清单</button><button class="m-quiet" data-action="list-edit" data-id="' + esc(id) + '">编辑</button></div>';
+      root.innerHTML = header(model.lists[id].name, open.length + ' 项未完成', toolbar) + '<main class="m-content with-add">' + content + '</main>' + addDock('lists', id) + bottom('lists');
+    } else {
+      content = Object.entries(model.lists).map(function (entry) {
+        const list = entry[1]; const count = model.tasks.filter(function (t) { return t.list === entry[0] && !t.done; }).length;
+        return '<div class="m-list-row"><button class="m-list-open" data-action="list-open" data-id="' + esc(entry[0]) + '"><span class="m-list-symbol">' + icon(list.icon) + '</span><span class="m-list-copy"><strong>' + esc(list.name) + '</strong><small><span class="m-marker" style="background:var(' + list.color + ')"></span>' + count + ' 项未完成</small></span>' + icon('chevRight') + '</button><button class="m-icon-button" data-action="list-edit" data-id="' + esc(entry[0]) + '" aria-label="编辑清单：' + esc(list.name) + '">' + icon('pencil') + '</button></div>';
+      }).join('');
+      root.innerHTML = header('清单', Object.keys(model.lists).length + ' 个清单', '<div class="m-toolbar"><span></span><button class="m-quiet" data-action="list-new">' + icon('plus') + '新建清单</button></div>') + '<main class="m-content">' + content + saveNotice() + '</main>' + bottom('lists');
+    }
+  }
+  const palette = [['blue','蓝色'],['red','红色'],['orange','橙色'],['yellow','黄色'],['green','绿色'],['cyan','浅蓝'],['indigo','靛蓝'],['pink','粉色'],['gray','灰色'],['silver','浅灰'],['brown','棕色'],['teal','青色']];
+  function openListEditor(id) {
+    const list = id ? model.lists[id] : { name: '', color: '--list-blue', icon: 'lines' };
+    let color = list.color, glyph = list.icon;
+    const trigger = document.activeElement;
+    const dialog = document.createElement('dialog'); dialog.className = 'm-dialog'; dialog.id = 'listEditor'; dialog.setAttribute('aria-labelledby', 'listEditorTitle');
+    dialog.innerHTML = '<div class="m-toolbar"><button class="m-quiet" data-editor-cancel>取消</button><h2 id="listEditorTitle">' + (id ? '编辑清单' : '新建清单') + '</h2><span style="display:block;width:44px" aria-hidden="true"></span></div><label class="m-field"><span class="m-label">名称</span><input class="m-input" id="listEditorName" maxlength="100" value="' + esc(list.name) + '" placeholder="清单名称"></label><div class="m-field"><p class="m-label">图标</p><div class="m-icons" role="group" aria-label="清单图标">' + ['lines','flag','calendar','tag','checkCircle'].map(function (name, i) { return '<button data-list-icon="' + name + '" aria-label="' + ['清单','旗标','日历','标签','完成'][i] + '" aria-pressed="' + (glyph === name) + '">' + icon(name) + '</button>'; }).join('') + '</div></div><div class="m-field"><p class="m-label">颜色</p><div class="m-palette" role="group" aria-label="清单颜色">' + palette.map(function (pair) { return '<button class="m-color" data-list-color="--list-' + pair[0] + '" aria-label="' + pair[1] + '" aria-pressed="' + (color === '--list-' + pair[0]) + '"><span style="background:var(--list-' + pair[0] + ')"></span></button>'; }).join('') + '</div></div><p id="listEditorError" class="m-note" role="alert"></p><button class="m-button m-primary m-full" data-editor-save>保存清单</button>';
+    root.appendChild(dialog); dialog.showModal(); $('#listEditorName').focus();
+    dialog.addEventListener('click', function (event) {
+      const cancel = event.target.closest('[data-editor-cancel]'); if (cancel) { dialog.close(); return; }
+      const c = event.target.closest('[data-list-color]'); if (c) { color = c.dataset.listColor; $$('[data-list-color]', dialog).forEach(function (b) { b.setAttribute('aria-pressed', String(b === c)); }); }
+      const g = event.target.closest('[data-list-icon]'); if (g) { glyph = g.dataset.listIcon; $$('[data-list-icon]', dialog).forEach(function (b) { b.setAttribute('aria-pressed', String(b === g)); }); }
+      const saveButton = event.target.closest('[data-editor-save]');
+      if (saveButton) {
+        const name = $('#listEditorName').value.trim();
+        if (!name) { $('#listEditorError').textContent = '请填写清单名称，输入会保留。'; $('#listEditorName').focus(); return; }
+        const recordId = id || 'list' + Date.now();
+        model.lists[recordId] = { name: name, color: color, icon: glyph };
+        persist(); dialog.close(); renderLists(); announce('清单已保存：' + name);
+        const button = $('[data-action="list-edit"][data-id="' + recordId + '"]'); if (button) button.focus();
+      }
+    });
+    dialog.addEventListener('close', function () { dialog.remove(); if (trigger && trigger.isConnected) trigger.focus(); });
+    $('#listEditorName').addEventListener('keydown', function (event) { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); $('[data-editor-save]', dialog).click(); } });
+  }
+  function renderSettings() {
+    root.innerHTML = header('设置', '偏好与数据，由你掌握') + '<main class="m-content"><section class="m-group"><h2>通用</h2><div class="m-settings-row"><span id="themeLabel">主题</span><fieldset class="m-theme" aria-labelledby="themeLabel">' + [['system','跟随系统'],['light','浅色'],['dark','深色']].map(function (pair) { return '<label><input type="radio" name="theme" value="' + pair[0] + '"' + (T.theme.get() === pair[0] ? ' checked' : '') + '><span>' + pair[1] + '</span></label>'; }).join('') + '</fieldset></div><div class="m-settings-row"><label for="mobileLanguage">界面语言</label><select id="mobileLanguage" class="m-input"><option value="system">跟随系统</option><option value="zh-CN">中文（简体）</option><option value="en">English</option><option value="ja">日本語</option></select><p class="m-note">原型仅记录选择，界面文案暂不切换。</p></div></section><section class="m-group"><h2>任务</h2><div class="m-settings-row"><label for="mobileDefaultList">默认清单</label><select id="mobileDefaultList" class="m-input">' + options(model.defaultList) + '</select></div><details class="m-disclosure"><summary>提醒 · 随任务设置</summary><p class="m-note">在任务详情中设置不提醒、准时、提前 10 分钟或提前 1 小时。原型不申请通知权限，也不发送系统通知。</p></details></section><section class="m-group"><h2>数据</h2><div class="m-settings-row"><span>存储与同步</span><p class="m-note">数据库的位置与同步方式由你管理，不绑定账号或云服务。</p></div><p class="m-note" style="margin-top:16px">当前为独立移动演示数据，保存在本浏览器，与桌面数据库分开。此原型不会创建、读取或同步真实 SQLite 文件。</p><p class="m-note" id="storageNote"></p></section>' + saveNotice() + '</main>' + bottom('settings');
+    $('#mobileLanguage').value = T.preferences.get('language', 'system');
+    $$('input[name="theme"]').forEach(function (input) { input.addEventListener('change', function () { T.theme.set(this.value); announce('主题已更新'); }); });
+    T.theme.onChange(function (state) { $$('input[name="theme"]').forEach(function (input) { input.checked = input.value === state.mode; }); });
+    $('#mobileLanguage').addEventListener('change', function () { T.preferences.set('language', this.value); announce('语言偏好已记录'); });
+    $('#mobileDefaultList').addEventListener('change', function () { model.defaultList = this.value; save(); });
+    if (storageMode !== 'local') $('#storageNote').textContent = storageMode === 'session' ? '本地存储不可用，目前仅在本次浏览器会话中保留。' : '浏览器存储受限，目前仅在本页保留；跨页状态无法保持。';
+  }
+  function render() {
+    if (page === 'today') renderToday();
+    if (page === 'quick-add') renderQuick();
+    if (page === 'task-detail') renderDetail();
+    if (page === 'lists') renderLists();
+    if (page === 'settings') renderSettings();
+  }
+  function removeTask(id) {
+    const index = model.tasks.findIndex(function (task) { return task.id === id; });
+    if (index < 0) return;
+    const task = model.tasks.splice(index, 1)[0];
+    model.undo = { task: task, index: index };
+    expanded = null; persist(); render(); announce('任务已删除，可以撤销');
+    const undo = $('[data-action="undo"]'); if (undo) undo.focus();
+  }
+  let suppressClick = false;
+  let pointer = null;
+  root.addEventListener('pointerdown', function (event) {
+    const row = event.target.closest('.m-task');
+    pointer = row ? { id: row.dataset.task, x: event.clientX, y: event.clientY } : null;
+  });
+  root.addEventListener('pointercancel', function () { pointer = null; });
+  root.addEventListener('pointerup', function (event) {
+    if (!pointer) return;
+    const dx = event.clientX - pointer.x, dy = event.clientY - pointer.y;
+    if (dx < -48 && Math.abs(dy) < 32) {
+      expanded = pointer.id; suppressClick = true; render();
+      setTimeout(function () { suppressClick = false; }, 200);
+    }
+    pointer = null;
+  });
+  root.addEventListener('click', function (event) {
+    if (suppressClick) { event.preventDefault(); return; }
+    const nav = event.target.closest('[data-nav]');
+    if (nav) { remember(); flush(); return; }
+    const button = event.target.closest('[data-action]'); if (!button) return;
+    const action = button.dataset.action, id = button.dataset.id;
+    if (action === 'today' || action === 'upcoming') { model.todayView = action; persist(); renderToday(); $('[data-action="' + action + '"]').focus(); }
+    if (action === 'retry') { loadError = false; loading = false; render(); announce('已重新载入本地任务'); }
+    if (action === 'actions') { expanded = expanded === id ? null : id; render(); const el = $('[data-action="actions"][data-id="' + id + '"]'); if (el) el.focus(); }
+    if (action === 'toggle') {
+      const task = taskById(id); if (!task) return;
+      task.done = !task.done; expanded = null; persist(); render();
+      const el = $('[data-action="toggle"][data-id="' + id + '"]'); if (el) el.focus();
+      announce(task.done ? '任务已完成' : '已恢复未完成');
+    }
+    if (action === 'delete') removeTask(id);
+    if (action === 'undo' && model.undo) {
+      const u = model.undo;
+      if (!taskById(u.task.id)) model.tasks.splice(Math.min(u.index, model.tasks.length), 0, u.task);
+      model.undo = null; persist(); render(); announce('已撤销删除');
+      const el = $('[data-action="toggle"][data-id="' + u.task.id + '"]'); if (el) el.focus();
+    }
+    if (action === 'quick-cancel') navigate(backHref());
+    if (action === 'quick-save') submitQuick();
+    if (action === 'quick-panel') {
+      const name = button.dataset.panel;
+      const wasOpen = button.getAttribute('aria-expanded') === 'true';
+      $$('.m-shortcut-panel').forEach(function (node) { node.hidden = true; });
+      $$('[data-action="quick-panel"]').forEach(function (node) { node.setAttribute('aria-expanded', 'false'); });
+      $('#quickPanel-' + name).hidden = wasOpen;
+      button.setAttribute('aria-expanded', String(!wasOpen));
+      if (!wasOpen) $('input, select', $('#quickPanel-' + name)).focus();
+    }
+    if (action === 'detail-edit') {
+      if (editing) {
+        const task = activeTask(), draft = task && model.detailDrafts[task.id];
+        if (draft && (!draft.title.trim() || (draft.remind !== 'none' && (!draft.date || !draft.time)))) { $('#detailTitle').focus(); announce('请先修正任务字段'); return; }
+        if (task) delete model.detailDrafts[task.id];
+        flush();
+      }
+      editing = !editing; renderDetail();
+      if (editing) $('#detailTitle').focus(); else $('[data-action="detail-edit"]').focus();
+    }
+    if (action === 'list-open') { remember(); persist(); params.set('list', id); history.pushState({}, '', href('mobile-lists.html', Object.fromEntries(params))); window.scrollTo(0, 0); renderLists(); }
+    if (action === 'list-back') { params.delete('list'); history.pushState({}, '', href('mobile-lists.html')); renderLists(); restoreScroll(); }
+    if (action === 'list-edit') openListEditor(id);
+    if (action === 'list-new') openListEditor('');
+  });
+  root.addEventListener('change', function (event) {
+    if (event.target.hasAttribute('data-subtask')) {
+      const task = activeTask(); if (!task) return;
+      task.subtasks[Number(event.target.dataset.subtask)].done = event.target.checked; save();
+    }
+  });
+  window.addEventListener('pagehide', function () { remember(); flush(); });
+  window.addEventListener('popstate', function () { const next = new URLSearchParams(location.search); Array.from(params.keys()).forEach(function (key) { params.delete(key); }); for (const [key, value] of next) params.set(key, value); render(); restoreScroll(); });
+  load();
+  // Initialize only the separate mobile sample; never touch the desktop database registry.
+  persist();
+  render();
+  if (page !== 'quick-add') restoreScroll();
+  if (loading) setTimeout(function () { loading = false; render(); }, 900);
+})();
+
+</script>
+</body>
+</html>

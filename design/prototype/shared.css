@@ -33,6 +33,7 @@
 }
 
 .window.dark,
+html.mobile-page[data-taskly-theme="dark"],
 html[data-taskly-theme="dark"] .window {
   --bg: #1E1E1E; --sidebar: #272424; --surface: #323234;
   --divider: #3B3939; --divider-strong: #4E4B4A;
