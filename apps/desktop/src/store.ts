@@ -202,6 +202,9 @@ export async function undoRemove(t: Task): Promise<void> {
 }
 
 export async function quickAdd(raw: string): Promise<Task | null> {
+  // Capture the target before the async parser yields. A user may switch
+  // lists while parsing; the task must belong to the list they submitted in.
+  const listId = state.view === 'list' ? state.listId : settings.defaultListId || null;
   const parsed = await rpc.parseQuickAdd(raw);
   const fromRaw = extractTags(raw);
   const clean = extractTags(parsed.text);
@@ -209,7 +212,6 @@ export async function quickAdd(raw: string): Promise<Task | null> {
   if (!title) return null;
   const tags = fromRaw.tags;
   if (state.tag && !tags.includes(state.tag)) tags.push(state.tag);
-  const listId = state.view === 'list' ? state.listId : settings.defaultListId || null;
   let created = await rpc.addTask(title, listId, parsed.dueDate, parsed.dueTime, null);
   if (tags.length) created = await rpc.updateTask({ ...created, tags });
   generation++;
