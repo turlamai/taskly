@@ -389,10 +389,19 @@ function hideUndo(): void {
 
 /* ---- quick add ---- */
 async function addTask(raw: string): Promise<void> {
+  // Do not override navigation that happened during the async RPC round trip.
+  const submittedView = store.state.view;
+  const submittedListId = store.state.listId;
+  const submittedTag = store.state.tag;
+  const submittedQuery = store.state.q;
   try {
     const created = await store.quickAdd(raw);
     if (!created) return;
-    if (!store.inView(created)) {
+    if (!store.inView(created) &&
+        store.state.view === submittedView &&
+        store.state.listId === submittedListId &&
+        store.state.tag === submittedTag &&
+        store.state.q === submittedQuery) {
       store.state.view = 'today'; store.state.listId = null; store.state.tag = null; store.state.q = '';
       $<HTMLInputElement>('#q')!.value = '';
       store.emit();
