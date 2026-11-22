@@ -104,7 +104,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 }
 .iconbtn:hover { background: var(--hover); color: var(--ink); }
 kbd {
-  font-family: inherit; font-size: 10.5px; color: var(--ink3);
+  font-family: inherit; font-size: 12px; color: var(--ink3);
   background: var(--hover); border: 1px solid var(--divider); border-radius: 4px; padding: 1px 5px;
 }
 .btn {
@@ -122,7 +122,7 @@ kbd {
 .statusbar {
   flex: none; height: 28px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
   border-top: 1px solid var(--divider); background: var(--sidebar);
-  font-size: 11.5px; color: var(--ink3);
+  font-size: 12px; color: var(--ink3);
 }
 .statusbar .sp { flex: 1; }
 
@@ -146,7 +146,7 @@ kbd {
 .glyph.planned { color: var(--planned); }
 .glyph.gray { color: var(--gray-tile); }
 .tile .label { font-size: 13px; font-weight: 500; }
-.tile .count { margin-left: auto; font-size: 11.5px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+.tile .count { margin-left: auto; font-size: 12px; color: var(--ink3); font-variant-numeric: tabular-nums; }
 .sect {
   display: flex; align-items: center; gap: 6px; padding: 14px 8px 4px;
   font-size: 12px; font-weight: 600; color: var(--ink2);
@@ -168,14 +168,14 @@ kbd {
 }
 .thash { width: 20px; text-align: center; color: var(--ink3); font-weight: 700; font-size: 12px; }
 .lrow .name, .trow .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lrow .count, .trow .count { margin-left: auto; font-size: 11.5px; color: var(--ink3); font-variant-numeric: tabular-nums; }
-.thint { padding: 6px 8px; font-size: 11.5px; color: var(--ink3); }
+.lrow .count, .trow .count { margin-left: auto; font-size: 12px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+.thint { padding: 6px 8px; font-size: 12px; color: var(--ink3); }
 
 /* ==== 任务窗格 ==== */
 .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
 .phead { flex: none; display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px 10px; }
 .phead h1 { font-size: 22px; font-weight: 600; letter-spacing: .1px; }
-.phead .sub { margin-top: 2px; font-size: 12.5px; color: var(--ink2); }
+.phead .sub { margin-top: 2px; font-size: 13px; color: var(--ink2); }
 .search {
   display: flex; align-items: center; gap: 6px; width: 208px; height: 30px; padding: 0 8px;
   align-self: center; border: 1px solid var(--input-border); border-radius: 9px;
@@ -245,7 +245,7 @@ kbd {
 .tag {
   display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px;
   border-radius: 6px; background: var(--tag-bg); color: var(--tag-text);
-  font-size: 11.5px; font-weight: 500; white-space: nowrap;
+  font-size: 12px; font-weight: 500; white-space: nowrap;
 }
 button.tag:hover { background: var(--hover); color: var(--ink); }
 .info {
@@ -257,13 +257,13 @@ button.tag:hover { background: var(--hover); color: var(--ink); }
 .info:hover { background: var(--hover); color: var(--ink); }
 .fold {
   display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 16px; margin-top: 4px;
-  font-size: 12.5px; font-weight: 600; color: var(--ink2); border-radius: 8px;
+  font-size: 13px; font-weight: 600; color: var(--ink2); border-radius: 8px;
 }
 .fold:hover { background: var(--hover); }
 .allclear { padding: 12px 16px; font-size: 13px; color: var(--ink3); }
 .empty { padding: 40px 24px; text-align: center; }
 .empty .et { font-size: 15px; font-weight: 600; }
-.empty .es { margin-top: 6px; font-size: 12.5px; color: var(--ink2); line-height: 1.6; }
+.empty .es { margin-top: 6px; font-size: 13px; color: var(--ink2); line-height: 1.6; }
 .empty .btn { margin-top: 14px; }
 
 /* ==== 表单基元 ==== */
@@ -284,7 +284,7 @@ select.input {
 }
 .f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .seg { display: inline-flex; background: var(--hover); border-radius: 8px; padding: 2px; gap: 2px; }
-.seg button { height: 26px; padding: 0 12px; border-radius: 6px; font-size: 12.5px; color: var(--ink2); font-weight: 500; }
+.seg button { height: 26px; padding: 0 12px; border-radius: 6px; font-size: 13px; color: var(--ink2); font-weight: 500; }
 .seg button[aria-pressed="true"] {
   background: var(--surface); color: var(--ink); font-weight: 600;
   box-shadow: 0 1px 2px rgba(0,0,0,.14);
@@ -324,7 +324,7 @@ select.input {
 .sub { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 4px; border-radius: 6px; }
 .sub:hover { background: var(--hover); }
 .sub input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
-.sub label { flex: 1; font-size: 12.5px; line-height: 1.4; }
+.sub label { flex: 1; font-size: 13px; line-height: 1.4; }
 .sub input:checked + label { color: var(--ink3); text-decoration: line-through; }
 .subdel { width: 20px; height: 20px; border-radius: 4px; display: grid; place-items: center; color: var(--ink3); opacity: 0; }
 .sub:hover .subdel, .subdel:focus-visible { opacity: 1; }
