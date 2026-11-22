@@ -332,6 +332,7 @@ jobs:
             --entry backend/main.rkt \
             --name Taskly \
             --version "$VERSION" \
+            --publisher 'Turing Lambda' \
             --identifier app.taskly.Taskly \
             --icon assets/taskly.ico \
             --installer \
