@@ -23,7 +23,7 @@ concurrency:
 env:
   RIVET_PIN: 33de65ccb5d72f9ac38ff982aa4495467f89f213
   KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
-  GLAZE_PIN: c32af5ff70eed5cb432bb2ae6cc7ef452190afc7
+  GLAZE_PIN: e2731a3a1440c9cf705f2c0e77b945a3dec05e79
 jobs:
   contract:
     name: Contract preflight (i18n + release metadata + generated surfaces)
