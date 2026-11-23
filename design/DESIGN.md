@@ -29,7 +29,7 @@
 ### 定线声明（owner 决策，2026-11-22）
 
 - 桌面 = **glaze 载体**：一套 Web UI 跨 macOS、Windows、Linux；owner 于 2026-11-22 确认退役原生三腿，具体实现另行切片。
-- 移动端 = **原生 iOS app（Swift）**。此处 HTML 只表达设计契约与交互规格，不把 glaze 载体扩展到移动端；本轮不创建 Swift 工程，也不扩大到其他移动平台。
+- 移动端 = **平台原生 app**（iOS/iPadOS 用 Swift；Android 需要时用 Kotlin；owner 2026-11-23 确认）。此处 HTML 只表达设计契约与交互规格，不把 glaze 载体扩展到移动端，也不复用 rivet 移动宿主；本轮不创建 Swift 工程，也不扩大到其他移动平台。
 - 家族设计依据：tlai-product 的 references/design-standard.md（2026-11-20-minimal-family）。本轮明确的 owner 定线优先于旧路由；不另建 token 真源。
 
 ### 交付屏幕与入口
