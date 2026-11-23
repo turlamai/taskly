@@ -6,17 +6,27 @@
   const main = root.hasAttribute('data-database-main');
   const query = new URLSearchParams(location.search);
   let scenario = query.get('db-state') || '';
-  let state;
-  try { state = JSON.parse(T.preferences.get('databases.v1', '{"active":null,"records":[]}')); }
-  catch (e) { state = { active: null, records: [] }; }
-  if (!state || !Array.isArray(state.records)) state = { active: null, records: [] };
+  function readRegistry() {
+    try {
+      const registry = JSON.parse(T.preferences.get('databases.v1', 'null'));
+      if (registry && Array.isArray(registry.records)) return registry;
+    } catch (error) { /* Start with an empty registry if the snapshot cannot be read. */ }
+    return { active: null, records: [] };
+  }
+  let state = readRegistry();
+  const defaultLists = {
+    work:      { name: '工作', emoji: '💼', color: 'var(--list-cyan)' },
+    home:      { name: '家',   emoji: '🏠', color: 'var(--list-green)' },
+    important: { name: '重要', emoji: '⭐', color: 'var(--list-orange)' },
+    reading:   { name: '读书', emoji: '📚', color: 'var(--list-indigo)' }
+  };
   let blocked = scenario === 'missing';
   let mode = 'create';
   let confirmMigration = false;
   let trigger = null;
   const last = function () { return state.records.find(function (db) { return db.id === state.active; }) || null; };
   const current = function () { return blocked ? null : last(); };
-  function persist() { T.preferences.set('databases.v1', JSON.stringify(state)); }
+  function persist() { return T.preferences.set('databases.v1', JSON.stringify(state)); }
   function commit() {
     persist();
     update();
@@ -27,10 +37,9 @@
   const gate = document.createElement('section');
   gate.className = 'database-gate';
   gate.setAttribute('aria-labelledby', 'databaseWelcomeTitle');
-  gate.innerHTML = '<div class="database-intro"><span class="database-wordmark">Taskly</span><h1 id="databaseWelcomeTitle">任务有归处，位置由你定。</h1><p>选择自己的文件夹，创建任务数据库。也可以打开已有数据库，继续记录。</p></div>' +
-    '<div class="database-choice"><button class="btn primary" type="button" data-db-action="create">创建数据库</button><button class="btn" type="button" data-db-action="open">打开已有数据库…</button></div>' +
-    '<div class="database-recovery" id="databaseRecovery" hidden><h2>找不到上次的数据库</h2><p id="databaseMissingPath"></p><p>文件可能已移动，或所在磁盘尚未连接。重新定位原文件即可继续，不会自动新建或覆盖。</p><div class="database-actions"><button class="btn" type="button" data-db-action="relocate">重新定位…</button><button class="btn" type="button" data-db-action="retry">重试</button></div></div>' +
-    '<p class="database-principle">无需绑定账号或云服务。数据的位置与同步方式由你管理。</p><p class="database-demo">交互原型：位置输入与数据库操作均为模拟，不会创建或读取真实 SQLite 文件。数据库之间的演示任务分开保存于本浏览器。</p>';
+  gate.innerHTML = '<h1 id="databaseWelcomeTitle">打开任务数据库</h1>' +
+    '<div class="database-recovery" id="databaseRecovery" hidden><p id="databaseMissingPath"></p><div class="database-choice"><button class="btn primary" type="button" data-db-action="relocate">重新定位…</button><button class="btn" type="button" data-db-action="retry">重试</button></div></div>' +
+    '<div class="database-choice"><button class="btn primary" type="button" data-db-action="create">创建数据库…</button><button class="btn" type="button" data-db-action="open">打开已有数据库…</button></div>';
   if (main) root.insertBefore(gate, root.querySelector('.app'));
 
   const dialog = document.createElement('dialog');
@@ -67,10 +76,10 @@
     const titles = { create: '创建数据库', open: '打开已有数据库', migrate: '迁移数据库', relocate: '重新定位数据库', reveal: '所在文件夹' };
     $('databaseDialogTitle').textContent = titles[mode];
     $('databaseDialogDescription').textContent = mode === 'create'
-      ? '选择存储位置，Taskly 会在该文件夹内创建 taskly.sqlite。此原型仅模拟创建，成功后进入空白任务列表。'
-      : mode === 'open' ? '正式应用会使用文件选择器。此处输入数据库文件位置演示打开流程；新位置进入空白演示，已在本原型登记的位置恢复其演示任务，不读取文件内容。'
+      ? '在指定文件夹中创建 taskly.sqlite。'
+      : mode === 'open' ? '输入数据库文件的完整路径。'
       : mode === 'migrate' ? '先选择目标文件夹，再确认迁移。原生应用应在迁移成功后切换，失败时继续使用原位置。此处仅模拟。'
-      : mode === 'relocate' ? '重新选择原来的数据库文件。演示会保留该库的任务；不会创建替代数据库或修改其他数据库。'
+      : mode === 'relocate' ? '输入原数据库文件现在的位置。'
       : '原生应用会在系统文件管理器中显示此文件夹。当前原型无法打开系统目录。';
     $('databaseFields').hidden = mode === 'reveal';
     $('databaseNameField').hidden = mode !== 'create';
@@ -78,7 +87,7 @@
     $('databasePathLabel').textContent = mode === 'open' || mode === 'relocate' ? '数据库文件位置 · 演示' : '保存文件夹 · 演示';
     $('databasePath').value = mode === 'relocate' && db ? db.path : '';
     $('databasePath').placeholder = mode === 'open' || mode === 'relocate' ? '例如：我的同步目录 / taskly.sqlite' : '例如：我的同步目录 / Taskly';
-    $('databasePathHelp').textContent = '位置由你指定，不预设目录。此输入替代原生系统选择器，仅用于交互演示。';
+    $('databasePathHelp').textContent = '此操作仅作演示，不读写实际文件。';
     $('databaseConfirm').hidden = mode !== 'reveal';
     $('databaseConfirm').textContent = db ? db.path.replace(/[/\\][^/\\]+$/, '') : '';
     $('databaseCancel').hidden = mode === 'reveal';
@@ -150,22 +159,50 @@
       gate.hidden = !!db;
       const recovery = gate.querySelector('#databaseRecovery');
       recovery.hidden = !blocked;
-      gate.querySelector('#databaseMissingPath').textContent = last() ? last().path : '上次记录的数据库位置不可用。';
-      gate.querySelector('#databaseWelcomeTitle').textContent = blocked ? '重新连接你的数据库' : '任务有归处，位置由你定。';
+      gate.querySelector('[data-db-action="create"]').classList.toggle('primary', !blocked);
+      gate.querySelector('#databaseMissingPath').textContent = last() ? last().path : '';
+      gate.querySelector('#databaseWelcomeTitle').textContent = blocked ? '找不到上次的数据库' : '打开任务数据库';
     }
     document.querySelectorAll('[data-db-name]').forEach(function (node) { node.textContent = db ? db.name : '尚未打开数据库'; });
     document.querySelectorAll('[data-db-path]').forEach(function (node) { node.textContent = db ? db.path : '创建或打开数据库后显示位置'; });
     document.querySelectorAll('[data-db-requires-open]').forEach(function (node) { node.disabled = !db; });
   }
-  T.database = { current: current, select: select, refresh: update };
+  function saveFields(fields) {
+    const db = current();
+    if (!db) return false;
+    // Keep data written by another prototype screen in the same registry.
+    const latest = readRegistry();
+    if (latest.active !== db.id) return false;
+    const target = latest.records.find(function (record) { return record.id === db.id; });
+    if (!target) return false;
+    Object.assign(target, JSON.parse(JSON.stringify(fields)));
+    state = latest;
+    return persist();
+  }
+  T.database = {
+    current: current, select: select, refresh: update,
+    reload: function () { state = readRegistry(); update(); },
+    readLists: function () {
+      const db = current();
+      return JSON.parse(JSON.stringify(db && db.lists ? db.lists : defaultLists));
+    },
+    saveList: function (id, list) {
+      const db = current();
+      if (!db) return false;
+      const latest = readRegistry().records.find(function (record) { return record.id === db.id; });
+      const lists = Object.assign({}, defaultLists, latest && latest.lists, { [id]: list });
+      return saveFields({ lists: lists });
+    },
+    restoreTasks: function (backup) {
+      const snapshot = { tasks: backup.tasks };
+      if (backup.lists) snapshot.lists = Object.assign({}, this.readLists(), backup.lists);
+      return saveFields(snapshot);
+    }
+  };
   T.demoData.read = function () {
     const db = current();
     return db ? { format: 'taskly-prototype', version: 1, tasks: db.tasks } : null;
   };
-  T.demoData.save = function (tasks) {
-    const db = current();
-    if (!db) return;
-    db.tasks = JSON.parse(JSON.stringify(tasks)); persist();
-  };
+  T.demoData.save = function (tasks) { return saveFields({ tasks: tasks }); };
   update();
 })();

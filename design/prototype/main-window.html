@@ -29,7 +29,10 @@
   }
   .enotes:focus-visible { outline: none; box-shadow: inset 0 -1px 0 0 var(--today); }
   .eacts { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-  .eacts .hint { font-size: 11px; color: var(--ink3); }
+  .edate { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
+  .edate input { width: auto; padding: 4px 8px; }
+  #editCurrentList { align-self: center; white-space: nowrap; }
+  #undoDelete { padding-block: 2px; }
 </style>
 </head>
 <body>
@@ -44,12 +47,12 @@
       <aside class="sidebar" aria-label="侧栏">
         <div class="tiles" id="tiles"></div>
 
-        <div class="sect">我的清单 <a class="addlink" href="list-editor.html?new=1" aria-label="新建清单" title="新建清单"><span data-icon="plus"></span></a></div>
+        <div class="sect">我的清单 <a class="addlink" href="list-editor.html?new=1&amp;from=main" aria-label="新建清单" title="新建清单"><span data-icon="plus"></span></a></div>
         <div id="lists"></div>
 
         <div class="sect">标签</div>
         <div id="tags"></div>
-        <div class="sidebar-footer"><div class="database-identity"><strong data-db-name></strong><span>数据库由你管理</span></div><a class="sidebar-settings" href="settings.html">设置</a></div>
+        <div class="sidebar-footer"><div class="database-identity"><strong data-db-name></strong></div><a class="sidebar-settings" href="settings.html">设置</a></div>
       </aside>
 
       <section class="pane">
@@ -59,10 +62,11 @@
             <div class="sub" id="vSub"></div>
           </div>
           <div class="sp"></div>
+          <a class="btn" id="editCurrentList" href="list-editor.html" hidden>编辑清单…</a>
           <div class="search">
             <span data-icon="search"></span>
             <input id="q" type="search" placeholder="搜索任务" aria-label="搜索任务" autocomplete="off">
-            <kbd>/</kbd>
+            <kbd title="搜索快捷键：/ 或 ⌘K">/</kbd>
           </div>
         </div>
 
@@ -70,15 +74,13 @@
 
         <div class="quickadd">
           <span data-icon="plus"></span>
-          <input id="quickAdd" type="text" placeholder="添加任务，支持 #标签、@14:00、+1d" aria-label="添加任务" autocomplete="off">
+          <input id="quickAdd" type="text" placeholder="添加任务" title="支持 #标签、@14:00、+1d" aria-label="添加任务" autocomplete="off">
         </div>
 
         <div class="rows" id="rows"></div>
 
         <div class="statusbar">
-          <span id="statusLeft"></span>
-          <span class="sp"></span>
-          <span>⌘K 搜索 · Enter 保存 · Esc 取消</span>
+          <span id="statusLeft"></span><span class="sp"></span><span id="saveWarning" role="status" hidden>本页改动未写入浏览器存储</span><button class="btn ghost" id="undoDelete" type="button" hidden>撤销删除</button>
         </div>
 
         <!-- 任务详情层：锚定在该行右侧，改动即时写回 -->
@@ -158,25 +160,17 @@
   const ICONS = T.ICONS, esc = T.esc, TODAY = T.TODAY;
   const addDays = T.addDays, fmtDate = T.fmtDate, bucket = T.bucket, dueText = T.dueText, place = T.place, announce = T.announce;
 
-  const LISTS = {
-    work:      { name: '工作', emoji: '💼', color: 'var(--list-cyan)' },
-    home:      { name: '家',   emoji: '🏠', color: 'var(--list-green)' },
-    important: { name: '重要', emoji: '⭐', color: 'var(--list-orange)' },
-    reading:   { name: '读书', emoji: '📚', color: 'var(--list-indigo)' }
-  };
+  let LISTS = T.database.readLists();
 
   const tasks = [];
-
-  const restored = T.demoData.read();
-  if (restored && Array.isArray(restored.tasks)) tasks.splice(0, tasks.length, ...restored.tasks);
-
-  if (!restored) tasks.splice(0, tasks.length);
 
   const state = { view: 'today', listId: null, tag: null, q: '', editing: null, doneOpen: true };
   let draft = null;
   let openId = null;
   let uid = Date.now();
   let delArmed = false;
+  let deletedTask = null;
+  let storageFailed = false;
 
   const $ = function (s, r) { return (r || document).querySelector(s); };
   const $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
@@ -231,7 +225,7 @@
       const l = LISTS[id];
       const on = state.view === 'list' && state.listId === id;
       return '<button class="lrow" data-list="' + id + '" aria-current="' + (on ? 'true' : 'false') + '">' +
-        '<span class="ldot" style="background:' + l.color + '">' + l.emoji + '</span>' +
+        '<span class="ldot" style="background:' + l.color + '">' + esc(l.emoji) + '</span>' +
         '<span class="name">' + esc(l.name) + '</span>' +
         '<span class="count">' + (c.list[id] || 0) + '</span></button>';
     }).join('');
@@ -266,6 +260,9 @@
 
   function renderHeader() {
     const m = viewMeta();
+    const editList = $('#editCurrentList');
+    editList.hidden = state.view !== 'list';
+    if (!editList.hidden) editList.href = 'list-editor.html?from=main&list=' + encodeURIComponent(state.listId);
     $('#vTitle').textContent = m.title;
     $('#vSub').textContent = m.sub;
     $('#winTitle').textContent = T.database.current() ? 'Taskly — ' + T.database.current().name : 'Taskly';
@@ -279,13 +276,6 @@
     } else {
       fb.hidden = true;
     }
-  }
-
-  function dateChip(d) {
-    if (!d.date) return '无日期';
-    if (d.date === TODAY) return '今天' + (d.time ? ' ' + d.time : '');
-    if (d.date === addDays(TODAY, 1)) return '明天' + (d.time ? ' ' + d.time : '');
-    return fmtDate(d.date) + (d.time ? ' ' + d.time : '');
   }
 
   function rowMeta(t) {
@@ -334,14 +324,14 @@
       '<div class="body"><div class="editor">' +
         '<input class="etitle" id="etitle" type="text" value="' + esc(draft.title) + '" aria-label="任务标题" autocomplete="off">' +
         '<div class="echips">' +
-          '<button class="echip" id="chipDate" data-act="cycle-date">' + ICONS.calendar + '<span>' + esc(dateChip(draft)) + '</span></button>' +
+          '<label class="edate">日期<input class="input" id="editDate" type="date" value="' + esc(draft.date || '') + '"></label>' +
+          '<button class="btn ghost" data-act="clear-date" type="button"' + (draft.date ? '' : ' hidden') + '>清除日期</button>' +
           '<button class="echip" id="chipPrio" data-act="cycle-prio">' + ICONS.flag + '<span>优先级：' + ['无', '低', '中', '高'][draft.priority] + '</span></button>' +
         '</div>' +
         '<textarea class="enotes" rows="2" aria-label="备注" placeholder="备注…">' + esc(draft.note) + '</textarea>' +
         '<div class="eacts">' +
           '<button class="btn primary" data-act="save">保存</button>' +
           '<button class="btn" data-act="cancel">取消</button>' +
-          '<span class="hint">Enter 保存 · Esc 取消 · 点其他任务自动保存</span>' +
         '</div>' +
       '</div></div>' +
       '<button class="info" data-act="info" aria-label="任务详情：' + esc(t.title) + '" aria-haspopup="dialog" aria-expanded="false">' + ICONS.info + '</button>' +
@@ -351,15 +341,19 @@
   function emptyHTML() {
     if (state.tag || state.q) {
       return '<div class="empty"><div class="et">没有匹配的任务</div>' +
-        '<div class="es">当前筛选下没有结果，换个标签或清除筛选再看看。</div>' +
+        '<div class="es">试试清除筛选或更换搜索词。</div>' +
         '<button class="btn" data-act="clear-filter">清除筛选</button></div>';
     }
     return '<div class="empty"><div class="et">这一栏还是空的</div>' +
-      '<div class="es">用上方的输入框添加第一条任务。<br>支持 #标签、@14:00 的时间和 +1d 的日期。</div></div>';
+      '<div class="es">在上方添加任务。</div></div>';
+  }
+
+  function saveTasks() {
+    storageFailed = !T.demoData.save(tasks);
+    $('#saveWarning').hidden = !storageFailed;
   }
 
   function renderRows() {
-    T.demoData.save(tasks);
     const all = visible();
     const open = all.filter(function (t) { return !t.done; });
     const done = all.filter(function (t) { return t.done; });
@@ -392,6 +386,8 @@
   function renderStatus() {
     const m = viewMeta();
     $('#statusLeft').textContent = m.title + ' · ' + m.openN + ' 项未完成';
+    $('#saveWarning').hidden = !storageFailed;
+    $('#undoDelete').hidden = !deletedTask;
   }
 
   function render() { renderSidebar(); renderHeader(); renderRows(); renderStatus(); }
@@ -415,6 +411,9 @@
     const titleEl = $('#etitle'), noteEl = $('.enotes');
     if (titleEl) draft.title = titleEl.value;
     if (noteEl) draft.note = noteEl.value;
+    const dateEl = $('#editDate');
+    if (dateEl && dateEl.validity.valid) draft.date = dateEl.value;
+    if (!draft.date) draft.time = '';
   }
 
   function commitEdit(save) {
@@ -425,7 +424,9 @@
       const title = (draft.title || '').trim();
       if (title) t.title = title;
       t.date = draft.date; t.time = draft.time;
+      if (!t.date) t.remind = 'none';
       t.priority = draft.priority; t.note = (draft.note || '').trim();
+      saveTasks();
     }
     state.editing = null;
     draft = null;
@@ -438,16 +439,6 @@
     if (nav) nav.focus();
   }
 
-  function cycleDate() {
-    if (!draft) return;
-    syncDraft();
-    const b = bucket({ date: draft.date });
-    if (b === 'today') draft.date = addDays(TODAY, 1);
-    else if (b === 'future') { draft.date = ''; draft.time = ''; }
-    else draft.date = TODAY;
-    updateChips();
-  }
-
   function cyclePrio() {
     if (!draft) return;
     syncDraft();
@@ -456,8 +447,7 @@
   }
 
   function updateChips() {
-    const dc = $('#chipDate'), pc = $('#chipPrio');
-    if (dc) dc.innerHTML = ICONS.calendar + '<span>' + esc(dateChip(draft)) + '</span>';
+    const pc = $('#chipPrio');
     if (pc) pc.innerHTML = ICONS.flag + '<span>优先级：' + ['无', '低', '中', '高'][draft.priority] + '</span>';
   }
 
@@ -582,17 +572,28 @@
       remind: 'none', priority: 0, note: '', tags: p.tags, done: false, url: '', subtasks: []
     };
     tasks.unshift(created);
+    saveTasks();
     if (!inView(created)) {
       state.view = 'today'; state.listId = null; state.tag = null; state.q = '';
       $('#q').value = '';
     }
     render();
-    announce('已添加任务：' + p.title);
+    announce(storageFailed ? '任务已添加到本页，浏览器未保存' : '已添加任务：' + p.title);
   }
 
   /* ==== 事件 ==== */
 
   function bind() {
+    $('#undoDelete').addEventListener('click', function () {
+      if (!deletedTask) return;
+      const removed = deletedTask;
+      deletedTask = null;
+      tasks.splice(removed.index, 0, removed.task);
+      saveTasks();
+      render();
+      focusTitle(removed.task.id);
+      announce('已撤销删除：' + removed.task.title);
+    });
     $('#filterBar').addEventListener('click', function (e) {
       if (!e.target.closest('[data-act="clear-filter"]')) return;
       state.tag = null; state.q = ''; $('#q').value = '';
@@ -643,6 +644,7 @@
         const t = taskById(id);
         if (!t) return;
         t.done = !t.done;
+        saveTasks();
         if (t.done) state.doneOpen = true;
         render();
         const after = $('.row[data-id="' + id + '"] .check');
@@ -666,17 +668,23 @@
         const active = $('.trow[aria-pressed="true"]');
         if (active) active.focus();
       } else if (act === 'save') {
-        commitEdit(true); render(); focusTitle(id); announce('任务已保存');
+        commitEdit(true); render(); focusTitle(id); announce(storageFailed ? '本页改动未写入浏览器存储' : '任务已保存');
       } else if (act === 'cancel') {
         commitEdit(false); render(); focusTitle(id);
-      } else if (act === 'cycle-date') {
-        cycleDate();
+      } else if (act === 'clear-date') {
+        const input = $('#editDate');
+        input.value = ''; input.focus(); btn.hidden = true;
       } else if (act === 'cycle-prio') {
         cyclePrio();
       }
     });
 
+    $('#rows').addEventListener('change', function (e) {
+      if (e.target.id === 'editDate') $('[data-act="clear-date"]').hidden = !e.target.value;
+    });
+
     $('#rows').addEventListener('keydown', function (e) {
+      if (e.target.id === 'editDate' && e.key === 'Escape') { e.stopPropagation(); return; }
       const row = e.target.closest('.row');
       const id = row ? row.dataset.id : '';
       if (e.key === 'Enter' && !e.isComposing && e.target.id === 'etitle') {
@@ -704,54 +712,57 @@
     /* 详情层字段 */
     $('#fTitle').addEventListener('input', function () {
       const t = currentDetail(); if (!t) return;
-      if (this.value.trim()) { t.title = this.value; renderRowsOnly(); }
+      if (this.value.trim()) { t.title = this.value; saveTasks(); renderRowsOnly(); }
     });
     $('#fNote').addEventListener('input', function () {
       const t = currentDetail(); if (!t) return;
-      t.note = this.value; renderRowsOnly();
+      t.note = this.value; saveTasks(); renderRowsOnly();
     });
     $('#fUrl').addEventListener('input', function () {
       const t = currentDetail(); if (!t) return;
-      t.url = this.value;
+      t.url = this.value; saveTasks();
     });
     $('#fDate').addEventListener('change', function () {
       const t = currentDetail(); if (!t) return;
       t.date = this.value;
-      if (!t.date) { t.time = ''; $('#fTime').value = ''; }
-      render(); guardView(t);
+      if (!t.date) {
+        t.time = ''; t.remind = 'none';
+        $('#fTime').value = ''; $('#fRemind').value = 'none';
+      }
+      saveTasks(); render(); guardView(t);
     });
     $('#fTime').addEventListener('change', function () {
       const t = currentDetail(); if (!t) return;
-      t.time = this.value; render(); guardView(t);
+      t.time = this.value; saveTasks(); render(); guardView(t);
     });
     $('#fRemind').addEventListener('change', function () {
       const t = currentDetail(); if (!t) return;
-      t.remind = this.value;
+      t.remind = this.value; saveTasks();
     });
     $('#fList').addEventListener('change', function () {
       const t = currentDetail(); if (!t) return;
-      t.list = this.value; render(); guardView(t);
+      t.list = this.value; saveTasks(); render(); guardView(t);
     });
     $('#fPrio').addEventListener('click', function (e) {
       const b = e.target.closest('[data-prio]');
       if (!b) return;
       const t = currentDetail(); if (!t) return;
       t.priority = Number(b.dataset.prio);
-      renderPrio(); render();
+      saveTasks(); renderPrio(); render();
     });
     $('#fTags').addEventListener('click', function (e) {
       const b = e.target.closest('[data-dtag]');
       if (!b) return;
       const t = currentDetail(); if (!t) return;
       t.tags = t.tags.filter(function (g) { return g !== b.dataset.dtag; });
-      renderCardTags(); render(); guardView(t);
+      saveTasks(); renderCardTags(); render(); guardView(t);
     });
     $('#fTagAdd').addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' || e.isComposing) return;
       e.preventDefault();
       const t = currentDetail(); if (!t) return;
       const v = this.value.trim().replace(/^#/, '');
-      if (v && t.tags.indexOf(v) < 0) { t.tags.push(v); renderCardTags(); render(); guardView(t); }
+      if (v && t.tags.indexOf(v) < 0) { t.tags.push(v); saveTasks(); renderCardTags(); render(); guardView(t); }
       this.value = '';
     });
     $('#fSubs').addEventListener('change', function (e) {
@@ -759,21 +770,21 @@
       if (!box) return;
       const t = currentDetail(); if (!t) return;
       t.subtasks[Number(box.dataset.sub)].done = box.checked;
-      renderRowsOnly();
+      saveTasks(); renderRowsOnly();
     });
     $('#fSubs').addEventListener('click', function (e) {
       const b = e.target.closest('[data-dsub]');
       if (!b) return;
       const t = currentDetail(); if (!t) return;
       t.subtasks.splice(Number(b.dataset.dsub), 1);
-      renderSubs(); renderRowsOnly();
+      saveTasks(); renderSubs(); renderRowsOnly();
     });
     $('#fSubAdd').addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' || e.isComposing) return;
       e.preventDefault();
       const t = currentDetail(); if (!t) return;
       const v = this.value.trim();
-      if (v) { t.subtasks.push({ t: v, done: false }); renderSubs(); renderRowsOnly(); }
+      if (v) { t.subtasks.push({ t: v, done: false }); saveTasks(); renderSubs(); renderRowsOnly(); }
       this.value = '';
     });
     $('#fDelete').addEventListener('click', function () {
@@ -788,12 +799,13 @@
         return;
       }
       const i = tasks.findIndex(function (t) { return t.id === openId; });
-      const removed = i > -1 ? tasks.splice(i, 1)[0] : null;
+      if (i < 0) return;
+      deletedTask = { task: tasks.splice(i, 1)[0], index: i };
+      saveTasks();
       closeDetail(false);
       render();
-      announce(removed ? '已删除：' + removed.title : '任务已删除');
-      const nav = $('.tile[aria-current="true"], .lrow[aria-current="true"], .trow[aria-pressed="true"]');
-      if (nav) nav.focus();
+      announce('已删除，可撤销：' + deletedTask.task.title);
+      $('#undoDelete').focus();
     });
     $('#dpop').addEventListener('click', function (e) {
       if (e.target.closest('[data-act="close-detail"]')) closeDetail(true);
@@ -829,22 +841,33 @@
     });
   }
 
-  document.addEventListener('taskly:database', function () {
+  function loadDatabase(selectedList) {
     const data = T.demoData.read();
-    tasks.splice(0, tasks.length, ...(data ? data.tasks : []));
-    state.editing = null; draft = null; openId = null;
-    state.view = 'today'; state.listId = null; state.tag = null; state.q = '';
-    $('#q').value = '';
+    tasks.splice(0, tasks.length, ...(data && Array.isArray(data.tasks) ? data.tasks : []));
+    LISTS = T.database.readLists();
+    $('#fList').innerHTML = Object.keys(LISTS).map(function (id) {
+      return '<option value="' + esc(id) + '">' + esc(LISTS[id].name) + '</option>';
+    }).join('');
+    state.editing = null; draft = null; closeDetail(false);
+    deletedTask = null; storageFailed = false;
+    state.listId = data && selectedList && Object.hasOwn(LISTS, selectedList) ? selectedList : null;
+    state.view = state.listId ? 'list' : 'today';
+    state.tag = null; state.q = ''; $('#q').value = '';
     render();
+  }
+
+  document.addEventListener('taskly:database', function () { loadDatabase(null); });
+  window.addEventListener('pageshow', function (event) {
+    if (!event.persisted) return;
+    T.database.reload();
+    loadDatabase(state.listId);
   });
 
   function init() {
     $$('[data-icon]').forEach(function (el) { el.innerHTML = ICONS[el.dataset.icon] || ''; });
-    $('#fList').innerHTML = Object.keys(LISTS).map(function (id) {
-      return '<option value="' + id + '">' + esc(LISTS[id].name) + '</option>';
-    }).join('');
     bind();
-    render();
+    loadDatabase(new URLSearchParams(location.search).get('list'));
+    if (state.listId) $('#quickAdd').focus();
   }
 
   init();

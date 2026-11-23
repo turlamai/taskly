@@ -135,12 +135,19 @@ window.Taskly = (function () {
 
   const memory = {};
   function readPreference(key, fallback) {
-    try { return localStorage.getItem('taskly.' + key) || memory[key] || fallback; }
-    catch (e) { return memory[key] || fallback; }
+    if (Object.prototype.hasOwnProperty.call(memory, key)) return memory[key];
+    try { return localStorage.getItem('taskly.' + key) || fallback; }
+    catch (e) { return fallback; }
   }
   function writePreference(key, value) {
-    memory[key] = value;
-    try { localStorage.setItem('taskly.' + key, value); } catch (e) { /* Keep a session fallback. */ }
+    try {
+      localStorage.setItem('taskly.' + key, value);
+      delete memory[key];
+      return true;
+    } catch (e) {
+      memory[key] = value;
+      return false;
+    }
   }
   function prepareDetails(task) {
     const visible = {
