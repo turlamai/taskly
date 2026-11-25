@@ -29,7 +29,7 @@ Preserve other agents' dirty worktrees; use an isolated checkout when needed,
 without stashing, resetting or overwriting their work. Missing/offline policy
 inputs must be reported as unverified, not silently claimed current.
 
-Current approved launch design is in [PR #60](https://github.com/turlamai/taskly/pull/60), pending its full checks and merge. The complete desktop purchase/trial/update design supersedes the old split-Pro candidates. Historical commercial notes later in this file are superseded by that design; documentation does not activate runtime restrictions or remove existing gates.
+**Historical only — canceled by the 2026-11-18 decision above:** the desktop purchase/trial/update design in [PR #60](https://github.com/turlamai/taskly/pull/60) and the split-Pro candidates it superseded are not to be implemented; nothing in a design document activates runtime restrictions or removes existing gates.
 
 
 指引给 AI agent（及开发者）：如何理解、构建、运行、改动 Taskly。
@@ -121,7 +121,7 @@ taskly/
 ├── apps/desktop/       唯一 web UI（Vite + TS；store/main/database-flow/settings/e2e harness）
 ├── packages/core/      生成客户端 rpc.ts + 双传输 bridge（native GLZ1 / HTTP fetch+SSE）
 ├── shared/
-│   ├── spec/           六份契约文档（canonical）
+│   ├── spec/           五份契约文档（canonical）
 │   ├── i18n/           zh/en 单源
 │   ├── emoji.json      清单图标单源
 │   └── cli-golden/     63 例 golden CLI 套件（cases.json + runner.py + golden/）
@@ -144,7 +144,7 @@ taskly/
 - **加 RPC**：`racket/taskly/backend.rkt` 定义 → `gen-rpc-types.py` + `raco glaze schema write` → `backend/main.rkt` 加 1:1 typed 路由 → 门禁绿 → UI 经 `packages/core` 调用
 - **Web UI**：`apps/desktop/src/`（store 快照 + 逐字段 autosave；交互基准见 PRODUCT-SPEC §5/§6，视觉基准 `design/prototype/`）；真窗验收 `racket verify.rkt`
 - **改文案**：改 `shared/i18n/`，跑 `python3 scripts/gen-web-i18n.py` 重生成 `i18n.ts`（`sync-i18n.sh --check` 校验键齐）；改清单图标：改 `shared/emoji.json`
-- **发版**：见「快速命令」发布链；三 pin（`RIVET_PIN`/`KEEL_PIN`/`GLAZE_PIN` 跨 ci/acceptance/release 对齐，`scripts/check-dependency-pins.sh` 门禁）只能有意 bump 并重新跑全套 CI
+- **发版**：见「快速命令」发布链；两 pin（`RIVET_PIN`/`GLAZE_PIN` 跨 ci/acceptance/release 对齐，`scripts/check-dependency-pins.sh` 门禁）只能有意 bump 并重新跑全套 CI；keel 是 rivet 的依赖，经 catalog 由 `--auto` 解析，不单独 pin（#129）
 
 ## 组合定位（Portfolio placement）
 
