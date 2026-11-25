@@ -32,4 +32,4 @@ same commit.
 - [ ] Release prep only: `VERSION` == `rivet.rktd` == CHANGELOG section
       (`bash scripts/check-release-version.sh`)
 - [ ] Docs updated in the same change (README / USER-GUIDE, English + zh-CN)
-- [ ] Security-relevant behavior flagged per [SECURITY.md](SECURITY.md)
+- [ ] Security-relevant behavior flagged per [SECURITY.md](../SECURITY.md)
