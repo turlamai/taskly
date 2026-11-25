@@ -52,6 +52,20 @@ jobs:
           chmod 600 "$KEY_PEM"
           printf '%s\n' "$UPDATE_ED25519_PRIVATE_KEY" > "$KEY_PEM"
           bash scripts/check-release-signing-key.sh "$KEY_PEM"
+      # Same fail-closed rule for the macOS publisher identity (issue #80): a
+      # tag release is Developer ID signed and notarized, so missing signing
+      # secrets stop here rather than after the platform builds.
+      - name: Require macOS signing secrets before packaging
+        if: github.event_name == 'push'
+        env:
+          DEVELOPER_ID_P12_B64: ${{ secrets.DEVELOPER_ID_P12_B64 }}
+          ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DEVELOPER_ID_P12_B64:-}" || -z "${ASC_KEY_P8_B64:-}" ]]; then
+            echo "::error::DEVELOPER_ID_P12_B64 and ASC_KEY_P8_B64 are required: a tag release must be Developer ID signed and notarized"
+            exit 1
+          fi
 
   linux:
     name: Linux package (${{ matrix.arch }})
@@ -197,6 +211,19 @@ jobs:
         include:
           - { arch: arm64, runner: macos-latest, racket-arch: arm64 }
           - { arch: x64, runner: macos-15-intel, racket-arch: x64 }
+    env:
+      # Production signing applies whenever the account-level secrets exist
+      # (Developer ID p12 + App Store Connect API key). Credential contract:
+      # DEVELOPER_ID_P12_B64 / DEVELOPER_ID_P12_PASSWORD / ASC_KEY_ID /
+      # ASC_ISSUER_ID / ASC_KEY_P8_B64; see glaze docs/production-signing.md
+      # and the family release.yml shape. Glaze signs with --sign (hardened
+      # runtime for real identities); this workflow notarizes the artifacts it
+      # actually ships — the portable zip's .app and the hand-built DMG —
+      # because glaze's own --notarize would staple a throwaway DMG.
+      MACOS_SIGNING_CONFIGURED: ${{ secrets.DEVELOPER_ID_P12_B64 != '' && secrets.ASC_KEY_P8_B64 != '' }}
+      # A tag push is a release: without credentials it must fail closed
+      # instead of silently shipping ad-hoc signed artifacts (issue #80).
+      IS_TAG_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
     steps:
       - uses: actions/checkout@v4
       - name: Resolve version
@@ -225,10 +252,53 @@ jobs:
           bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
           bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/glaze.git#${{ env.GLAZE_PIN }}'
           bash scripts/install-racket-packages-with-retry.sh crypto
-      # Ad-hoc signature (family glaze-line baseline): Developer ID +
-      # notarization light up in a later slice once the credentials exist;
-      # the release title states the trust status explicitly.
-      - name: Package app bundle
+      - name: Provision Developer ID certificate
+        if: env.MACOS_SIGNING_CONFIGURED == 'true'
+        env:
+          DEVELOPER_ID_P12_B64: ${{ secrets.DEVELOPER_ID_P12_B64 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          P12="$RUNNER_TEMP/developer-id.p12"
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          printf '%s' "$DEVELOPER_ID_P12_B64" | base64 --decode > "$P12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$P12" -k "$KEYCHAIN" -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -s "$KEYCHAIN" $(security list-keychains | tr -d '"')
+          rm -f "$P12"
+          IDENTITY_NAME="$(security find-identity -v -p codesigning "$KEYCHAIN" | grep 'Developer ID Application' | head -1 | sed -E 's/^[^"]*"(.*)"$/\1/')"
+          test -n "$IDENTITY_NAME"
+          echo "MACOS_SIGN_IDENTITY=$IDENTITY_NAME" >> "$GITHUB_ENV"
+      - name: Store notarytool keychain profile
+        if: env.MACOS_SIGNING_CONFIGURED == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
+        run: |
+          set -euo pipefail
+          P8="$RUNNER_TEMP/asc-api-key.p8"
+          printf '%s' "$ASC_KEY_P8_B64" | base64 --decode > "$P8"
+          xcrun notarytool store-credentials ASC_NOTARY \
+            --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --key "$P8"
+          rm -f "$P8"
+      - name: Package app bundle (Developer ID signed)
+        if: env.MACOS_SIGNING_CONFIGURED == 'true'
+        run: |
+          raco glaze build \
+            --entry backend/main.rkt \
+            --name Taskly \
+            --version "$VERSION" \
+            --identifier app.taskly.Taskly \
+            --icon assets/taskly.icns \
+            --sign "$MACOS_SIGN_IDENTITY" \
+            --out dist
+      - name: Package app bundle (ad-hoc dispatch smoke)
+        if: env.MACOS_SIGNING_CONFIGURED != 'true' && env.IS_TAG_RELEASE != 'true'
         run: |
           raco glaze build \
             --entry backend/main.rkt \
@@ -238,6 +308,25 @@ jobs:
             --icon assets/taskly.icns \
             --sign - \
             --out dist
+      - name: Release requires signing credentials
+        if: env.MACOS_SIGNING_CONFIGURED != 'true' && env.IS_TAG_RELEASE == 'true'
+        run: |
+          echo "::error::Tag releases must be production-signed: set the macOS signing secrets (DEVELOPER_ID_P12_B64, DEVELOPER_ID_P12_PASSWORD, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_B64) on this repository before tagging."
+          exit 1
+      # Notarize the .app and staple the ticket so the portable zip (the
+      # update-feed payload) passes Gatekeeper offline. ditto keeps framework
+      # symlinks intact: a submission zip must be the exact bundle shape
+      # Apple notarizes.
+      - name: Notarize + staple the .app
+        if: env.MACOS_SIGNING_CONFIGURED == 'true'
+        run: |
+          set -euo pipefail
+          SUBMISSION="$RUNNER_TEMP/app-notary.zip"
+          rm -f "$SUBMISSION"
+          ditto -c -k --keepParent dist/Taskly.app "$SUBMISSION"
+          xcrun notarytool submit "$SUBMISSION" --keychain-profile ASC_NOTARY --wait
+          xcrun stapler staple dist/Taskly.app
+          rm -f "$SUBMISSION"
       - name: Portable zip (.app at the archive root)
         run: |
           (cd dist && zip -qry "../taskly-$VERSION-macos-${{ matrix.arch }}.zip" Taskly.app)
@@ -258,6 +347,20 @@ jobs:
             sleep 5
           done
           [ -n "$created" ] || { echo "::error::hdiutil create failed after 3 attempts"; exit 1; }
+      # The shipped DMG is hand-built above, so notarize and staple it too.
+      # Stapling rewrites the file, hence before the .sha256 sidecars.
+      - name: Notarize + staple the DMG, verify production trust
+        if: env.MACOS_SIGNING_CONFIGURED == 'true'
+        run: |
+          set -euo pipefail
+          dmg="taskly-$VERSION-macos-${{ matrix.arch }}.dmg"
+          xcrun notarytool submit "$dmg" --keychain-profile ASC_NOTARY --wait
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate dist/Taskly.app
+          xcrun stapler validate "$dmg"
+          codesign --verify --deep --strict dist/Taskly.app
+          codesign -dv dist/Taskly.app 2>&1 | grep -E 'Authority=Developer ID|TeamIdentifier'
+          spctl --assess --type execute dist/Taskly.app
       - name: Verify the update zip preserves the code signature
         run: |
           set -euo pipefail
@@ -355,11 +458,110 @@ jobs:
             taskly-*-windows-x64.msi.sha256
           if-no-files-found: error
 
+  # Fedora-family rpm lifecycle (issue #80): the rpm has a supported channel
+  # only with install / upgrade / remove evidence. The package declares no
+  # runtime Requires, so a stock Fedora container is the real install target.
+  # The N→N+1 upgrade uses the previous published release's rpm for the same
+  # architecture; a manual dispatch of an already-published version exercises
+  # the fresh install / remove path only.
+  rpm-lifecycle:
+    name: Fedora rpm lifecycle (${{ matrix.arch }})
+    needs: [validate, linux]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, runner: ubuntu-latest, rpm-arch: x86_64 }
+          - { arch: arm64, runner: ubuntu-24.04-arm, rpm-arch: aarch64 }
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: artifacts
+      - name: Resolve version + fetch the previous published rpm
+        run: |
+          set -euo pipefail
+          mkdir -p work
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$(tr -d '[:space:]' < VERSION)"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          rpm="taskly-$VERSION-linux-${{ matrix.rpm-arch }}.rpm"
+          test -s "artifacts/$rpm" || { echo "::error::Missing $rpm"; ls -R artifacts; exit 1; }
+          cp "artifacts/$rpm" "work/taskly.rpm"
+          # Upgrade base = the newest published release strictly below this
+          # version (sort -V), so a dispatch of a published version never
+          # "upgrades" from a higher pre-reset 0.2.x package.
+          prev=""
+          for tag in $(gh release list --limit 12 --json tagName --jq '.[].tagName'); do
+            candidate="${tag#v}"
+            lower="$(printf '%s\n%s\n' "$candidate" "$VERSION" | sort -V | head -1)"
+            [ "$lower" = "$candidate" ] && [ "$candidate" != "$VERSION" ] || continue
+            prev="$(gh release view "$tag" --json assets --jq ".assets[].name | select(endswith(\"-linux-${{ matrix.rpm-arch }}.rpm\"))" | head -1)"
+            if [ -n "$prev" ]; then
+              gh release download "$tag" -p "$prev" -D work --clobber
+              mv "work/$prev" work/previous.rpm
+              break
+            fi
+          done
+          {
+            echo "VERSION=$VERSION"
+            echo "PREVIOUS_RPM=$prev"
+          } >> "$GITHUB_ENV"
+          echo "version=$VERSION previous=${prev:-none}"
+      - name: Install → upgrade → verify → remove in Fedora
+        run: |
+          set -euo pipefail
+          chmod -R a+rX work
+          docker run --rm -v "$PWD/work:/work:ro" -e VERSION -e PREVIOUS_RPM \
+            fedora:latest bash -euxc '
+            rpm -qp --qf "name=%{NAME} version=%{VERSION}-%{RELEASE} arch=%{ARCH}\n" /work/taskly.rpm
+            pkg="$(rpm -qp --qf "%{NAME}" /work/taskly.rpm)"
+            if [ -n "$PREVIOUS_RPM" ]; then
+              dnf -y -q install /work/previous.rpm
+              rpm -q "$pkg" --qf "installed %{VERSION}-%{RELEASE}\n"
+              rpm -q "$pkg" --qf "%{VERSION}\n" | grep -Fxv "$VERSION"
+              echo "seed" > "$HOME/taskly-data-marker"
+              dnf -y -q upgrade /work/taskly.rpm
+              echo "upgraded from $PREVIOUS_RPM"
+            else
+              dnf -y -q install /work/taskly.rpm
+              echo "fresh install (no earlier published rpm below this version)"
+            fi
+            test "$(rpm -q "$pkg" --qf "%{VERSION}")" = "$VERSION"
+            rpm -V "$pkg"
+            files="$(rpm -ql "$pkg")"
+            grep -qx "/usr/bin/Taskly" <<<"$files"
+            grep -q "^/usr/share/applications/.*\.desktop$" <<<"$files"
+            grep -q "^/usr/share/icons/hicolor/.*/apps/.*\.png$" <<<"$files"
+            mkdir -p "$HOME/.taskly" "$HOME/elsewhere"
+            echo "config" > "$HOME/.taskly/config.ini"
+            echo "db" > "$HOME/elsewhere/taskly.sqlite"
+            dnf -y -q remove "$pkg"
+            if rpm -q "$pkg" >/dev/null 2>&1; then echo "::error::still installed after remove"; exit 1; fi
+            test ! -e /usr/bin/Taskly
+            test -z "$(ls /usr/share/applications/ | grep -i taskly || true)"
+            test "$(cat "$HOME/.taskly/config.ini")" = "config"
+            test "$(cat "$HOME/elsewhere/taskly.sqlite")" = "db"
+            if [ -n "$PREVIOUS_RPM" ]; then test "$(cat "$HOME/taskly-data-marker")" = "seed"; fi
+            echo "rpm lifecycle ok ($pkg $VERSION)"
+            '
+
   publish:
     name: Publish
-    needs: [linux, macos, windows]
+    needs: [linux, macos, windows, rpm-lifecycle]
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
+    env:
+      # On a tag push the macOS job has already failed closed without these,
+      # so a published release is Developer ID signed + notarized; the title
+      # still names the one unsigned payload (Windows MSI, no Authenticode).
+      MACOS_SIGNING_CONFIGURED: ${{ secrets.DEVELOPER_ID_P12_B64 != '' && secrets.ASC_KEY_P8_B64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Resolve version
@@ -446,8 +648,12 @@ jobs:
           # Normal releases, not prereleases: the updater reads the moving
           # releases/latest/download manifest and GitHub's `latest` resolves
           # only non-prerelease releases. The title states the trust status
-          # (ad-hoc macOS signature until Developer ID credentials land).
-          title="Taskly ${VERSION} (unsigned evaluation)"
+          # (issue #80): macOS is production-signed; the Windows MSI is not.
+          if [ "$MACOS_SIGNING_CONFIGURED" = "true" ]; then
+            title="Taskly ${VERSION} (preview; Windows MSI unsigned)"
+          else
+            title="Taskly ${VERSION} (unsigned evaluation)"
+          fi
           mapfile -t uploads < <(awk '{print $2}' public/SHA256SUMS)
           uploads+=( SHA256SUMS update-manifest.json )
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
