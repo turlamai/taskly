@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Release pipeline (#80): macOS packages are Developer ID signed,
+  notarized and stapled (`.app`, portable zip and DMG). A tag push without
+  the signing secrets fails before packaging instead of shipping an ad-hoc
+  signed build. The Windows MSI stays unsigned (no Authenticode identity).
+- Release pipeline (#80): every release runs an install → upgrade → verify
+  → remove pass of the rpm in a stock Fedora container, upgrading from the
+  previous published version; removing the package leaves user data in
+  place.
+
+### Fixed
+- Windows MSI: Glaze installer UX and app-icon fix (#143).
+
 ## [0.1.0] - 2026-11-20
 
 ### Changed
