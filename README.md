@@ -13,8 +13,8 @@ contract) and [glaze](https://github.com/turlamai/glaze) (window/tray/
 hotkey runtime): the entire domain — SQLite storage, scheduling,
 natural-language dates, validation, and the CLI — lives in one Racket CS
 core, and every desktop gets the same thin first-party host over typed
-RPC. Shared domain logic belongs in the backend; host reminder-selection
-consolidation remains tracked in #62.
+RPC. Shared domain logic belongs in the backend (reminder
+decisions included, #62).
 
 | Desktop | Host |
 |---|---|
@@ -22,11 +22,11 @@ consolidation remains tracked in #62.
 | Windows 10+ (x64) | glaze web UI (WebView2) |
 | Linux (x64 + ARM64) | glaze web UI (WebKitGTK) |
 
-Mobile is on the roadmap: iOS/iPadOS, watchOS and Android hosts are planned
-after the desktop line, gated on Rivet's first-class mobile application
-delivery (Phase 8). watchOS ships as a typed companion to the iOS host —
-watch UI over WatchConnectivity with the backend on the phone — per Rivet's
-watch architecture.
+Mobile is designed, not delivered: the owner decision of 2026-11-22/23
+sets the mobile surface as a platform-native app (Swift for iOS/iPadOS,
+Kotlin for Android when it starts) with design contracts under
+`design/` ([DESIGN.md](design/DESIGN.md)). The glaze host does not extend
+to mobile, no mobile project exists yet, and no date is promised.
 
 ## Start here
 
@@ -56,8 +56,11 @@ Development preview; no paid checkout is open. A future official desktop purchas
   but OS notification delivery is staged
   ([#131](https://github.com/turlamai/taskly/issues/131)); no banners are
   promised yet.
-- **One data file** — your tasks live in a single SQLite file
-  (`~/.taskly/tasks.db`, WAL). Back it up after closing the app;
+- **One data file, where you choose** — first launch asks you to create a
+  database in a folder of your choice (`taskly.sqlite`) or open an existing
+  one; no default location is assigned silently, and Settings shows the
+  current location with reveal, migrate and backup actions. The file is
+  SQLite (WAL). Back it up after closing the app;
   live cloud-folder replication is not safe concurrent database sync. The format is documented and stable:
   [DATA-FORMAT](shared/spec/DATA-FORMAT.md).
 - **Agent-facing CLI** — `taskly list|add|update|done|rm|search|mklist…`

@@ -6,7 +6,7 @@
 
 [English](README.md) · **中文**
 
-Taskly 构建在 [Rivet](https://github.com/turlamai/rivet)（类型化 RPC 契约）与 [glaze](https://github.com/turlamai/glaze)（窗口/托盘/热键运行时）之上：全部领域逻辑——SQLite 存储、排程、自然语言日期、校验、CLI——都在一个 Racket CS 核心里，每个桌面通过类型化 RPC 获得同一个轻薄的第一方宿主。共享领域逻辑归后端；宿主提醒选择逻辑的收敛仍在 #62 跟进。
+Taskly 构建在 [Rivet](https://github.com/turlamai/rivet)（类型化 RPC 契约）与 [glaze](https://github.com/turlamai/glaze)（窗口/托盘/热键运行时）之上：全部领域逻辑——SQLite 存储、排程、自然语言日期、校验、CLI——都在一个 Racket CS 核心里，每个桌面通过类型化 RPC 获得同一个轻薄的第一方宿主。共享领域逻辑归后端（提醒判定也在核心，见 #62）。
 
 | 桌面平台 | 宿主 |
 |---|---|
@@ -14,7 +14,7 @@ Taskly 构建在 [Rivet](https://github.com/turlamai/rivet)（类型化 RPC 契�
 | Windows 10+（x64） | glaze web UI（WebView2） |
 | Linux（x64 + ARM64） | glaze web UI（WebKitGTK） |
 
-移动端已列入规划：iOS/iPadOS、watchOS 和 Android 宿主计划在桌面线之后落地，前置条件是 Rivet 的一等移动应用交付（Phase 8）。watchOS 将作为 iOS 宿主的类型化 companion 交付——手表 UI 走 WatchConnectivity，后端留在手机侧，遵循 Rivet 的 watch 架构。
+移动端处于设计阶段、尚未交付：owner 于 2026-11-22/23 定线，移动端为平台原生 app（iOS/iPadOS 用 Swift，Android 启动时用 Kotlin），设计契约在 `design/`（[DESIGN.md](design/DESIGN.md)）。glaze 宿主不扩展到移动端，目前没有移动工程，也不承诺时间。
 
 ## 开始使用
 
@@ -29,7 +29,7 @@ Taskly 构建在 [Rivet](https://github.com/turlamai/rivet)（类型化 RPC 契�
 - **对齐 Reminders 的交互**——Return 行内展开（标题、日期/时间 chip、备注），Esc 收起且不丢草稿，点击外部即提交；已完成任务收进可折叠分组；删除进入一键撤销横幅，可恢复原行。单一 web 宿主意味着三平台同一套交互（[对标笔记](docs/UX-BENCHMARKS.md)）。
 - **锚定任务详情弹层（三平台）**——ⓘ 打开一层集中编辑：完成状态、标题、日期/时间、优先级、标签、子任务、备注、链接与所属清单；所有更改即时保存，关闭不会丢弃。
 - **提醒（staged）**——提醒字段可编辑并持久化，但 OS 通知投递仍在 [#131](https://github.com/turlamai/taskly/issues/131) 跟进，暂不承诺横幅。
-- **单文件数据**——所有任务存在一个 SQLite 文件（`~/.taskly/tasks.db`，WAL）。退出应用后再备份；云文件夹复制不提供安全的数据库并发同步。格式文档化且稳定：[DATA-FORMAT](shared/spec/DATA-FORMAT.md)。
+- **单文件数据，位置由你选**——首次启动请你在自选文件夹创建数据库（`taskly.sqlite`）或打开已有数据库；不会静默指定默认位置，设置页显示当前位置并提供所在文件夹、迁移与备份操作。文件为 SQLite（WAL）。退出应用后再备份；云文件夹复制不提供安全的数据库并发同步。格式文档化且稳定：[DATA-FORMAT](shared/spec/DATA-FORMAT.md)。
 - **面向 agent 的 CLI**——`taskly list|add|update|done|rm|search|mklist…`，`--json` 输出稳定、退出码固定、跨平台字节级一致（63 例 golden 套件钉死）。规格：[CLI-SPEC](shared/spec/CLI-SPEC.md)。
 - **在线更新（三平台）**——启动时静默检查 + 设置里手动检查；后端验证 [更新清单](shared/spec/UPDATE.md)（Ed25519）并下载产物，宿主负责安装：macOS 原地换装 bundle，Windows 退出并换装安装目录，Linux 原地替换 AppImage、deb/rpm 与 Flatpak 交给包管理器（或 `flatpak --user update`）、便携 tar.gz 打开所在文件夹。
 

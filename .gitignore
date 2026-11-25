@@ -1,41 +1,3 @@
-## .NET / Avalonia
-bin/
-obj/
-*.user
-*.suo
-.vs/
-*.lock.json
-artifacts/
-
-## Swift (apps/macos)
-.build/
-.swiftpm/
-*.xcodeproj
-
-## Rust (apps/linux)
-target/
-cargo-sources.json
-
-## NuGet
-*.nupkg
-*.snupkg
-.nuget/
-
-## Build results
-[Dd]ebug/
-[Rr]elease/
-x64/
-x86/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
-[Ll]og/
-[Ll]ogs/
-publish/
-
-## Avalonia
-*.avaloniadiag
-
 ## IDE
 .idea/
 .vscode/
@@ -66,7 +28,6 @@ Noise/
 taskly-noise/
 noise-app-template/
 .zcode/
-packaging/macos/dmg/background*.png
 
 ## Rivet build artifacts
 .rivet/
@@ -74,10 +35,7 @@ packaging/macos/dmg/background*.png
 ## Racket compile cache
 compiled/
 
-## C++/WinRT generated projection (msbuild cppwinrt)
-windows/Generated Files/
-
-## Rivet generated output
+## Rivet / glaze generated output
 build/
 dist/
 
