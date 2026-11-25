@@ -19,7 +19,6 @@ concurrency:
 # Same pins as ci.yml (scripts/check-dependency-pins.sh gates the alignment).
 env:
   RIVET_PIN: 33de65ccb5d72f9ac38ff982aa4495467f89f213
-  KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
   GLAZE_PIN: e2731a3a1440c9cf705f2c0e77b945a3dec05e79
 
 # Executable acceptance for the glaze rewrite (issue #141): verify.rkt boots
@@ -79,7 +78,6 @@ jobs:
       - name: Install pinned dependencies (verified Windows trust roots)
         shell: pwsh
         run: |
-          racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs "https://github.com/turlamai/keel.git#$env:KEEL_PIN"
           racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs "https://github.com/turlamai/rivet.git#$env:RIVET_PIN"
           racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs "https://github.com/turlamai/glaze.git#$env:GLAZE_PIN"
           racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs crypto
@@ -123,7 +121,6 @@ jobs:
           version: '9.3'
       - name: Install pinned dependencies
         run: |
-          bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/keel.git#${KEEL_PIN}"
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/glaze.git#${GLAZE_PIN}"
           bash scripts/install-racket-packages-with-retry.sh crypto
@@ -166,7 +163,6 @@ jobs:
           version: '9.3'
       - name: Install pinned dependencies
         run: |
-          bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/keel.git#${KEEL_PIN}"
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
           bash scripts/install-racket-packages-with-retry.sh "https://github.com/turlamai/glaze.git#${GLAZE_PIN}"
           bash scripts/install-racket-packages-with-retry.sh crypto

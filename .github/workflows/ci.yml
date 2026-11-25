@@ -18,11 +18,12 @@ concurrency:
 
 # Single source of truth for the dependency pins; every install step below
 # references these so a bump is one edit, not a grep-replace across jobs.
-# RIVET/KEEL stay for the unchanged engine (contract tooling + tests + the
-# signed update feed); GLAZE is the UI/host framework (issue #141).
+# RIVET stays for the unchanged engine (contract tooling + tests + the signed
+# update feed); GLAZE is the UI/host framework (issue #141). Rivet's own
+# dependency, keel, resolves from the package catalog (keel main) through
+# `raco pkg install --auto` — the 2026-10 collision pin is gone (issue #129).
 env:
   RIVET_PIN: 33de65ccb5d72f9ac38ff982aa4495467f89f213
-  KEEL_PIN: 76a5b9fdd01bde284d310ff5c05ec73972f64201
   GLAZE_PIN: e2731a3a1440c9cf705f2c0e77b945a3dec05e79
 jobs:
   contract:
@@ -85,13 +86,8 @@ jobs:
           distribution: full
           variant: CS
           version: '9.3'
-      - name: Install Rivet (catalog)
-        # keel pinned just below the commit that added
-        # tests/documentation — it collides with rivet v0.11.0's own
-        # tests/documentation module and fails every install (upstream
-        # issue filed against keel). Drop this pin once the rename lands.
+      - name: Install Rivet (catalog; pulls keel from the catalog)
         run: |
-          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
           bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
       - name: Schema baseline is compatible
         run: raco rivet schema check rivet-schema.json --json
@@ -154,12 +150,10 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ runner.os }}" = "Windows" ]; then
-            racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
             racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
             racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs 'https://github.com/turlamai/glaze.git#${{ env.GLAZE_PIN }}'
             racket scripts/ci/windows-raco-pkg.rkt install --auto --no-docs crypto
           else
-            bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
             bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
             bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/glaze.git#${{ env.GLAZE_PIN }}'
             bash scripts/install-racket-packages-with-retry.sh crypto
@@ -197,7 +191,6 @@ jobs:
           version: '9.3'
       - name: Install glaze + engine deps
         run: |
-          bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/keel.git#${{ env.KEEL_PIN }}'
           bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
           bash scripts/install-racket-packages-with-retry.sh 'https://github.com/turlamai/glaze.git#${{ env.GLAZE_PIN }}'
           bash scripts/install-racket-packages-with-retry.sh crypto
