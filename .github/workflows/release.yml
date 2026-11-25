@@ -148,7 +148,12 @@ jobs:
           mv dist/Taskly.deb      "taskly-$VERSION-linux-$DEBARCH.deb"
           mv dist/Taskly.rpm      "taskly-$VERSION-linux-$RPMARCH.rpm"
           mv dist/Taskly.AppImage "taskly-$VERSION-linux-$RPMARCH.AppImage"
-          (cd dist && tar czf "../taskly-$VERSION-linux-${{ matrix.arch }}.tar.gz" .)
+          # AppDir is appimagetool's staging tree (a duplicate launcher, icon
+          # and desktop file), not part of the portable runtime. Listing the
+          # payload at the shell level keeps this independent of tar's
+          # --exclude pattern semantics.
+          (cd dist && tar czf "../taskly-$VERSION-linux-${{ matrix.arch }}.tar.gz" \
+            $(ls -A | grep -v '^AppDir$'))
       # Flatpak bundle from the tarball (the Linux distribution contract's
       # last format; flatpak/ manifest describes the glaze payload closure).
       - name: Flatpak bundle
