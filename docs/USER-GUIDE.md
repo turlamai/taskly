@@ -20,13 +20,13 @@ Use [official Releases](https://github.com/turlamai/taskly/releases), select an 
 
 ## Your first successful session
 
-1. The default list is ready on first launch. Add one non-sensitive task in the field above the empty-state hint; no setup wizard or list creation is required.
+1. First launch shows the database gate. Choose Create Database, pick a folder and enter a name (the app creates `taskly.sqlite` there; nothing is written if the file already exists), or choose Open Existing Database. The new database opens with its default list — add one non-sensitive task in the field above the empty-state hint; no account, cloud binding or extra setup is required. If a previously opened database cannot be found, the gate offers Relocate and Retry and never creates a replacement on its own.
 2. Open the task, choose a date, then use the visible Save action. Quit and reopen Taskly and confirm the task and date persisted.
 3. Reminders: the reminder field persists, but OS notification delivery is staged (#131) — do not expect banners yet, in any state.
 
 ## Data, backup and recovery
 
-Tasks use SQLite, normally ~/.taskly/tasks.db, with configuration in ~/.taskly/config.ini. Quit every Taskly process, then back up the directory, including any WAL/SHM files. Restore into a separate copy first. A cloud-synced live database is not a supported concurrent-editing mechanism.
+Tasks live in one SQLite file at the location you chose when creating or opening the database; Settings → Data shows the current name and location with a reveal-folder action. Configuration is in ~/.taskly/config.ini. Quit every Taskly process, then back up the database's folder, including any WAL/SHM files. Restore into a separate copy first. A cloud-synced live database is not a supported concurrent-editing mechanism. (The source CLI falls back to ~/.taskly/tasks.db until a database has been recorded.)
 
 ## Keyboard and editing
 
@@ -48,7 +48,7 @@ Back up data and read the destination release notes first. Taskly checks silentl
 
 DMG, MSI, deb/rpm and portable archives replace application files, not `~/.taskly/`. If an update fails, quit all Taskly processes and reinstall the previous trusted build using the same installation shape; portable users can return to the previous program directory. The exact per-shape rollback table is in the update contract below.
 
-Remove the Windows MSI from Apps & Features, delete the macOS application from Applications, or remove the Linux package with the package manager that installed it. AppImage and ZIP copies are removed by deleting their application file/folder. These operations intentionally preserve `~/.taskly/`; deleting personal data is a separate, explicit action after backup.
+Remove the Windows MSI from Apps & Features, delete the macOS application from Applications, or remove the Linux package with the package manager that installed it. AppImage and ZIP copies are removed by deleting their application file/folder. These operations intentionally preserve `~/.taskly/` and never touch the database file you placed elsewhere; deleting personal data is a separate, explicit action after backup.
 
 ## Get help
 
