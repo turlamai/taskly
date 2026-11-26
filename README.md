@@ -4,7 +4,7 @@ A focused, keyboard-friendly task manager for macOS, Windows and Linux —
 one Racket core driving a single first-party glaze host (web UI) on every
 desktop, an agent-facing CLI, and a single local SQLite file.
 
-[![release](https://img.shields.io/github/v/release/turlamai/taskly)](https://github.com/turlamai/taskly/releases/latest) ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey) ![built with](https://img.shields.io/badge/built%20with-Rivet-9333ea) [![CI](https://github.com/turlamai/taskly/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/taskly/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE)
+[![release](https://img.shields.io/github/v/release/turlamai/taskly)](https://github.com/turlamai/taskly/releases/latest) ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey) ![built with](https://img.shields.io/badge/built%20with-Glaze%20%2B%20Rivet-9333ea) [![CI](https://github.com/turlamai/taskly/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/taskly/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE)
 
 **English** · [中文](README.zh-CN.md)
 
@@ -86,8 +86,7 @@ Development preview; no paid checkout is open. A future official desktop purchas
   the glaze host ([notes](docs/UX-BENCHMARKS.md)).
 - **OS notification delivery is staged** (#131); reminder fields persist
   but nothing fires yet.
-- **macOS builds are ad-hoc signed** — no Developer ID / notarization yet
-  ([#80](https://github.com/turlamai/taskly/issues/80)).
+- **macOS release signing** — the current tag-release workflow requires Developer ID signing and notarization; local development builds may be ad-hoc signed. Check the published release's trust status for the actual artifact.
 
 ## Install
 
@@ -110,10 +109,7 @@ Every release carries a `SHA256SUMS` manifest and a signed
 Windows MSI, and Linux AppImage installs update in place; every installed
 artifact is selected from and verified against the signed manifest.
 
-macOS builds are ad-hoc signed, not Developer ID signed or notarized. A
-Gatekeeper rejection is expected for these previews: do not disable
-system-wide protections. Verify the release checksum and use a trusted
-build; the installed bundle is `/Applications/Taskly.app`.
+The current tag-release workflow requires Developer ID signing, notarization and verification. Older preview artifacts may be ad-hoc signed; consult the release's trust status. Do not disable system-wide protections. Verify the release checksum and use a trusted build; the installed bundle is `/Applications/Taskly.app`.
 
 Linux needs a WebKitGTK 4.1 desktop runtime (unpack the tarball and run
 `Taskly`; the webview engine and its system libraries are the only
