@@ -101,7 +101,7 @@ every platform. Never a text dropdown of hex values.
 | sidebar width | 280 (200…420) |
 | menu bar / status bar height | 32 / 28 |
 | smart-list chip | 2×2 grid of 34px chips (radius 8, 8px gaps): neutral surface fill + 1px divider, horizontal content = colored glyph (14px, view semantic color) + 13px label + quiet 12px count right; checked = quiet selection fill (VSM), hover = hover fill; saturated color never fills the chip — color lives on the glyph (macOS Reminders language) |
-| list row | card: surface fill + 1px divider border, radius 8, padding 8,5; 20px round color dot with the emoji inside (11px), name 13px, gray count right — compact, aligned with the sidebar icon column |
+| list row | card: surface fill + 1px divider border, radius 8, padding 8,5; 20px round color dot with the emoji inside (12px), name 13px, gray count right — compact, aligned with the sidebar icon column |
 | list icon size | 32 (round) |
 | checkbox size | 20px ring in the task's list color (accent fallback), resting ring mixed 82% toward ink for definition; completed = list-color fill with a white check |
 | task row | 44px min height, padding 16,9; text 14px; meta 12px with the owning list name (list-colored dot + name) shown in multi-list views, clickable tag chips (filter), priority glyphs (!/!!/!!!), subtask count; info button at 65% opacity, full on row hover/focus or when its popover is open |

@@ -77,7 +77,7 @@
 
 ## 家族设计基线对齐 — 2026-11-26
 
-对齐家族设计规范修订 `2026-11-20-minimal-family`，起始 SHA `89421e0`。只改 `prototype/` 与 `index.html`：`shared.css` 被 web UI `@import`，原型改动即产品样式改动；token 值仍只维护在 `shared.css`。
+对齐家族设计规范修订 `2026-11-20-minimal-family`，起始 SHA `89421e0`，共享层声明见 issue #148。原型先行：`shared.css` 被 web UI `@import`，原型改动即产品样式改动；token 值仍只维护在 `shared.css`。
 
 | 检查 | 结果 | 证据／限制 |
 |---|---|---|
@@ -89,11 +89,11 @@
 | 可访问名称 | 通过 | 桌面 4 屏、移动 5 屏及弹层、行内编辑器、对话框等状态：无名称控件 0，SVG 全部 `aria-hidden` |
 | 布局缺陷 | 修复 4 处 | ① `body` 网格列 `minmax(0, 1fr)`：视口 901–1247px（含产品默认 1100×760）模拟窗口不再横向溢出 124px；② `.window` 高度 `min(800px, 100dvh - 64px)`：1280×800 下整窗可见；③ 侧栏隐藏断点 760→759px：声明最小宽度 760 下侧栏与设置入口保留；④ 详情层夹取到窗口底部时停在状态栏上方（`place()` 预留状态栏高度，`.dpop` 最大高度同步为 `100% - 52px`） |
 | 渲染复核 | 通过 | 无头 Chromium，1280×800 与 390×844 各屏双主题，另测 1100×760、760×520：`overflowX` 0、页面错误 0、加载失败 0；`list-editor` 的 small 3→0，`task-detail` 5→1（仅图标日期） |
-| 仓库门禁 | 通过 | `check-design-tokens.py` 已随原三腿门禁退役；`pnpm check`、`pnpm build` 通过 |
+| web UI 同步 | 已同步 | `apps/desktop/src/style.css` 的 13 条 11／11.5／12.5px 副本对齐原型：11 条为 12px，`.segopt span`、`.keybtn` 取原型值 13px；`.swatch` 高 28px；`shared.ts` 的 `place()` 同步预留状态栏；`shared/spec/DESIGN-TOKENS.md` 的清单圆点 emoji 记为 12px。产品的窗口高度与 `body` 规则有意不同（真实窗口填满视口），未动 |
+| 仓库门禁 | 通过 | `check-design-tokens.py` 已随原三腿门禁退役；`pnpm check`、`pnpm build` 通过；`racket verify.rkt` 真窗 45/45 通过（含 j06 详情层开关） |
 
-遗留（不在本次 `design/` 范围内）：
+遗留：
 
-- `shared/spec/DESIGN-TOKENS.md` 的「list row … emoji inside (11px)」需同步为 12px。
-- 产品侧副本仍是旧值：`apps/desktop/src/style.css` 的 `.swatch`、`.namewrap .ldot` 与若干 11／11.5／12.5px 文案，`shared.ts` 的 `place()`；≤760px 时产品把侧栏压到 200px，「已完成」图标格标签会折行。
+- 产品在 760px 以下保留 200px 侧栏而原型隐藏（真实窗口未声明最小宽度，隐藏后无处进入清单与设置）：该宽度下中文「已完成」图标格标签会折行，是否加宽待定。
 - 对比度未达 4.5:1 的两处浅色主题文字待定色值：状态栏上的 ghost 按钮（accent 对 `--sidebar`，4.04:1）与选中行上的中优先级 `!!`（`--warn-ink` 对 `--sel`，3.92:1）。
 - 移动端 tab bar「设置」用 `ICONS.theme`（半填充圆形）作导航图标，是否换成设置语义的线性图标待定。

@@ -73,7 +73,10 @@ export function place(card: HTMLElement, row: HTMLElement, container: HTMLElemen
   card.hidden = false;
   const r = row.getBoundingClientRect();
   const c = container.getBoundingClientRect();
-  const maxTop = Math.max(8, c.height - card.offsetHeight - 12);
+  // A clamped popover stops above the status bar so the bar stays readable.
+  const bar = container.querySelector<HTMLElement>('.statusbar');
+  const reserved = bar ? bar.offsetHeight : 0;
+  const maxTop = Math.max(8, c.height - card.offsetHeight - 12 - reserved);
   const top = Math.min(Math.max(r.top - c.top - 6, 8), maxTop);
   card.style.top = top + 'px';
   card.style.right = '16px';
