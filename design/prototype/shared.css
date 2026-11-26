@@ -14,7 +14,7 @@
   /* 交互 */
   --sel: rgba(0,0,0,.08); --hover: rgba(0,0,0,.05);
   --input-border: #8A8785; --badge-bg: #E9E9EE; --badge-text: #58585D;
-  --accent: #C94F30; --accent-ink: #FFFFFF;
+  --accent: #C94F30; --accent-ink: #FFFFFF; --accent-text: #B8432A;
   --today: #007AFF; --today-ink: #0060C0;
   --planned: #FF3B30; --gray-tile: #8E8E93;
   --danger: #B3261E; --warn-ink: #B25E00; --success: #1B7F4B;
@@ -40,7 +40,7 @@ html[data-taskly-theme="dark"] .window {
   --ink: #F5F5F7; --ink2: #C3BFBD; --ink3: #A8A5A3;
   --sel: rgba(255,255,255,.12); --hover: rgba(255,255,255,.07);
   --input-border: #777371; --badge-bg: #3F3F44; --badge-text: #E9E9EE;
-  --accent: #E8704F; --accent-ink: #1B120F;
+  --accent: #E8704F; --accent-ink: #1B120F; --accent-text: #E8704F;
   --today: #0A84FF; --today-ink: #64B5FF;
   --planned: #FF453A; --gray-tile: #98989D;
   --danger: #FF8A7A; --warn-ink: #E0A33F; --success: #5BD6A0;
@@ -61,7 +61,7 @@ html[data-taskly-theme="dark"] { color-scheme: dark; }
 body {
   min-height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 32px 24px;
   background: radial-gradient(1100px 760px at 18% 0%, #ECEBE8, #DFDDD8 60%, #D3D1CB);
-  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   color: var(--ink); -webkit-font-smoothing: antialiased;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -118,7 +118,7 @@ kbd {
 .btn:hover { background: var(--hover); }
 .btn.primary { background: var(--accent); border-color: transparent; color: var(--accent-ink); }
 .btn.primary:hover { background: var(--accent); filter: brightness(1.06); }
-.btn.ghost { border-color: transparent; background: none; color: var(--accent); }
+.btn.ghost { border-color: transparent; background: none; color: var(--accent-text, var(--accent)); }
 .btn.danger { border-color: transparent; background: none; color: var(--danger); }
 .btn.danger:hover { background: var(--hover); }
 .statusbar {
@@ -359,3 +359,11 @@ select.input {
 .sidebar-settings { display: block; padding: 8px; border-radius: 8px; color: var(--ink2); font-size: 13px; text-decoration: none; }
 .sidebar-settings:hover { background: var(--hover); color: var(--ink); }
 .sidebar-settings:focus-visible { outline: 2px solid var(--today); }
+
+/* ---- temperament profile pass ---- */
+/* typography baseline (family standard 2026-11-26-temperament-profiles): CJK/Latin spacing and kinsoku come from the rendering layer,
+   never from typed spaces (§4, §10). Values stay in the token block above. */
+body { text-autospace: normal; line-break: strict; }
+::selection { background: var(--sel); color: var(--ink); }
+/* Paired neutral scrollbar for both themes; thin and non-distracting. */
+html { scrollbar-color: var(--divider) transparent; }
