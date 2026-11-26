@@ -26,6 +26,7 @@ the inline quick editor.
 |---|---|---|
 | `accent/action` | `--accent` | Primary actions, switches, accent fills |
 | `accent-ink` | `--accent-ink` | Text/icon on accent fills |
+| `accent-text` | `--accent-text` | Accent used as text on tinted surfaces (ghost buttons); light is one step darker than `--accent` for 4.5:1 on the toolbar, dark equals `--accent` |
 | `accent/today` | `--today` | Today tile, default list color, focus ring |
 | `today-ink` | `--today-ink` | Today numerals, due-today text |
 | `tile/planned` | `--planned` | Planned tile glyph |
