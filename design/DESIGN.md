@@ -74,3 +74,26 @@
 - 2026-11-23 原型自查：五屏和导航的本地引用均可解析，本地 HTTP 返回页面。DOM 测试通过草稿恢复、输入解析、添加、编辑保存、完成、删除撤销、滑动事件、清单保存与取消、主题跨页初始化、默认清单及状态恢复。跨页测试以同源存储快照重新载入各页，原生触屏与浏览器历史行为仍需实测。
 - 双主题令牌对比度（亮／暗）：正文对背景 16.83:1／15.31:1，辅助文字 6.56:1／9.14:1，主按钮文字 4.52:1／6.02:1，控件边界对背景 3.57:1／3.55:1。44px 命中与窄屏样式已核对源码，实际渲染尺寸、滚动恢复、字体放大、键盘焦点和触屏仍待浏览器验证。
 - 当前环境无法启动无头 Chromium，现有 Edge 会话无访问权限。Swift 真机、VoiceOver、Dynamic Type 与系统 picker／通知／SQLite 行为留待原生实现切片验证。
+
+## 家族设计基线对齐 — 2026-11-26
+
+对齐家族设计规范修订 `2026-11-20-minimal-family`，起始 SHA `89421e0`。只改 `prototype/` 与 `index.html`：`shared.css` 被 web UI `@import`，原型改动即产品样式改动；token 值仍只维护在 `shared.css`。
+
+| 检查 | 结果 | 证据／限制 |
+|---|---|---|
+| 主题切换按钮 | 不适用 | 主题只是设置项（跟随系统／浅色／深色），桌面与移动都没有工具栏切换，不新增 |
+| 12px 字号下限 | 通过 | `shared.css` 的 `.ldot`、`.check`、`.dacts .hint-inline` 与 `list-editor.html` 的 `.namewrap .ldot`、`.swatch` 由 11px 升到 12px，`.swatch` 高度 26→28；源码扫描低于 12px 的声明 0 处 |
+| 记录的例外 | 1 项 | `ICONS.today`（`shared.js`）用 16 单位视框内 `font-size="5.5"` 的 SVG `<text>` 画当日日期。它是 `aria-hidden` 图标的图形部分而非界面文字，12px 放不进图标；渲染报告仍会把它计为 small |
+| reduced motion 与焦点 | 已有，未改 | `shared.css` 在 `prefers-reduced-motion: reduce` 下禁用全部过渡与动画；全局 `:focus-visible` 为 2px `--today` 外框、offset 2 |
+| 原型完整性 | 通过 | 无远程资源，本地引用全部可解析；`index.html` 列全 9 个页面并链接本文件，各链接的 `title` 为页面 `<title>`（可见文案不变） |
+| 可访问名称 | 通过 | 桌面 4 屏、移动 5 屏及弹层、行内编辑器、对话框等状态：无名称控件 0，SVG 全部 `aria-hidden` |
+| 布局缺陷 | 修复 4 处 | ① `body` 网格列 `minmax(0, 1fr)`：视口 901–1247px（含产品默认 1100×760）模拟窗口不再横向溢出 124px；② `.window` 高度 `min(800px, 100dvh - 64px)`：1280×800 下整窗可见；③ 侧栏隐藏断点 760→759px：声明最小宽度 760 下侧栏与设置入口保留；④ 详情层夹取到窗口底部时停在状态栏上方（`place()` 预留状态栏高度，`.dpop` 最大高度同步为 `100% - 52px`） |
+| 渲染复核 | 通过 | 无头 Chromium，1280×800 与 390×844 各屏双主题，另测 1100×760、760×520：`overflowX` 0、页面错误 0、加载失败 0；`list-editor` 的 small 3→0，`task-detail` 5→1（仅图标日期） |
+| 仓库门禁 | 通过 | `check-design-tokens.py` 已随原三腿门禁退役；`pnpm check`、`pnpm build` 通过 |
+
+遗留（不在本次 `design/` 范围内）：
+
+- `shared/spec/DESIGN-TOKENS.md` 的「list row … emoji inside (11px)」需同步为 12px。
+- 产品侧副本仍是旧值：`apps/desktop/src/style.css` 的 `.swatch`、`.namewrap .ldot` 与若干 11／11.5／12.5px 文案，`shared.ts` 的 `place()`；≤760px 时产品把侧栏压到 200px，「已完成」图标格标签会折行。
+- 对比度未达 4.5:1 的两处浅色主题文字待定色值：状态栏上的 ghost 按钮（accent 对 `--sidebar`，4.04:1）与选中行上的中优先级 `!!`（`--warn-ink` 对 `--sel`，3.92:1）。
+- 移动端 tab bar「设置」用 `ICONS.theme`（半填充圆形）作导航图标，是否换成设置语义的线性图标待定。
