@@ -1,8 +1,9 @@
 /* Shared lifecycle surfaces inherit the existing light/dark tokens. */
 /* No gate page: without a database the canvas itself explains and offers the way forward. */
 .phead[hidden], #filterBar[hidden], .quickadd[hidden], .rows[hidden] { display: none !important; }
-/* 没有数据库时，侧栏只剩导航骨架：清单与标签属于数据库 */
+/* 没有数据库时，侧栏只剩导航骨架：清单与标签属于数据库，数据库名也无从显示 */
 .sidebar.no-database .tiles, .sidebar.no-database .sect, .sidebar.no-database #lists, .sidebar.no-database #tags { visibility: hidden; }
+.sidebar.no-database .database-menu-wrap { display: none; }
 .dbstate { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px 24px; text-align: center; }
 .dbstate h2 { font-size: 16px; line-height: 1.5; font-weight: 600; }
 .dbstate p { max-width: 420px; font-size: 14px; line-height: 1.6; color: var(--ink2); }
