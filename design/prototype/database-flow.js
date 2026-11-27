@@ -72,7 +72,10 @@
   dialog.setAttribute('aria-labelledby', 'databaseDialogTitle');
   dialog.innerHTML = '<h2 id="databaseDialogTitle">创建数据库</h2><p id="databaseDialogDescription"></p>' +
     '<div id="databaseFields"><label class="field" id="databaseNameField"><span class="flabel">数据库名称</span><input class="input" id="databaseName" maxlength="64" autocomplete="off" value="我的任务"></label>' +
-    '<label class="field"><span class="flabel" id="databasePathLabel">保存文件夹 · 演示</span><input class="input" id="databasePath" maxlength="500" autocomplete="off" placeholder="输入你选择的文件夹位置" aria-describedby="databasePathHelp databaseError"></label><p class="database-help" id="databasePathHelp"></p></div>' +
+    // Same shape as the product: the path is read-only and comes from the
+    // system picker. The prototype cannot open a native dialog, so the
+    // button stands in for it and returns a demo location.
+    '<div class="field"><div class="flabel" id="databasePathLabel">保存文件夹</div><div class="database-pickrow"><input class="input" id="databasePath" readonly maxlength="500" placeholder="尚未选择" aria-describedby="databasePathHelp databaseError"><button class="btn" type="button" id="databasePick">选择文件夹…</button></div><p class="database-help" id="databasePathHelp"></p></div></div>' +
     '<p class="database-confirm" id="databaseConfirm" hidden></p><p class="database-error" id="databaseError" role="alert" hidden></p>' +
     '<div class="database-actions"><button class="btn" type="button" id="databaseCancel">取消</button><button class="btn primary" type="button" id="databaseApply">创建并打开</button></div>';
   root.appendChild(dialog);
@@ -81,13 +84,22 @@
     $('databaseError').hidden = false;
     $('databaseError').textContent = text;
     $('databasePath').setAttribute('aria-invalid', 'true');
-    $('databasePath').focus();
+    $('databasePick').focus();
   }
   function clearError() {
     $('databaseError').hidden = true;
     $('databaseError').textContent = '';
     $('databasePath').removeAttribute('aria-invalid');
   }
+  // Stands in for the native folder / file picker the product opens.
+  $('databasePick').addEventListener('click', function () {
+    const isFile = mode === 'open' || mode === 'relocate';
+    $('databasePath').value = isFile
+      ? 'D:\\Sync\\Taskly\\工作\\taskly.sqlite'
+      : mode === 'migrate' ? 'D:\\Sync\\Taskly\\新位置' : 'D:\\Sync\\Taskly\\我的任务';
+    clearError();
+    $('databaseApply').focus();
+  });
   function select(nextMode, button) {
     if (nextMode === 'retry') {
       // The failure specimen resolves on retry; a native host would check the file.
@@ -102,24 +114,25 @@
     $('databaseDialogTitle').textContent = titles[mode];
     $('databaseDialogDescription').textContent = mode === 'create'
       ? '在指定文件夹中创建 taskly.sqlite。'
-      : mode === 'open' ? '输入数据库文件的完整路径。'
-      : mode === 'migrate' ? '先选择目标文件夹，再确认迁移。原生应用应在迁移成功后切换，失败时继续使用原位置。此处仅模拟。'
-      : mode === 'relocate' ? '输入原数据库文件现在的位置。'
+      : mode === 'open' ? '选择要打开的数据库文件。'
+      : mode === 'migrate' ? '选择目标文件夹，再确认迁移。原生应用应在迁移成功后切换，失败时继续使用原位置。此处仅模拟。'
+      : mode === 'relocate' ? '选择原数据库文件现在的位置。'
       : '原生应用会在系统文件管理器中显示此文件夹。当前原型无法打开系统目录。';
     $('databaseFields').hidden = mode === 'reveal';
     $('databaseNameField').hidden = mode !== 'create';
     $('databaseName').value = '我的任务';
-    $('databasePathLabel').textContent = mode === 'open' || mode === 'relocate' ? '数据库文件位置 · 演示' : '保存文件夹 · 演示';
+    const isFile = mode === 'open' || mode === 'relocate';
+    $('databasePathLabel').textContent = isFile ? '数据库文件' : '保存文件夹';
+    $('databasePick').textContent = isFile ? '选择文件…' : '选择文件夹…';
     $('databasePath').value = mode === 'relocate' && db ? db.path : '';
-    $('databasePath').placeholder = mode === 'open' || mode === 'relocate' ? '例如：我的同步目录 / taskly.sqlite' : '例如：我的同步目录 / Taskly';
-    $('databasePathHelp').textContent = '此操作仅作演示，不读写实际文件。';
+    $('databasePathHelp').textContent = '原型里按钮返回一个示例位置；产品中打开系统文件夹 / 文件选择框。';
     $('databaseConfirm').hidden = mode !== 'reveal';
     $('databaseConfirm').textContent = db ? db.path.replace(/[/\\][^/\\]+$/, '') : '';
     $('databaseCancel').hidden = mode === 'reveal';
     $('databaseApply').textContent = mode === 'create' ? '创建并打开' : mode === 'migrate' ? '继续' : mode === 'reveal' ? '知道了' : '打开';
     clearError();
     dialog.showModal();
-    (mode === 'reveal' ? $('databaseApply') : mode === 'create' ? $('databaseName') : $('databasePath')).focus();
+    (mode === 'reveal' ? $('databaseApply') : mode === 'create' ? $('databaseName') : $('databasePick')).focus();
   }
   function apply() {
     if (mode === 'reveal') { dialog.close(); return; }
