@@ -14,13 +14,36 @@
     return { active: null, records: [] };
   }
   let state = readRegistry();
+  // ?db-state=empty shows the first-run list without touching the registry.
+  if (scenario === 'empty') { state = { active: null, records: [] }; readRegistry = function () { return { active: null, records: [] }; }; }
+  // ?db-state=many opens the list; ?db-state=many-blocked shows the same list
+  // behind the recovery gate (recorded database missing, another one gone).
+  if (scenario.indexOf('many') === 0 && !state.records.some(function (record) { return record.id === 'db-seed-0'; })) {
+    const base = state.records.length ? Date.now() - 86400000 : Date.now();
+    [{ name: '工作', path: 'D:\\Sync\\Taskly\\工作\\taskly.sqlite', at: 0 },
+     { name: '个人', path: '/Users/ji/Library/Mobile Documents/com~apple~CloudDocs/Taskly/个人/taskly.sqlite', at: 1 },
+     { name: '一个名字特别长的数据库，用来检查省略号落在哪里', path: '/home/ji/notes/taskly.sqlite', at: 2 }].forEach(function (seed) {
+      state.records.push({ id: 'db-seed-' + seed.at, name: seed.name, path: seed.path, tasks: [], openedAt: base - seed.at * 3600000 });
+    });
+    state.active = state.active || state.records[state.records.length - 1].id;
+    // The recorded (blocked) database is the one opened most recently.
+    if (scenario === 'many-blocked') state.active = state.records[0].id;
+    persist();
+  }
+  // Records written by older prototype screens carry no name; show their file stem.
+  state.records.forEach(function (record) {
+    if (!record.name) record.name = record.path.split(/[/\\]/).pop().replace(/\.[^.]+$/, '');
+  });
+  const missingIds = {};
+  if ((scenario === 'missing' || scenario === 'many-blocked') && state.active) missingIds[state.active] = true;
+  if (scenario === 'many-blocked' && state.records[1]) missingIds[state.records[1].id] = true;
   const defaultLists = {
     work:      { name: '工作', emoji: '💼', color: 'var(--list-cyan)' },
     home:      { name: '家',   emoji: '🏠', color: 'var(--list-green)' },
     important: { name: '重要', emoji: '⭐', color: 'var(--list-orange)' },
     reading:   { name: '读书', emoji: '📚', color: 'var(--list-indigo)' }
   };
-  let blocked = scenario === 'missing';
+  let blocked = scenario === 'missing' || scenario === 'many-blocked';
   let mode = 'create';
   let confirmMigration = false;
   let trigger = null;
@@ -37,9 +60,13 @@
   const gate = document.createElement('section');
   gate.className = 'database-gate';
   gate.setAttribute('aria-labelledby', 'databaseWelcomeTitle');
-  gate.innerHTML = '<h1 id="databaseWelcomeTitle">打开任务数据库</h1>' +
-    '<div class="database-recovery" id="databaseRecovery" hidden><p id="databaseMissingPath"></p><div class="database-choice"><button class="btn primary" type="button" data-db-action="relocate">重新定位…</button><button class="btn" type="button" data-db-action="retry">重试</button></div></div>' +
-    '<div class="database-choice"><button class="btn primary" type="button" data-db-action="create">创建数据库…</button><button class="btn" type="button" data-db-action="open">打开已有数据库…</button></div>';
+  // The gate is a picker, not a welcome page: the list of known databases is
+  // the content; create / open stay fixed underneath it.
+  gate.innerHTML = '<div class="database-picker">' +
+    '<h1 id="databaseWelcomeTitle">任务数据库</h1><p class="database-lead" id="databaseLead"></p>' +
+    '<ul class="database-list" id="databaseList"></ul>' +
+    '<p class="database-error" id="databaseGateError" role="alert" hidden></p>' +
+    '<div class="database-choice"><button class="btn primary" type="button" data-db-action="create">创建数据库…</button><button class="btn" type="button" data-db-action="open">打开已有数据库…</button></div></div>';
   if (main) root.insertBefore(gate, root.querySelector('.app'));
 
   const dialog = document.createElement('dialog');
@@ -66,7 +93,7 @@
   function select(nextMode, button) {
     if (nextMode === 'retry') {
       // The failure specimen resolves on retry; a native host would check the file.
-      blocked = false; scenario = ''; commit(); return;
+      blocked = false; scenario = ''; delete missingIds[state.active]; commit(); return;
     }
     if ((nextMode === 'migrate' || nextMode === 'reveal') && !current()) return;
     trigger = button || document.activeElement;
@@ -129,13 +156,19 @@
       const db = last();
       if (!db) { fail('没有可定位的数据库，请取消后打开已有数据库。'); return; }
       db.path = path;
+      delete missingIds[db.id];
     } else if (existing) {
       state.active = existing.id;
+      delete missingIds[existing.id];
     } else {
       const record = { id: 'db-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), name: mode === 'create' ? name : path.split('/').pop().replace(/\.[^.]+$/, ''), path: path, tasks: [] };
       state.records.push(record); state.active = record.id;
     }
     blocked = false;
+    if (mode !== 'migrate' && mode !== 'relocate') {
+      const opened = state.records.find(function (record) { return record.id === state.active; });
+      if (opened) opened.openedAt = Date.now();
+    }
     dialog.close();
     commit();
     T.announce(mode === 'migrate' ? '演示迁移已完成，任务保留。' : '已打开演示数据库。');
@@ -149,19 +182,83 @@
   dialog.addEventListener('close', function () { clearError(); if (trigger && trigger.isConnected) trigger.focus(); });
   dialog.addEventListener('input', clearError);
   document.addEventListener('click', function (event) {
+    const opener = event.target.closest('[data-db-open]');
+    if (opener) {
+      const record = state.records.find(function (item) { return item.id === opener.dataset.dbOpen; });
+      const gateError = document.getElementById('databaseGateError');
+      gateError.hidden = true;
+      if (missingIds[record.id]) {
+        // A missing file never opens and never creates a replacement.
+        gateError.textContent = '找不到这个文件。重新定位后再打开。';
+        gateError.hidden = false; return;
+      }
+      state.active = record.id; record.openedAt = Date.now();
+      blocked = false; scenario = ''; commit();
+      T.announce('已打开演示数据库。');
+      return;
+    }
+    const remover = event.target.closest('[data-db-remove]');
+    if (remover) {
+      state.records = state.records.filter(function (item) { return item.id !== remover.dataset.dbRemove; });
+      delete missingIds[remover.dataset.dbRemove];
+      if (state.active === remover.dataset.dbRemove) {
+        state.active = state.records.length ? state.records.slice().sort(function (a, b) { return (b.openedAt || 0) - (a.openedAt || 0); })[0].id : null;
+        blocked = false;
+      }
+      commit(); return;
+    }
     const button = event.target.closest('[data-db-action]');
     if (button) select(button.dataset.dbAction, button);
   });
+  function relative(when) {
+    if (!when) return '';
+    const minutes = Math.round((Date.now() - when) / 60000);
+    if (minutes < 1) return '刚刚';
+    if (minutes < 60) return minutes + ' 分钟前';
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return hours + ' 小时前';
+    const days = Math.round(hours / 24);
+    return days < 30 ? days + ' 天前' : Math.round(days / 30) + ' 个月前';
+  }
+  function renderPicker() {
+    const lead = gate.querySelector('#databaseLead');
+    const list = gate.querySelector('#databaseList');
+    const records = state.records.slice().sort(function (a, b) { return (b.openedAt || 0) - (a.openedAt || 0); });
+    gate.querySelector('#databaseWelcomeTitle').textContent = blocked ? '找不到上次的数据库' : '任务数据库';
+    lead.textContent = blocked
+      ? '上次打开的数据库不在原位置。重新定位后继续，或打开列表里的其他数据库。'
+      : records.length ? '选择要打开的数据库，或新建一个。' : '还没有任务数据库。它是一个 SQLite 文件，放在你选择的文件夹里，由你保管。';
+    list.hidden = records.length === 0;
+    list.innerHTML = records.map(function (record) {
+      const missing = !!missingIds[record.id];
+      return '<li class="database-item' + (missing ? ' missing' : '') + '">' +
+        '<button class="database-row" type="button" data-db-open="' + record.id + '"' + (missing ? ' aria-describedby="db-missing-' + record.id + '"' : '') + '>' +
+        '<span class="database-row-name"></span><span class="database-row-path"></span></button>' +
+        '<span class="database-row-state"' + (missing ? ' id="db-missing-' + record.id + '"' : '') + '></span>' +
+        '<span class="database-row-actions">' + (missing
+          ? '<button class="btn" type="button" data-db-action="retry">重试</button><button class="btn" type="button" data-db-action="relocate">重新定位…</button>'
+          : '') + '<button class="linkbtn" type="button" data-db-remove="' + record.id + '">移除</button></span></li>';
+    }).join('');
+    // The file name is always taskly.sqlite: show the folder so the
+    // end-ellipsis does not spend itself on the constant tail.
+    function folder(path) { return path.replace(/[/\\][^/\\]+$/, ''); }
+    list.querySelectorAll('.database-item').forEach(function (item, index) {
+      const record = records[index];
+      const missing = !!missingIds[record.id];
+      item.title = record.path;
+      item.querySelector('.database-row-name').textContent = record.name;
+      item.querySelector('.database-row-path').textContent = folder(record.path);
+      item.querySelector('.database-row-state').textContent = missing ? '找不到'
+        : (record.id === state.active ? '上次打开 · ' : '') + relative(record.openedAt);
+    });
+  }
   function update() {
     const db = current();
     if (main) {
       root.querySelector('.app').hidden = !db;
       gate.hidden = !!db;
-      const recovery = gate.querySelector('#databaseRecovery');
-      recovery.hidden = !blocked;
+      renderPicker();
       gate.querySelector('[data-db-action="create"]').classList.toggle('primary', !blocked);
-      gate.querySelector('#databaseMissingPath').textContent = last() ? last().path : '';
-      gate.querySelector('#databaseWelcomeTitle').textContent = blocked ? '找不到上次的数据库' : '打开任务数据库';
     }
     document.querySelectorAll('[data-db-name]').forEach(function (node) { node.textContent = db ? db.name : '尚未打开数据库'; });
     document.querySelectorAll('[data-db-path]').forEach(function (node) { node.textContent = db ? db.path : '创建或打开数据库后显示位置'; });

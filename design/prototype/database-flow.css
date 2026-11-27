@@ -1,21 +1,40 @@
 /* Shared lifecycle surfaces inherit the existing light/dark tokens. */
-.database-gate { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 32px; text-align: center; }
-.database-gate h1 { font-size: 20px; line-height: 1.4; }
+.database-gate { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; }
+/* 选择器卡片：列表是内容，创建 / 打开固定在下方（静读档，版心 520） */
+.database-picker { width: min(520px, 100%); padding: 24px; border: 1px solid var(--divider); border-radius: 12px; background: var(--bg); text-align: left; }
+.database-picker h1 { font-size: 18px; line-height: 1.4; font-weight: 600; }
+.database-lead { margin: 4px 0 16px; font-size: 14px; line-height: 1.6; color: var(--ink2); }
+.database-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; }
+.database-item { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; border-radius: 8px; }
+.database-item:hover, .database-item:focus-within { background: var(--hover); }
+.database-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; min-height: 44px; padding: 8px 12px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 8px; }
+.database-row:focus-visible { outline: 2px solid var(--today); outline-offset: -2px; }
+.database-row-name { max-width: 100%; font-size: 14px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.database-row-path { max-width: 100%; font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 12px; line-height: 1.5; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: ltr; }
+.database-row-state { font-size: 12px; color: var(--ink3); white-space: nowrap; }
+.database-item.missing .database-row-name { color: var(--ink2); }
+.database-item.missing .database-row-state { color: var(--warn-ink); font-weight: 500; }
+.database-row-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 12px; padding: 0 12px 8px 12px; }
+.database-item:not(.missing) .database-row-actions { opacity: 0; transition: opacity var(--t-fast) ease; height: 0; padding: 0 12px; overflow: hidden; }
+.database-item:not(.missing):hover .database-row-actions, .database-item:not(.missing):focus-within .database-row-actions { opacity: 1; height: auto; padding-bottom: 8px; }
+.database-row-actions .linkbtn { font-size: 12px; color: var(--ink3); background: none; border: 0; padding: 4px 0; cursor: pointer; font-family: inherit; }
+.database-row-actions .linkbtn:hover, .database-row-actions .linkbtn:focus-visible { color: var(--ink); }
+.database-row-actions .linkbtn:focus-visible { outline: 2px solid var(--today); outline-offset: 2px; }
+.database-row-actions .btn { min-height: 28px; padding: 4px 12px; font-size: 13px; }
+.database-picker > .database-error { margin: 12px 0 0; }
 .database-choice, .database-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-.database-choice { justify-content: center; }
+.database-picker .database-choice { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--divider); }
 .database-choice .btn { min-height: 40px; padding: 8px 16px; }
-.database-recovery { max-width: 480px; width: 100%; }
-.database-recovery p { font-size: 13px; line-height: 1.5; color: var(--ink2); margin-bottom: 12px; overflow-wrap: anywhere; }
-.database-recovery p:empty { display: none; }
 .database-dialog { margin: auto; width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; padding: 24px; border: 1px solid var(--divider); border-radius: 12px; background: var(--bg); color: var(--ink); box-shadow: var(--sh-2); }
 .database-dialog::backdrop { background: var(--scrim); }
 .database-dialog h2 { font-size: 20px; line-height: 1.4; margin-bottom: 16px; }
 .database-dialog p { font-size: 14px; line-height: 1.6; margin-bottom: 16px; color: var(--ink2); }
 .database-dialog .field { margin-bottom: 16px; }
 .database-dialog .database-help { font-size: 12px; color: var(--ink3); }
-.database-dialog .database-error { color: var(--danger); }
+.database-dialog .database-error, .database-picker .database-error { color: var(--danger); font-size: 13px; line-height: 1.5; }
 .database-confirm { white-space: pre-wrap; overflow-wrap: anywhere; }
 .database-identity { padding: 8px; border-top: 1px solid var(--divider); font-size: 12px; line-height: 1.5; color: var(--ink2); overflow-wrap: anywhere; }
 .database-identity strong { display: block; font-size: 13px; color: var(--ink); }
 .database-current-name { font-weight: 600; }
-@media (max-width: 520px) { .database-gate { justify-content: flex-start; padding: 32px 16px; } .database-choice { flex-direction: column; width: 100%; } }
+@media (max-width: 520px) { .database-gate { justify-content: flex-start; padding: 32px 16px; } .database-picker { padding: 16px; } .database-choice { flex-direction: column; width: 100%; } .database-choice .btn { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .database-item:not(.missing) .database-row-actions { transition: none; } }
