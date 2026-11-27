@@ -4,7 +4,7 @@
 
 ## 流程（原型先行）
 
-- 改界面 = 改 DESIGN-TOKENS / PRODUCT-SPEC → 更新 `design/prototype/` 原型 → HIG 评审 → 单一 glaze web 宿主实现。反向顺序禁止。
+- 改界面 = 改 DESIGN-TOKENS / PRODUCT-SPEC → 更新 `design/prototype/` 原型 → 按家族设计规范评审（入口见仓内 AGENTS.md「家族设计」）→ 单一 glaze web 宿主实现。反向顺序禁止。
 - 原型：本目录 `prototype/*.html`，单文件、无外部依赖，严格用 DESIGN-TOKENS 的值渲染（含明暗双主题）。
 - **exit 条件**：关键屏齐（主窗 / 列表编辑器 / 设置）+ 交互逻辑对 PRODUCT-SPEC 锁定 + 漂移台账逐条处置。
 - 单一 web 宿主：无 OS 菜单栏；宿主特例（托盘 / 热键 / 捕获窗 / picker）必须**先写进 PRODUCT-SPEC** 才允许实现，不允许评审时现场发明。
@@ -28,7 +28,7 @@
 
 ### 定线声明（owner 决策，2026-11-22）
 
-- 桌面 = **glaze 载体**：一套 Web UI 跨 macOS、Windows、Linux；owner 于 2026-11-22 确认退役原生三腿，具体实现另行切片。
+- 桌面 = **glaze 载体**：一套 Web UI 跨 macOS、Windows、Linux；原生三腿已于 2026-11-20 随 issue #141 退役。
 - 移动端 = **平台原生 app**（iOS/iPadOS 用 Swift；Android 需要时用 Kotlin；owner 2026-11-23 确认）。此处 HTML 只表达设计契约与交互规格，不把 glaze 载体扩展到移动端，也不复用 rivet 移动宿主；本轮不创建 Swift 工程，也不扩大到其他移动平台。
 - 家族设计依据：tlai-product 的 references/design-standard.md（2026-11-20-minimal-family）。本轮明确的 owner 定线优先于旧路由；不另建 token 真源。
 

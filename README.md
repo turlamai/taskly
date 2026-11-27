@@ -67,14 +67,10 @@ Development preview; no paid checkout is open. A future official desktop purchas
   with stable `--json` output, fixed exit codes, and byte-level
   cross-platform parity pinned by a 63-case golden suite. Spec:
   [CLI-SPEC](shared/spec/CLI-SPEC.md).
-- **Online updates (all platforms)** — silent check at launch plus a
-  manual check from Settings; the backend verifies the signed
-  [update manifest](shared/spec/UPDATE.md) (Ed25519) and downloads the
-  artifact, the host installs it. macOS swaps the bundle in place,
-  Windows swaps the install directory via a quit-and-install handoff,
-  Linux replaces an AppImage in place, directs deb/rpm and Flatpak
-  copies at the package manager (or `flatpak --user update`), and
-  opens the folder for portable tarballs.
+- **Signed update feed** — every release ships an Ed25519-signed
+  [update manifest](shared/spec/UPDATE.md) next to `SHA256SUMS`, so a
+  download can be verified. The in-app update check is not wired yet (see
+  Honest gaps).
 
 ## Honest gaps
 
@@ -86,6 +82,12 @@ Development preview; no paid checkout is open. A future official desktop purchas
   the glaze host ([notes](docs/UX-BENCHMARKS.md)).
 - **OS notification delivery is staged** (#131); reminder fields persist
   but nothing fires yet.
+- **In-app updates and the About dialog are not in the glaze host yet**
+  ([#157](https://github.com/turlamai/taskly/issues/157)). The engine
+  updater and the signed feed exist, but the app neither checks on launch
+  nor from Settings, and it has no About or in-app feedback entry. Update
+  by taking the new package from Releases, or through the package manager
+  for deb/rpm/Flatpak.
 - **macOS release signing** — the current tag-release workflow requires Developer ID signing and notarization; local development builds may be ad-hoc signed. Check the published release's trust status for the actual artifact.
 
 ## Install
@@ -95,7 +97,7 @@ Grab your build from
 The installed app is branded **Taskly**; lowercase `taskly` remains the
 CLI/package filename slug and does not change download URLs or data paths.
 
-| Platform | Portable zip (in-app updates) | Installer |
+| Platform | Portable zip | Installer |
 |---|---|---|
 | macOS Apple silicon | `taskly-<version>-macos-arm64.zip` | `taskly-<version>-macos-arm64.dmg` |
 | macOS Intel | `taskly-<version>-macos-x64.zip` | `taskly-<version>-macos-x64.dmg` |
@@ -105,9 +107,9 @@ CLI/package filename slug and does not change download URLs or data paths.
 | Linux ARM64 | `taskly-<version>-linux-arm64.tar.gz` | `taskly-<version>-linux-arm64.deb` / `taskly-<version>-1-linux-aarch64.rpm` / `taskly-<version>-linux-aarch64.AppImage` / `taskly-<version>-linux-arm64.flatpak` |
 
 Every release carries a `SHA256SUMS` manifest and a signed
-`update-manifest.json` — the in-app updater's feed. Portable zip,
-Windows MSI, and Linux AppImage installs update in place; every installed
-artifact is selected from and verified against the signed manifest.
+`update-manifest.json` (Ed25519) — the update feed. No installation
+updates itself yet (#157): take the new package from Releases, or use the
+package manager for deb/rpm/Flatpak.
 
 The current tag-release workflow requires Developer ID signing, notarization and verification. Older preview artifacts may be ad-hoc signed; consult the release's trust status. Do not disable system-wide protections. Verify the release checksum and use a trusted build; the installed bundle is `/Applications/Taskly.app`.
 
@@ -169,7 +171,7 @@ feedback channel, with templates for both
 [bug reports](https://github.com/turlamai/taskly/issues/new?template=bug_report.md)
 and
 [feature requests](https://github.com/turlamai/taskly/issues/new?template=feature_request.md).
-The in-app About dialog links to the same tracker on every platform.
+An in-app feedback entry returns with the About dialog (#157).
 
 ## License
 

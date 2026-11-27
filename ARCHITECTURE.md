@@ -1,10 +1,10 @@
 # Taskly Architecture — Shared Racket Core + Single glaze Host
 
-> Status: **Mainline** — the Rivet rebuild is the product line (single `main`
-> branch); one glaze host (web UI + thin native capabilities) ships on all
-> three desktop platforms from it. The migration history lives in git (the
-> pre-rewrite native line ends at commit `51c9c1c`; the three-native-host
-> line ends with the glaze rewrite, issue #141).
+> Status: **Mainline** — the glaze rewrite (issue #141) is the product line
+> (single `main` branch); one glaze host (web UI + thin native
+> capabilities) ships on all three desktop platforms from it. The migration
+> history lives in git (the pre-rewrite native line ends at commit
+> `51c9c1c`; the three-native-host line ends with the glaze rewrite).
 
 ## Decision
 
@@ -166,10 +166,13 @@ Capabilities Taskly has already driven upstream:
 4. glaze typed-route schema baselines, event bus push, tray/hotkey/autostart
    surfaces used by the thin host
 
-Open upstream gaps driven by this rewrite: glaze#140 (Windows capture
+Upstream gaps this rewrite drove, since closed: glaze#140 (Windows capture
 vertical flip), glaze#141 (tray on-event dead parameter / left click /
-TaskbarCreated). Remaining framework/product gaps include richer typed
-remote errors/diagnostics and production crash/lifecycle instrumentation.
+TaskbarCreated), and — found on the packaged Windows build — glaze#173 /
+#174 (console window and missing window icon) and glaze#175
+(`--replace-upgrade-code`, taking over another installer family). Remaining
+framework/product gaps include richer typed remote errors/diagnostics and
+production crash/lifecycle instrumentation.
 
 RVT1 remains protocol version 1. Records are schema/codegen constructs
 encoded as field-ordered RVT1 lists, so typed DTO support did not require a
