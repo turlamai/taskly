@@ -116,8 +116,10 @@ window.Taskly = (function () {
 
   function setTheme(mode) {
     const next = mode === 'light' || mode === 'dark' ? mode : 'system';
-    memTheme = next;
-    try { window.localStorage.setItem(THEME_KEY, next); } catch (e) { /* 仅当前页生效 */ }
+    try {
+      window.localStorage.setItem(THEME_KEY, next);
+      memTheme = null;
+    } catch (e) { memTheme = next; /* 仅当前页生效 */ }
     const st = applyTheme(next);
     notifyTheme(st);
     return st;
@@ -125,6 +127,14 @@ window.Taskly = (function () {
 
   function initTheme() {
     const st = applyTheme(readTheme());
+    window.addEventListener('storage', function (event) {
+      if (event.key !== THEME_KEY && event.key !== null) return;
+      // Ignore sessionStorage and unrelated storage areas.
+      try { if (event.storageArea !== window.localStorage) return; }
+      catch (e) { return; }
+      memTheme = null;
+      notifyTheme(applyTheme(readTheme()));
+    });
     if (window.matchMedia) {
       const mq = window.matchMedia('(prefers-color-scheme: dark)');
       const onSystem = function () {
