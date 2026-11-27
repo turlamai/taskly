@@ -26,7 +26,9 @@ window.Taskly = (function () {
     x: svg('<path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" ' + stroke + '/>'),
     theme: svg('<circle cx="8" cy="8" r="6.1" ' + stroke + '/><path d="M8 1.9a6.1 6.1 0 010 12.2z" fill="currentColor"/>'),
     trash: svg('<path d="M3.4 4.8h9.2M6.4 4.8V3.2h3.2v1.6M5.2 4.8l.5 8h4.6l.5-8" ' + stroke + '/>'),
-    pencil: svg('<path d="M10.8 2.9l2.3 2.3-7.5 7.5-3 .7.7-3 7.5-7.5z" ' + stroke + '/>')
+    pencil: svg('<path d="M10.8 2.9l2.3 2.3-7.5 7.5-3 .7.7-3 7.5-7.5z" ' + stroke + '/>'),
+    folder: svg('<path d="M1.9 4.5a1.1 1.1 0 011.1-1.1h3.2l1.4 1.6h5.4a1.1 1.1 0 011.1 1.1v6.4a1.1 1.1 0 01-1.1 1.1H3a1.1 1.1 0 01-1.1-1.1z" ' + stroke + '/>'),
+    file: svg('<path d="M4 1.9h4.9l3.2 3.2v8.3a.7.7 0 01-.7.7H4a.7.7 0 01-.7-.7V2.6a.7.7 0 01.7-.7z" ' + stroke + '/><path d="M8.9 1.9v3.2h3.2" ' + stroke + '/>')
   };
 
   const esc = function (s) {

@@ -31,13 +31,17 @@
 .database-dialog h2 { font-size: 20px; line-height: 1.4; margin-bottom: 16px; }
 .database-dialog p { font-size: 14px; line-height: 1.6; margin-bottom: 16px; color: var(--ink2); }
 .database-dialog .field { margin-bottom: 16px; }
-.database-dialog .database-help { font-size: 12px; color: var(--ink3); }
+.database-location.is-set .database-location-text { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+.database-location:focus-visible { outline: 2px solid var(--today); outline-offset: 1px; border-color: transparent; }
+.database-location[aria-invalid="true"] { border-color: var(--danger); }
 .database-dialog .database-error { color: var(--danger); }
 .database-confirm { white-space: pre-wrap; overflow-wrap: anywhere; }
-.database-pickrow { display: flex; align-items: center; gap: 8px; }
-.database-pickrow .input { flex: 1; min-width: 0; font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 13px; }
-.database-pickrow .input[aria-invalid="true"] { border-color: var(--danger); }
-.database-pickrow .btn { flex: none; height: 36px; font-size: 13px; font-weight: 500; }
+/* The location is one pop-up-style control: icon, location or the action name, chevron. */
+.database-location { width: 100%; height: 36px; justify-content: flex-start; gap: 8px; padding: 0 10px; font-size: 13px; font-weight: 400; text-align: left; }
+.database-location #databasePickIcon { display: grid; place-items: center; color: var(--ink2); }
+.database-location > .icon { width: 12px; height: 12px; color: var(--ink3); }
+.database-location-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.database-location:not(.is-set) .database-location-text { color: var(--ink2); }
 .database-menu-wrap { border-top: 1px solid var(--divider); padding-top: 8px; }
 .database-identity { font-size: 12px; line-height: 1.5; color: var(--ink2); overflow-wrap: anywhere; }
 .database-identity strong { display: block; font-size: 13px; color: var(--ink); }

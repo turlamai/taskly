@@ -72,31 +72,41 @@
   dialog.setAttribute('aria-labelledby', 'databaseDialogTitle');
   dialog.innerHTML = '<h2 id="databaseDialogTitle">创建数据库</h2><p id="databaseDialogDescription"></p>' +
     '<div id="databaseFields"><label class="field" id="databaseNameField"><span class="flabel">数据库名称</span><input class="input" id="databaseName" maxlength="64" autocomplete="off" value="我的任务"></label>' +
-    // Same shape as the product: the path is read-only and comes from the
-    // system picker. The prototype cannot open a native dialog, so the
-    // button stands in for it and returns a demo location.
-    '<div class="field"><div class="flabel" id="databasePathLabel">保存文件夹</div><div class="database-pickrow"><input class="input" id="databasePath" readonly maxlength="500" placeholder="尚未选择" aria-describedby="databasePathHelp databaseError"><button class="btn" type="button" id="databasePick">选择文件夹…</button></div><p class="database-help" id="databasePathHelp"></p></div></div>' +
+    // One control carries the whole intent: the location itself is the
+    // picker. Empty it names the action; once chosen it shows the location.
+    '<div class="field"><div class="flabel" id="databasePathLabel">保存文件夹</div><button class="btn database-location" type="button" id="databasePick" aria-labelledby="databasePathLabel databasePathText" aria-describedby="databaseError"><span id="databasePickIcon"></span><span class="database-location-text" id="databasePathText"></span>' + T.ICONS.chevDown + '</button></div></div>' +
     '<p class="database-confirm" id="databaseConfirm" hidden></p><p class="database-error" id="databaseError" role="alert" hidden></p>' +
     '<div class="database-actions"><button class="btn" type="button" id="databaseCancel">取消</button><button class="btn primary" type="button" id="databaseApply">创建并打开</button></div>';
   root.appendChild(dialog);
   const $ = function (id) { return dialog.querySelector('#' + id); };
+  let chosenPath = '';
+  const picksFile = function () { return mode === 'open' || mode === 'relocate'; };
+  function renderLocation() {
+    const text = $('databasePathText');
+    $('databasePickIcon').innerHTML = picksFile() ? T.ICONS.file : T.ICONS.folder;
+    $('databasePick').classList.toggle('is-set', !!chosenPath);
+    text.classList.toggle('is-path', !!chosenPath);
+    const shown = chosenPath.replace(/\//g, '\\'); // Recorded paths are canonical; show them the Windows way like the demo picks.
+    text.textContent = chosenPath ? shown : picksFile() ? '选择文件…' : '选择文件夹…';
+    text.title = shown;
+  }
   function fail(text) {
     $('databaseError').hidden = false;
     $('databaseError').textContent = text;
-    $('databasePath').setAttribute('aria-invalid', 'true');
+    $('databasePick').setAttribute('aria-invalid', 'true');
     $('databasePick').focus();
   }
   function clearError() {
     $('databaseError').hidden = true;
     $('databaseError').textContent = '';
-    $('databasePath').removeAttribute('aria-invalid');
+    $('databasePick').removeAttribute('aria-invalid');
   }
   // Stands in for the native folder / file picker the product opens.
   $('databasePick').addEventListener('click', function () {
-    const isFile = mode === 'open' || mode === 'relocate';
-    $('databasePath').value = isFile
+    chosenPath = picksFile()
       ? 'D:\\Sync\\Taskly\\工作\\taskly.sqlite'
       : mode === 'migrate' ? 'D:\\Sync\\Taskly\\新位置' : 'D:\\Sync\\Taskly\\我的任务';
+    renderLocation();
     clearError();
     $('databaseApply').focus();
   });
@@ -112,20 +122,18 @@
     const db = last();
     const titles = { create: '创建数据库', open: '打开已有数据库', migrate: '迁移数据库', relocate: '重新定位数据库', reveal: '所在文件夹' };
     $('databaseDialogTitle').textContent = titles[mode];
-    $('databaseDialogDescription').textContent = mode === 'create'
-      ? '在指定文件夹中创建 taskly.sqlite。'
-      : mode === 'open' ? '选择要打开的数据库文件。'
-      : mode === 'migrate' ? '选择目标文件夹，再确认迁移。原生应用应在迁移成功后切换，失败时继续使用原位置。此处仅模拟。'
-      : mode === 'relocate' ? '选择原数据库文件现在的位置。'
-      : '原生应用会在系统文件管理器中显示此文件夹。当前原型无法打开系统目录。';
+    // Only the two steps that need it get a sentence; the fields speak for the rest.
+    const description = mode === 'migrate'
+      ? '把数据库移到另一个文件夹。下一步会请你确认。'
+      : mode === 'reveal' ? '产品中直接在文件管理器里打开这个文件夹；原型只能显示路径。' : '';
+    $('databaseDialogDescription').textContent = description;
+    $('databaseDialogDescription').hidden = !description;
     $('databaseFields').hidden = mode === 'reveal';
     $('databaseNameField').hidden = mode !== 'create';
     $('databaseName').value = '我的任务';
-    const isFile = mode === 'open' || mode === 'relocate';
-    $('databasePathLabel').textContent = isFile ? '数据库文件' : '保存文件夹';
-    $('databasePick').textContent = isFile ? '选择文件…' : '选择文件夹…';
-    $('databasePath').value = mode === 'relocate' && db ? db.path : '';
-    $('databasePathHelp').textContent = '原型里按钮返回一个示例位置；产品中打开系统文件夹 / 文件选择框。';
+    $('databasePathLabel').textContent = picksFile() ? '数据库文件' : '保存文件夹';
+    chosenPath = mode === 'relocate' && db ? db.path : '';
+    renderLocation();
     $('databaseConfirm').hidden = mode !== 'reveal';
     $('databaseConfirm').textContent = db ? db.path.replace(/[/\\][^/\\]+$/, '') : '';
     $('databaseCancel').hidden = mode === 'reveal';
@@ -136,9 +144,12 @@
   }
   function apply() {
     if (mode === 'reveal') { dialog.close(); return; }
-    let path = canonical($('databasePath').value);
+    let path = canonical(chosenPath);
     const name = $('databaseName').value.trim();
-    if (!path) { fail('请选择一个位置。当前数据库保持不变。'); return; }
+    if (!path) {
+      fail(mode === 'create' ? '请选择保存文件夹。' : mode === 'migrate' ? '请选择要迁移到的文件夹。' : mode === 'relocate' ? '请选择数据库文件现在的位置。' : '请选择要打开的数据库文件。');
+      return;
+    }
     if (mode === 'create' && (!name || /[\\/:*?"<>|]/.test(name))) {
       fail('请填写名称，且不要包含 / \\ : * ? " < > |。'); $('databaseName').focus(); return;
     }
@@ -159,7 +170,7 @@
       confirmMigration = true;
       $('databaseFields').hidden = true;
       $('databaseConfirm').hidden = false;
-      $('databaseConfirm').textContent = '从：' + last().path + '\n迁移到：' + path + '\n全部任务随数据库保留。只有成功后才切换位置；失败时保留原位置。此处仅模拟。';
+      $('databaseConfirm').textContent = '从：' + last().path + '\n迁移到：' + path + '\n迁移成功后才会切换，任务全部保留。';
       $('databaseApply').textContent = '确认迁移';
       $('databaseCancel').focus(); return;
     }
