@@ -23,8 +23,8 @@ concurrency:
 # dependency, keel, resolves from the package catalog (keel main) through
 # `raco pkg install --auto` — the 2026-10 collision pin is gone (issue #129).
 env:
-  RIVET_PIN: 33de65ccb5d72f9ac38ff982aa4495467f89f213
-  GLAZE_PIN: e2731a3a1440c9cf705f2c0e77b945a3dec05e79
+  RIVET_PIN: 0db8b76396f70dde6d0a9c7935a0bd91d8c066f3
+  GLAZE_PIN: f23a4049621565b838e6183e83da9f7c526d1aba
 jobs:
   contract:
     name: Contract preflight (i18n + release metadata + generated surfaces)
