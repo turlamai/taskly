@@ -16,8 +16,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   → remove pass of the rpm in a stock Fedora container, upgrading from the
   previous published version; removing the package leaves user data in
   place.
+- Build: the pinned Glaze baseline moves to `f50e9fc` (was `f23a404`,
+  2026-11-24). The Windows fixes below arrive through this pin — glaze#174
+  (no console window, window icon) and glaze#175
+  (`--replace-upgrade-code`) are both after the old pin — together with
+  the tray fallback and Windows title-bar theme fixes since then. The
+  published 0.1.0 binaries were built on the old pin and do not contain
+  them.
 
 ### Fixed
+- Windows installed app (0.1.0): started from the Start menu, `Taskly.exe`
+  opened a console window that kept printing `[glaze-win-webview]` lines,
+  and its window had no icon (blank title-bar and task-bar button). Both
+  were in the Glaze host and are fixed upstream (glaze#173): a packaged app
+  without standard handles no longer gets a console, the WebView traces are
+  off unless `GLAZE_DEBUG=1`, and the window class loads the executable's
+  icon.
+- Windows MSI: installing it now replaces Taskly 0.2.13 (the line before
+  the 0.1.0 reset). The two packages belong to different installer
+  families, so 0.1.0 left the old entry in Apps & Features and the old
+  host's files next to `Taskly.exe` in the same directory. The package
+  passes the old family's `UpgradeCode` to
+  `raco glaze build --replace-upgrade-code` (glaze#175); user data in the
+  profile folder is not touched. Needs a build made after this change —
+  the published 0.1.0 MSI does not do this.
 - Windows MSI: Glaze installer UX and app-icon fix (#143).
 
 ## [0.1.0] - 2026-11-20
