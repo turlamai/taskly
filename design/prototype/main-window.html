@@ -52,7 +52,7 @@
 
         <div class="sect">标签</div>
         <div id="tags"></div>
-        <div class="sidebar-footer"><div class="database-identity"><strong data-db-name></strong></div><a class="sidebar-settings" href="settings.html">设置</a></div>
+        <div class="sidebar-footer"><div class="database-identity"><strong data-db-name></strong></div><a class="sidebar-settings" href="settings.html">设置<span class="upd-pill" id="updPill" hidden>新版本</span></a></div>
       </aside>
 
       <section class="pane">
@@ -868,6 +868,10 @@
     bind();
     loadDatabase(new URLSearchParams(location.search).get('list'));
     if (state.listId) $('#quickAdd').focus();
+
+    /* #157: the pill follows the Settings entry once the settings page reached the "available" state. */
+    const pill = $('#updPill');
+    if (pill) pill.hidden = T.preferences.get('upd-available', '') !== '1';
   }
 
   init();
