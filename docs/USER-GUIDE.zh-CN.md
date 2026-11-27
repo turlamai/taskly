@@ -14,7 +14,7 @@
 
 从[官方 Releases](https://github.com/turlamai/taskly/releases)选择明确标注系统和架构的附件，阅读该版本说明并核对附带校验文件。未列出的附件或平台不视为已交付。预览构建可能没有系统发行者签名或公证；不要为安装而关闭系统安全保护。
 
-- Windows：x64 MSI 会接入开始菜单和“应用和功能”，ZIP 是便携版。当前预览 MSI 尚无 Authenticode 签名，发行者信任与 SmartScreen 信誉还未达到生产发布标准。
+- Windows：x64 MSI 会接入开始菜单和“应用和功能”，ZIP 是便携版。当前预览 MSI 尚无 Authenticode 签名，发行者信任与 SmartScreen 信誉还未达到生产发布标准。安装 MSI 时会自动替换 Taskly 0.2.x（0.1.0 之前的那条产品线）：先移除“应用和功能”里的旧条目及其文件，用户目录下的数据保留。
 - macOS：打开 DMG，把 Taskly 拖入“应用程序”。当前预览版是临时签名，尚非 Developer ID 签名与公证；若 Gatekeeper 拒绝，不要因此关闭 Gatekeeper。
 - Linux：Debian/Ubuntu 使用 deb，Fedora 兼容系统使用 rpm，也可便携运行 AppImage，或使用 Flatpak 包（`flatpak --user install ./taskly-<版本>-linux-<架构>.flatpak`；包内只含应用本体，首次安装时会从 Flatpak 远端拉取 GNOME Platform 运行时）。系统包会安装桌面入口和图标；升级与卸载应使用同一个包管理器（或 `flatpak --user update`）。
 

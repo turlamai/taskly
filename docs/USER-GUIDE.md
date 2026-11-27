@@ -14,7 +14,7 @@ Desktop previews for macOS, Windows and Linux. Select the OS and CPU shown on th
 
 Use [official Releases](https://github.com/turlamai/taskly/releases), select an explicitly listed OS/architecture asset, read its release notes and check supplied checksums. An absent asset/platform is not a delivery promise. Preview builds may lack publisher signing or notarization; do not disable system-wide security protections to install them.
 
-- Windows: use the x64 MSI for Start-menu and Apps & Features integration, or the ZIP for a portable copy. Current preview MSI files are not Authenticode-signed, so publisher trust and SmartScreen reputation are not production-ready.
+- Windows: use the x64 MSI for Start-menu and Apps & Features integration, or the ZIP for a portable copy. Current preview MSI files are not Authenticode-signed, so publisher trust and SmartScreen reputation are not production-ready. Installing the MSI replaces Taskly 0.2.x (the line before 0.1.0) by itself: the old entry in Apps & Features and its files are removed first, and your data in your user-profile folder is kept.
 - macOS: open the DMG and drag Taskly to Applications. Current previews are ad-hoc signed rather than Developer ID signed/notarized; a Gatekeeper rejection is not a prompt to disable Gatekeeper.
 - Linux: use deb on Debian/Ubuntu, rpm on Fedora-compatible systems, AppImage for a portable launch, or the Flatpak bundle (`flatpak --user install ./taskly-<version>-linux-<arch>.flatpak`; the bundle carries the app payload only and pulls the GNOME Platform runtime from your Flatpak remote on first install). The packages install a desktop entry and icon; use the same package manager (or `flatpak --user update`) for upgrades and removal.
 

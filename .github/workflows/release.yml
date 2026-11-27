@@ -433,6 +433,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # 0.2.13 (the line before the 0.1.0 reset) shipped an MSI whose
+          # UpgradeCode was derived from a different identifier, so a new
+          # package did not see it: two "Taskly" entries, one directory with
+          # the old host's files next to Taskly.exe. Installing this package
+          # now uninstalls that product first; user data under ~/.taskly is
+          # not part of either package and stays.
           raco glaze build \
             --entry backend/main.rkt \
             --name Taskly \
@@ -440,6 +446,7 @@ jobs:
             --publisher 'Turing Lambda' \
             --identifier app.taskly.Taskly \
             --icon assets/taskly.ico \
+            --replace-upgrade-code '{D828976E-2BC4-5296-A277-674B7AE6F9A7}' \
             --installer \
             --out dist
           test -f dist/Taskly.msi
