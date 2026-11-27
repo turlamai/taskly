@@ -97,11 +97,11 @@ every platform. Never a text dropdown of hex values.
 
 | Token | Value |
 |---|---|
-| window default | 1280×880 (min 760×520 logical) |
+| window default | 1100×760 (min 760×520 logical; PRODUCT-SPEC §2) |
 | sidebar collapse | toggle sets the column width to 0 (releasing MinWidth) — a fixed MinWidth must not clamp the collapsed state |
 | sidebar width | 280 (200…420) |
 | menu bar / status bar height | 32 / 28 |
-| smart-list chip | 2×2 grid of 34px chips (radius 8, 8px gaps): neutral surface fill + 1px divider, horizontal content = colored glyph (14px, view semantic color) + 13px label + quiet 12px count right; checked = quiet selection fill (VSM), hover = hover fill; saturated color never fills the chip — color lives on the glyph (macOS Reminders language) |
+| smart-list chip | 2×2 grid of 36px chips (radius 8, 8px gaps): neutral surface fill + 1px divider, horizontal content = colored glyph (view semantic color) + 13px label + quiet 12px count right; checked = quiet selection fill, hover = hover fill; saturated color never fills the chip — color lives on the glyph (macOS Reminders language) |
 | list row | card: surface fill + 1px divider border, radius 8, padding 8,5; 20px round color dot with the emoji inside (12px), name 13px, gray count right — compact, aligned with the sidebar icon column |
 | list icon size | 32 (round) |
 | checkbox size | 20px ring in the task's list color (accent fallback), resting ring mixed 82% toward ink for definition; completed = list-color fill with a white check |
@@ -114,9 +114,9 @@ every platform. Never a text dropdown of hex values.
 | input fields | search 30px, quick add 36px, radius 10, 1px input-border |
 | font stack | system UI font of the platform (`-apple-system` / Segoe UI / GNOME default), CJK fallback PingFang SC / Microsoft YaHei / Noto Sans CJK SC |
 
-Tile glyphs are monochrome platform icon fonts (Windows: Segoe Fluent Icons;
-macOS: SF Symbols; Linux: symbolic icons), not emoji — mixed emoji/text runs
-render fallback debris on some stacks.
+Tile glyphs are the prototype's monochrome inline SVG set (`ICONS` in
+`design/prototype/shared.js`: 20px box, same weight as the other line
+icons), one set on every platform — not platform icon fonts and not emoji.
 
 ## Inline quick editor (Things/Reminders style)
 

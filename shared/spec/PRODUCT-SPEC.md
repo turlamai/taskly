@@ -31,11 +31,12 @@ README's honest gaps).
   Show Completed toggle — Reminders convention). The quick-add field is
   the task pane's only input, directly under the large view title.
 - Sidebar collapse toggle (`‹`/`›`); the task pane takes the full width.
-- Windows tray presence: while the app runs, the notification area shows the
-  brand tray icon (the EXE icon — never the system default placeholder).
+- Tray presence (wherever the glaze host supports a tray, `tray-supported?`
+  in `backend/main.rkt`): while the app runs, the notification area shows the
+  brand tray icon (the app icon — never the system default placeholder).
   Left click (or the tray menu's 显示 Taskly) shows/restores the window;
-  the menu offers 显示 Taskly and 退出; the icon is re-added after an
-  Explorer restart (TaskbarCreated). Tray loss or denial disables
+  the menu offers 显示 Taskly and 退出; on Windows the icon is re-added
+  after an Explorer restart (TaskbarCreated). Tray loss or denial disables
   reminders but never startup.
 
 ## 2a. Database lifecycle (all platforms)
@@ -117,10 +118,10 @@ the backup format live in DATA-FORMAT (§7 keys, §9 backup).
 
 ## 3. Sidebar
 
-- 2×2 smart-view tiles, fixed semantic colors (DESIGN-TOKENS), platform
-  glyphs (macOS SF Symbols `calendar` / `calendar.badge.clock` / `tray.full`
-  / `checkmark.circle`), quiet chip fill with the color on the glyph, count
-  top-right: Today `#007AFF` · Planned `#FF3B30` · All `#8E8E93` ·
+- 2×2 smart-view tiles, fixed semantic colors (DESIGN-TOKENS), the
+  prototype's inline SVG glyphs (`ICONS` in `design/prototype/shared.js`:
+  today / planned / all / completed — one set on every platform), quiet
+  chip fill with the color on the glyph, count on the right: Today `#007AFF` · Planned `#FF3B30` · All `#8E8E93` ·
   Completed `#8E8E93`. Counts: today = due today & incomplete; planned =
   has date & incomplete; all = incomplete; completed = completed.
 - "My Lists" collapsible section with a `✚` add button → create-list sheet.
@@ -196,9 +197,10 @@ the backup format live in DATA-FORMAT (§7 keys, §9 backup).
   complete draft for correction and retry. Title, notes, date and time form
   one draft: no field is persisted until the edit commits. A blank edited
   title retains the stored title rather than creating an invalid task.
-- Context menu: Toggle Completed, quick reschedule (今天 / 明天 /
-  自定日期 / 清除 — the explicit entry points for changing a due
-  date), Details, Delete, and Move to List ▸ (other lists,
+- Context menu (**staged contract target**: not in the shipped interaction
+  set of §5b and not in the prototype): Toggle Completed, quick reschedule
+  (今天 / 明天 / 自定日期 / 清除 — the explicit entry points for changing
+  a due date), Details, Delete, and Move to List ▸ (other lists,
   `{icon} {name}`) when they exist.
 
 ## 5b. Task interactions (Reminders parity)
@@ -358,7 +360,9 @@ of softening the Windows/Linux requirement.
 > tray menu (show / quick add / quit), the settings dialog and keyboard.
 > Database actions live in the settings 数据 group and the first-run gate;
 > Install/Uninstall CLI is the CLI's own `install-cli`/`uninstall-cli`.
-> Accelerators other than Ctrl/⌘+K are staged contract targets (§5b).
+> Accelerators other than Ctrl/⌘+K and `/` (both focus search) are staged
+> contract targets (§5b). The File / View / Tools lines below are the
+> information-architecture map for those targets, not shipped menus.
 
 - File: New Database (Ctrl+Shift+N — the §2a create flow: folder picker +
   name entry, exclusive `taskly.sqlite`), Open Database (Ctrl+O,
@@ -374,26 +378,24 @@ of softening the Windows/Linux requirement.
   current database + reveal, migrate, open another, create, export JSON,
   restore backup) share the same window IA on every host; follow-system tracks
   OS personalization live — plus the auto-check-updates preference
-  (config `auto-check-updates`, default on). The three preferences share
-  one information architecture on every host and live in the
-  platform-conventional settings surface, never as toggles in a menu-bar
-  menu (menu-bar toggles are view state only — Show Completed stays in
-  the View menu): macOS hosts them in the standard Settings window
-  (⌘,, entered from the app-menu 设置… item); Windows and Linux host an
-  equivalent settings window/dialog entered from the Help menu's 设置…
-  item, with Ctrl+, on both. Windows reads the persisted language and
-  theme before first window activation (no temporary English/light
-  frame); the backend settings RPC remains authoritative once connected.
-  macOS follows the system appearance at launch and live. Async persistence
+  (config `auto-check-updates`, default on). The preferences share one
+  information architecture on every platform: the settings sheet, opened
+  from the sidebar's 设置 button, never as toggles in a menu (a menu-less
+  host has no view-state menu; Show Completed stays the header toggle).
+  The persisted theme is applied at startup and follow-system tracks the
+  OS appearance live (`apps/desktop/src/theme.ts`); the backend settings
+  RPC remains authoritative once connected. Async persistence
   acknowledgements must **not** overwrite local settings changed since the
   request began (including `last-selected-list-id`, theme and language).
   The locally selected list remains authoritative through overlapping
   preferences saves; the backend result confirms persistence or an error.
-  Plus 检查更新… /
-  Check for Updates… (manual online-update check — app menu on macOS,
-  Help menu on Windows; auto-check runs at
-  launch and every 4 h — contract: `UPDATE.md`).
-- Help: About — `Taskly v<version>` + `© 2026 Taskly Team` +
+  **检查更新… / Check for Updates… and About are not in the web UI**
+  (regressed with the native menus, tracked in #157): the engine RPC
+  `check_updates` and the updater exist, but no launch or manual check
+  runs today. `UPDATE.md` stays the contract for their return; until then
+  the user updates by downloading the new package.
+- Help: About — **not in the web UI yet (#157)**; the contract for its
+  return: `Taskly v<version>` + `© 2026 Taskly Team` +
   `aboutContent` + license line (`aboutLicense`) + link buttons on every
   host: Website (`aboutWebsite` → taskly.jrtx.site), User Manual
   (`aboutManual` → taskly.jrtx.site/manual.html), Changelog
@@ -406,8 +408,9 @@ of softening the Windows/Linux requirement.
   copy confirmation is a transient status message. Diagnostics labels
   are English fixed strings (machine-oriented, like the CLI's `--json`).
   Every platform renders the same web dialog layout (single glaze host).
-- Accelerators: Ctrl/⌘+K (search focus) ships window-wide; the remaining
-  accelerators in §5b are staged contract targets.
+- Accelerators: Ctrl/⌘+K (search focus) and `/` (search focus outside a
+  text field) ship window-wide; the remaining accelerators in §5b are
+  staged contract targets.
 
 ## 9. Reminders (all platforms)
 

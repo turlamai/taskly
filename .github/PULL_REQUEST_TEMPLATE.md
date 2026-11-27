@@ -10,12 +10,13 @@ What changed and why. Link the issue it closes (`Fixes #NNN`) when there is one.
 
 The RVT1 contract (`racket/taskly/backend.rkt` RPC/Event/State surface) is
 cross-platform: changing any of it is a three-platform release, with the
-checked-in generated clients regenerated in the same commit.
+checked-in generated surfaces regenerated in the same commit
+(`scripts/gen-rpc-types.py` → `packages/core/src/rpc.ts`, `raco glaze schema
+write` → `glaze-schema.json`).
 
 - [ ] No backend contract changes (RPC/Event/State untouched)
-- [ ] `raco rivet build` run; the three tracked clients diff clean
-      (`linux/GeneratedBackend.hpp`, `windows/GeneratedBackend.hpp`,
-      `macos-host/Sources/RivetHost/GeneratedBackend.swift`)
+- [ ] Contract changed: both generated surfaces regenerated and
+      `scripts/check-rpc-surface.py` + `raco glaze schema check --json` clean
 - [ ] CLI behavior change: `shared/spec/CLI-SPEC.md` updated first and the
       golden suite re-recorded (`shared/cli-golden/`)
 - [ ] `scripts/sync-i18n.sh --check` clean for changes under `shared/i18n/`
@@ -23,9 +24,10 @@ checked-in generated clients regenerated in the same commit.
 
 ## Tests
 
-How this is covered: `raco test racket/`, the golden CLI suite, platform
-host builds, `raco rivet acceptance --json`, or a new test added in the
-same commit.
+How this is covered: `raco test racket/`, the golden CLI suite, the glaze
+adapter tests, `racket verify.rkt` (real-window §6 journeys on the three
+platforms in CI), `racket scripts/acceptance/run-suites.rkt` for a release
+slice, or a new test added in the same commit.
 
 ## Checklist
 
