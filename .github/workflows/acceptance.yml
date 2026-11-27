@@ -19,7 +19,7 @@ concurrency:
 # Same pins as ci.yml (scripts/check-dependency-pins.sh gates the alignment).
 env:
   RIVET_PIN: 0db8b76396f70dde6d0a9c7935a0bd91d8c066f3
-  GLAZE_PIN: f23a4049621565b838e6183e83da9f7c526d1aba
+  GLAZE_PIN: f50e9fc133b1c4e08b56e5f9661e7d6672dbcfa6
 
 # Executable acceptance for the glaze rewrite (issue #141): verify.rkt boots
 # the REAL packaged-shape app (thin host + web UI + in-process engine) in a

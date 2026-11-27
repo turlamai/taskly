@@ -21,7 +21,7 @@ concurrency:
 # dependency keel resolves from the package catalog through --auto.
 env:
   RIVET_PIN: 0db8b76396f70dde6d0a9c7935a0bd91d8c066f3
-  GLAZE_PIN: f23a4049621565b838e6183e83da9f7c526d1aba
+  GLAZE_PIN: f50e9fc133b1c4e08b56e5f9661e7d6672dbcfa6
 jobs:
   validate:
     name: Validate release tag + signing key

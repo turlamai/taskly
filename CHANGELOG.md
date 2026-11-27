@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   → remove pass of the rpm in a stock Fedora container, upgrading from the
   previous published version; removing the package leaves user data in
   place.
+- Build: the pinned Glaze baseline moves to `f50e9fc` (was `f23a404`,
+  2026-11-24). The Windows fixes below arrive through this pin — glaze#174
+  (no console window, window icon) and glaze#175
+  (`--replace-upgrade-code`) are both after the old pin — together with
+  the tray fallback and Windows title-bar theme fixes since then. The
+  published 0.1.0 binaries were built on the old pin and do not contain
+  them.
 
 ### Fixed
 - Windows installed app (0.1.0): started from the Start menu, `Taskly.exe`
