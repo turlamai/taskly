@@ -67,10 +67,12 @@ Development preview; no paid checkout is open. A future official desktop purchas
   with stable `--json` output, fixed exit codes, and byte-level
   cross-platform parity pinned by a 63-case golden suite. Spec:
   [CLI-SPEC](shared/spec/CLI-SPEC.md).
-- **Signed update feed** — every release ships an Ed25519-signed
-  [update manifest](shared/spec/UPDATE.md) next to `SHA256SUMS`, so a
-  download can be verified. The in-app update check is not wired yet (see
-  Honest gaps).
+- **Online updates (all platforms)** — silent check at launch (at most
+  once every 4 hours, toggleable) plus a manual check in Settings → About;
+  the backend verifies the signed
+  [update manifest](shared/spec/UPDATE.md) (Ed25519). When a newer version
+  exists the app says so and opens the releases page — the current desktop
+  host does not download or install in place.
 
 ## Honest gaps
 
@@ -82,12 +84,6 @@ Development preview; no paid checkout is open. A future official desktop purchas
   the glaze host ([notes](docs/UX-BENCHMARKS.md)).
 - **OS notification delivery is staged** (#131); reminder fields persist
   but nothing fires yet.
-- **In-app updates and the About dialog are not in the glaze host yet**
-  ([#157](https://github.com/turlamai/taskly/issues/157)). The engine
-  updater and the signed feed exist, but the app neither checks on launch
-  nor from Settings, and it has no About or in-app feedback entry. Update
-  by taking the new package from Releases, or through the package manager
-  for deb/rpm/Flatpak.
 - **macOS release signing** — the current tag-release workflow requires Developer ID signing and notarization; local development builds may be ad-hoc signed. Check the published release's trust status for the actual artifact.
 
 ## Install
@@ -107,9 +103,9 @@ CLI/package filename slug and does not change download URLs or data paths.
 | Linux ARM64 | `taskly-<version>-linux-arm64.tar.gz` | `taskly-<version>-linux-arm64.deb` / `taskly-<version>-1-linux-aarch64.rpm` / `taskly-<version>-linux-aarch64.AppImage` / `taskly-<version>-linux-arm64.flatpak` |
 
 Every release carries a `SHA256SUMS` manifest and a signed
-`update-manifest.json` (Ed25519) — the update feed. No installation
-updates itself yet (#157): take the new package from Releases, or use the
-package manager for deb/rpm/Flatpak.
+`update-manifest.json` — the update checker's feed. The app checks it
+and opens the releases page; installing is manual (download, verify
+against `SHA256SUMS`, run the installer or unpack the archive).
 
 The current tag-release workflow requires Developer ID signing, notarization and verification. Older preview artifacts may be ad-hoc signed; consult the release's trust status. Do not disable system-wide protections. Verify the release checksum and use a trusted build; the installed bundle is `/Applications/Taskly.app`.
 
@@ -171,7 +167,7 @@ feedback channel, with templates for both
 [bug reports](https://github.com/turlamai/taskly/issues/new?template=bug_report.md)
 and
 [feature requests](https://github.com/turlamai/taskly/issues/new?template=feature_request.md).
-An in-app feedback entry returns with the About dialog (#157).
+The About group in Settings links to the same tracker on every platform.
 
 ## License
 

@@ -613,6 +613,15 @@
    (nullable (hash-ref s 'downloadedPath #f))
    (nullable (hash-ref s 'availableVersion #f))))
 
+;; Identity and data locations for the settings 关于 group (#157). Reads
+;; only release constants and paths; touches no network and no database.
+(define-rpc (app_info : AppInfo)
+  (AppInfo app-version
+           (symbol->string (platform-symbol))
+           (symbol->string (architecture-symbol))
+           (path->string (resolve-database-path))
+           (path->string (config-file-path))))
+
 ;; Native embedded hosts pass anonymous pipe file descriptors here.
 (define (start in-fd out-fd)
   (serve-fds in-fd out-fd))

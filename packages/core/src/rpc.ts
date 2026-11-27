@@ -5,6 +5,14 @@ import { apiPost } from './bridge';
 
 // ---- records (camelCase DTOs; field order on the wire is the schema's) ----
 
+export interface AppInfo {
+  version: string;
+  platform: string;
+  architecture: string;
+  databasePath: string;
+  configPath: string;
+}
+
 export interface BackupPreview {
   format: string;
   version: number;
@@ -101,6 +109,7 @@ export interface UpdateState {
 export const RPC_NAMES = [
   'acknowledge_reminder',
   'add_task',
+  'app_info',
   'check_updates',
   'close_database',
   'create_database',
@@ -135,6 +144,10 @@ export function acknowledgeReminder(token: string, phase: string): Promise<boole
 
 export function addTask(text: string, listId: number | null, dueDate: string | null, dueTime: string | null, notes: string | null): Promise<Task> {
   return apiPost<Task>('api/rpc/add_task', { text, listId: listId ?? null, dueDate: dueDate ?? null, dueTime: dueTime ?? null, notes: notes ?? null });
+}
+
+export function appInfo(): Promise<AppInfo> {
+  return apiPost<AppInfo>('api/rpc/app_info', {  });
 }
 
 export function checkUpdates(): Promise<UpdateCheck> {

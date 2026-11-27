@@ -31,14 +31,13 @@ Taskly 构建在 [Rivet](https://github.com/turlamai/rivet)（类型化 RPC 契�
 - **提醒（staged）**——提醒字段可编辑并持久化，但 OS 通知投递仍在 [#131](https://github.com/turlamai/taskly/issues/131) 跟进，暂不承诺横幅。
 - **单文件数据，位置由你选**——首次启动请你在自选文件夹创建数据库（`taskly.sqlite`）或打开已有数据库；不会静默指定默认位置，设置页显示当前位置并提供所在文件夹、迁移与备份操作。文件为 SQLite（WAL）。退出应用后再备份；云文件夹复制不提供安全的数据库并发同步。格式文档化且稳定：[DATA-FORMAT](shared/spec/DATA-FORMAT.md)。
 - **面向 agent 的 CLI**——`taskly list|add|update|done|rm|search|mklist…`，`--json` 输出稳定、退出码固定、跨平台字节级一致（63 例 golden 套件钉死）。规格：[CLI-SPEC](shared/spec/CLI-SPEC.md)。
-- **签名的更新 feed**——每个版本随 `SHA256SUMS` 一并提供 Ed25519 签名的[更新清单](shared/spec/UPDATE.md)，供校验下载；应用内更新检查尚未接通（见「诚实差距」）。
+- **在线更新（三平台）**——启动时静默检查（最多每四小时一次，可关闭）+ 设置 → 关于 里手动检查；后端验证 [更新清单](shared/spec/UPDATE.md)（Ed25519）。发现新版本时应用会提示并打开发布页——当前桌面宿主不做应用内下载与原地安装。
 
 ## 诚实差距
 
 - **发布包暂不含独立 CLI 二进制**——CLI 目前从源码运行（见下节），打包分发在路线图上。
 - **多选/批量操作、↑/↓ 行导航与共享应用快捷键（Ctrl/⌘+1…4、N、F、⇧C）**是对标目标，glaze 宿主尚未落地（[笔记](docs/UX-BENCHMARKS.md)）。
 - **OS 通知投递 staged**（#131）：提醒字段持久化但暂不触发。
-- **应用内更新与「关于」对话框尚未落地 glaze 宿主**（[#157](https://github.com/turlamai/taskly/issues/157)）：引擎侧 updater 与签名 feed 都在，但应用既不会在启动时检查、设置里也没有手动检查入口，且没有「关于」和应用内反馈入口。更新请到 Releases 下载新包，deb/rpm/Flatpak 走包管理器。
 - **macOS 包为 ad-hoc 签名**——Developer ID 签名与公证尚未完成（[#80](https://github.com/turlamai/taskly/issues/80)）。
 
 ## 安装
@@ -54,7 +53,7 @@ Taskly 构建在 [Rivet](https://github.com/turlamai/rivet)（类型化 RPC 契�
 | Linux x64 | `taskly-<version>-linux-x64.tar.gz` | `taskly-<version>-linux-amd64.deb` / `taskly-<version>-1-linux-x86_64.rpm` / `taskly-<version>-linux-x86_64.AppImage` / `taskly-<version>-linux-x64.flatpak` |
 | Linux ARM64 | `taskly-<version>-linux-arm64.tar.gz` | `taskly-<version>-linux-arm64.deb` / `taskly-<version>-1-linux-aarch64.rpm` / `taskly-<version>-linux-aarch64.AppImage` / `taskly-<version>-linux-arm64.flatpak` |
 
-每个版本都带 `SHA256SUMS` 清单和签名的 `update-manifest.json`（Ed25519），即更新 feed。目前任何安装形态都不会自行更新（#157）：请到 Releases 下载新包，deb/rpm/Flatpak 走包管理器。
+每个版本都带 `SHA256SUMS` 清单和签名的 `update-manifest.json`（更新检查的 feed）。应用只做检查并打开发布页；安装由你手动完成（下载、对照 `SHA256SUMS` 校验、运行安装器或解压）。
 
 macOS 包为 ad-hoc 签名，未做 Developer ID 签名与公证。预览版被 Gatekeeper 拦截属预期：不要关闭系统防护；请核对发布校验和并使用可信构建。安装后的 bundle 是 `/Applications/Taskly.app`。
 
@@ -99,7 +98,7 @@ python3 shared/cli-golden/runner.py --binary scripts/taskly-cli.sh   # 63 例 go
 
 ## 反馈
 
-Taskly 本地优先、无遥测，反馈统一走 [GitHub issues](https://github.com/turlamai/taskly/issues)：[Bug 报告](https://github.com/turlamai/taskly/issues/new?template=bug_report.md)和[功能请求](https://github.com/turlamai/taskly/issues/new?template=feature_request.md)都有模板。应用内反馈入口将随「关于」对话框一起补回（#157）。
+Taskly 本地优先、无遥测，反馈统一走 [GitHub issues](https://github.com/turlamai/taskly/issues)：[Bug 报告](https://github.com/turlamai/taskly/issues/new?template=bug_report.md)和[功能请求](https://github.com/turlamai/taskly/issues/new?template=feature_request.md)都有模板。设置 → 关于 里也有同一入口。
 
 ## 许可证
 

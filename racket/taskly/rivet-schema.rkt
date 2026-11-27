@@ -100,6 +100,17 @@
    [downloaded-path : (Optional String)]
    [available-version : (Optional String)]))
 
+;; Result of app_info: release identity and data locations for the settings
+;; 关于 group and its diagnostics block (#157). Platform and architecture
+;; are the engine's release identity; the paths are the same strings the
+;; 数据 group reports.
+(define-record AppInfo
+  ([version : String]
+   [platform : String]
+   [architecture : String]
+   [database-path : String]
+   [config-path : String]))
+
 ;; Result of preview_backup: what restore_backup would replace, so the host
 ;; can show the counts inside its confirmation dialog before applying.
 ;; Validation failures raise instead of filling this record.

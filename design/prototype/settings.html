@@ -90,6 +90,29 @@
   .settings-dialog h2 { font-size: 18px; margin-bottom: 16px; }
   .settings-dialog p { font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
   .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+
+  /* 关于（#157）：身份与链接一列；版本号与诊断走等宽角色；诊断默认折叠 */
+  .about { --mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; padding: 12px 0 4px; }
+  .about-name { font-size: 16px; font-weight: 600; color: var(--ink); }
+  .about-ver { margin-left: 8px; font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--ink2); font-variant-numeric: tabular-nums; }
+  .about-tag { margin: 6px 0 0; font-size: 13px; line-height: 1.6; color: var(--ink2); }
+  .about-legal { margin: 2px 0 0; font-size: 12px; line-height: 1.6; color: var(--ink3); }
+  .about-links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; }
+  .about-links a { font-size: 13px; color: var(--ink2); text-underline-offset: 2px; }
+  .about-links a:hover { color: var(--ink); }
+  .about-links a:focus-visible { color: var(--ink); outline: 2px solid var(--today); outline-offset: 2px; }
+  .fhelp.ok { color: var(--success); }
+  .fhelp.err { color: var(--danger); }
+  .checkrow { display: flex; align-items: center; flex: none; }
+  .checkrow input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  .about-diag { padding: 10px 0 4px; font-size: 12px; color: var(--ink2); }
+  .about-diag summary { cursor: pointer; }
+  .about-diag summary:focus-visible { outline: 2px solid var(--today); outline-offset: 2px; }
+  .about-diag pre {
+    margin: 8px 0; padding: 10px 12px; border: 1px solid var(--divider); border-radius: 8px;
+    background: var(--sidebar); font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--ink2);
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
   @media (max-width: 520px) { body { padding: 16px; } .window.setwin { max-height: calc(100dvh - 32px); } .frow { flex-wrap: wrap; gap: 8px; } .setnote { flex-wrap: wrap; } }
 </style>
 </head>
@@ -196,6 +219,37 @@
         </div>
         <p class="data-note">数据库由你持有，不绑定账号或云服务。此处为交互原型：创建、打开和迁移仅为模拟；JSON 仅交换演示任务，不读写真实 SQLite 文件。</p>
         <p class="data-feedback" id="dataFeedback" role="status"></p>
+      </div>
+
+      <div class="group">
+        <h2 class="gtitle">关于</h2>
+        <div class="about">
+          <div class="about-name">Taskly<span class="about-ver">0.1.0</span></div>
+          <p class="about-tag">一款专注高效的个人任务管理工具<br>帮助你轻松规划、组织和完成各项任务</p>
+          <p class="about-legal">© 2026 Taskly Team · 以 BUSL-1.1 授权发布（源码可得）</p>
+          <div class="about-links">
+            <a href="https://taskly.jrtx.site" target="_blank" rel="noreferrer">官网</a>
+            <a href="https://taskly.jrtx.site/manual.html" target="_blank" rel="noreferrer">使用手册</a>
+            <a href="https://github.com/turlamai/taskly/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">更新日志</a>
+            <a href="https://github.com/turlamai/taskly/issues" target="_blank" rel="noreferrer">问题反馈</a>
+          </div>
+        </div>
+        <div class="frow">
+          <div>
+            <div class="flabel" id="updLabel">软件更新</div>
+            <div class="fhelp" id="updHelp">启动后自动检查，最多每四小时一次。</div>
+          </div>
+          <button class="btn" type="button" id="updBtn" aria-labelledby="updLabel">检查更新…</button>
+        </div>
+        <div class="frow">
+          <div><div class="flabel" id="updAutoLabel">自动检查更新</div><div class="fhelp">关闭后不再自动联网，只在你点击时检查</div></div>
+          <label class="checkrow"><input type="checkbox" id="updAutoChk" checked aria-labelledby="updAutoLabel"></label>
+        </div>
+        <details class="about-diag" id="diag">
+          <summary>诊断信息</summary>
+          <pre id="diagPre"></pre>
+          <button class="linkbtn" type="button" id="diagCopy">复制诊断信息</button><span class="fhelp" id="diagCopied" role="status" style="margin-left: 8px"></span>
+        </details>
       </div>
     </div>
     <dialog class="settings-dialog" id="dataDialog" aria-labelledby="dataDialogTitle">
@@ -420,6 +474,54 @@
     renderShortcut();
     scBtn.focus();
     T.announce('已清除快捷键，快速添加仍可从菜单打开');
+  });
+
+  /* ---- 关于 / 软件更新（#157）---- */
+  /* 原型按序演示终态：每次点击经历「检查中」后轮到 已是最新 → 有新版本 → 失败。 */
+  $('#diagPre').textContent = [
+    'Taskly 0.1.0',
+    'windows x64 · Windows 10.0.26100',
+    'Database: C:\\Users\\you\\Documents\\Taskly\\taskly.sqlite',
+    'Config: C:\\Users\\you\\AppData\\Roaming\\Taskly\\config.ini'
+  ].join('\n');
+  const updBtn = $('#updBtn');
+  const updHelp = $('#updHelp');
+  const UPD_IDLE = { help: '启动后自动检查，最多每四小时一次。' };
+  const UPD_STATES = [
+    { help: '已是最新版本。', cls: 'ok', btn: '检查更新…', primary: false },
+    { help: '有新版本 0.1.1（2026-11-30 发布）。到下载页获取，安装会替换现有版本，任务数据不受影响。', cls: '', btn: '前往下载页', primary: true },
+    { help: '无法检查更新：连接更新服务器超时。请检查网络后重试。', cls: 'err', btn: '重试', primary: false }
+  ];
+  let updIndex = -1;
+  let updBusy = false;
+  function renderUpdate(state) {
+    updHelp.textContent = state.help;
+    updHelp.className = 'fhelp' + (state.cls ? ' ' + state.cls : '');
+    updBtn.textContent = state.btn || '检查更新…';
+    updBtn.classList.toggle('primary', !!state.primary);
+    updBtn.disabled = false;
+  }
+  updBtn.addEventListener('click', function () {
+    if (updBusy) return;
+    if (updBtn.classList.contains('primary')) { T.announce('原型：此处会在浏览器打开发布页。'); return; }
+    updBusy = true;
+    updHelp.textContent = '正在检查…'; updHelp.className = 'fhelp';
+    updBtn.textContent = '正在检查…'; updBtn.disabled = true;
+    T.announce('正在检查更新');
+    setTimeout(function () {
+      updBusy = false;
+      updIndex = (updIndex + 1) % UPD_STATES.length;
+      renderUpdate(UPD_STATES[updIndex]);
+      T.preferences.set('upd-available', updIndex === 1 ? '1' : '');
+      T.announce(UPD_STATES[updIndex].help);
+    }, 700);
+  });
+  $('#updAutoChk').addEventListener('change', function () {
+    T.announce(this.checked ? '已开启自动检查更新' : '已关闭自动检查更新，只在手动点击时检查');
+  });
+  $('#diagCopy').addEventListener('click', function () {
+    $('#diagCopied').textContent = '已复制';
+    T.announce('诊断信息已复制');
   });
 
   renderShortcut();

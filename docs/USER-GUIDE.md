@@ -36,15 +36,15 @@ The ⓘ button on a task row opens the task details popover on every platform: c
 
 ## Network, keys and privacy
 
-Core task use is local. Links you open contact external services. The app makes no network request of its own today: the in-app update check is not wired yet (#157). Sharing a database or diagnostics can disclose task titles and notes.
+Core task use is local. Update checks/downloads and links you open contact external services. Sharing a database or diagnostics can disclose task titles and notes.
 
 ## Known limits
 
-Reminder eligibility is evaluated consistently by the shared core on every platform, but OS notification delivery is staged (#131): fields persist, nothing fires yet. The in-app update check and the About dialog are not in this host yet (#157). The standalone packaged CLI is not yet part of desktop releases; source CLI instructions remain in the README.
+Reminder eligibility is evaluated consistently by the shared core on every platform, but OS notification delivery is staged (#131): fields persist, nothing fires yet. The standalone packaged CLI is not yet part of desktop releases; source CLI instructions remain in the README.
 
 ## Updates and removal
 
-Back up data and read the destination release notes first. This version does not check for updates by itself (#157): take the new package from [Releases](https://github.com/turlamai/taskly/releases), verify it against the release's `SHA256SUMS`, and install it over the existing installation. deb/rpm and Flatpak copies upgrade through the system package manager (or `flatpak --user update`), which owns the upgrade. Never install an artifact you could not verify. On failure, preserve data and the error, then recover with a trusted release. Removing the program does not necessarily erase its separate data directory; verify your backup before deleting personal data.
+Back up data and read the destination release notes first. Taskly checks silently shortly after launch (at most once every four hours; turn it off with Settings → About → Automatically Check for Updates) and lets you check manually from Settings → About on every platform. When a newer version is available the sidebar shows an “Update” pill and the About group links to the releases page; the app does not download or install for you. Download the package for your platform, verify it against `SHA256SUMS`, then run the installer or unpack the archive over the old copy — deb/rpm and Flatpak copies update through the system package manager (or `flatpak --user update`). Never bypass a failed signature check or replace the program with an untrusted artifact. On failure, preserve data and the error, then recover with a trusted release. Removing the program does not necessarily erase its separate data directory; verify your backup before deleting personal data.
 
 DMG, MSI, deb/rpm and portable archives replace application files, not `~/.taskly/`. If an update fails, quit all Taskly processes and reinstall the previous trusted build using the same installation shape; portable users can return to the previous program directory. The exact per-shape rollback table is in the update contract below.
 

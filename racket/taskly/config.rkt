@@ -8,6 +8,7 @@
 
 (provide read-config
          write-config!
+         config-file-path
          config-ref
          config-language
          config-last-selected-list-id

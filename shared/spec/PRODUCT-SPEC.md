@@ -318,6 +318,7 @@ second spec). Journey ids refer to the in-page harness
 | Migrate success / failure / collision | core-contract (`core-test.rkt` copy-migrate cases) · web-ui-journeys j15 | ✅ all platforms |
 | Backup export / restore confirm / refused | core-contract (`core-test.rkt` backup cases) · web-ui-journeys j16 (stale preview refused; invalid file refused) | ✅ all platforms |
 | New-task default list | core-contract (`core-test.rkt` default-list targeting) · web-ui-journeys j17 | ✅ all platforms |
+| About + update check (#157) | web-ui-journeys j18 (identity + diagnostics, auto-check toggle, silent check skips when off, stamps once, 4-hour throttle, manual check bypasses it, outcome rendered with reason and next step) · `verify.rkt` open-url-refused (whitelist) · embedded-wire (`app_info`) | ✅ all platforms |
 
 Gaps are the acceptance queue: closing one means adding a requirement to
 `rivet-acceptance.rktd` — never softening existing ones.
@@ -389,25 +390,33 @@ of softening the Windows/Linux requirement.
   request began (including `last-selected-list-id`, theme and language).
   The locally selected list remains authoritative through overlapping
   preferences saves; the backend result confirms persistence or an error.
-  **检查更新… / Check for Updates… and About are not in the web UI**
-  (regressed with the native menus, tracked in #157): the engine RPC
-  `check_updates` and the updater exist, but no launch or manual check
-  runs today. `UPDATE.md` stays the contract for their return; until then
-  the user updates by downloading the new package.
-- Help: About — **not in the web UI yet (#157)**; the contract for its
-  return: `Taskly v<version>` + `© 2026 Taskly Team` +
+  The glaze host exposes the manual online-update check in Settings → About
+  → 软件更新 / Software updates (`检查更新… / Check for Updates…`; auto-check
+  runs at launch and every 4 h — contract: `UPDATE.md`). The retired native
+  hosts used a menu item instead (app menu on macOS, Help menu on Windows).
+  On the glaze host a found update is announced with a `新版本 / Update`
+  pill beside the sidebar Settings button and handed over to the releases
+  page; there is no in-app download or install.
+- Help: About — on the glaze host this is the 关于 / About group at the end
+  of the Settings sheet (there is no Help menu): `Taskly` + version +
+  `© 2026 Taskly Team` +
   `aboutContent` + license line (`aboutLicense`) + link buttons on every
   host: Website (`aboutWebsite` → taskly.jrtx.site), User Manual
   (`aboutManual` → taskly.jrtx.site/manual.html), Changelog
   (`aboutChangelog` → the CHANGELOG on GitHub), and Report an Issue
-  (`aboutReportIssue` → the GitHub issue tracker). Below the links, a
+  (`aboutReportIssue` → the GitHub issue tracker). Below the links, the
+  软件更新 row and the auto-check toggle (see above), then a collapsible
   diagnostics block shows the release identity and the data locations —
-  app version, platform + architecture, OS version, database path,
-  config path — with a `aboutCopyDiagnostics` button that puts the same
+  app version, platform + architecture, language and theme, auto-check
+  state and last check, database path, config path — with a
+  `aboutCopyDiagnostics` button that puts the same
   block on the clipboard so a bug report can include it verbatim; the
   copy confirmation is a transient status message. Diagnostics labels
   are English fixed strings (machine-oriented, like the CLI's `--json`).
-  Every platform renders the same web dialog layout (single glaze host).
+  Links open in the system browser through a host whitelist (https only:
+  taskly.jrtx.site, and github.com/turlamai/taskly…); anything else is
+  refused.
+  Every platform renders the same web layout (single glaze host).
 - Accelerators: Ctrl/⌘+K (search focus) and `/` (search focus outside a
   text field) ship window-wide; the remaining accelerators in §5b are
   staged contract targets.

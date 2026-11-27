@@ -361,6 +361,8 @@ select.input {
 .sidebar-settings { display: block; padding: 8px; border-radius: 8px; color: var(--ink2); font-size: 13px; text-decoration: none; }
 .sidebar-settings:hover { background: var(--hover); color: var(--ink); }
 .sidebar-settings:focus-visible { outline: 2px solid var(--today); }
+/* 有新版本时挂在「设置」后的状态标签（#157）；点「设置」进关于一节处理。 */
+.upd-pill { margin-left: 6px; padding: 0 8px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 600; line-height: 18px; }
 
 /* ---- temperament profile pass ---- */
 /* typography baseline (family standard 2026-11-26-temperament-profiles): CJK/Latin spacing and kinsoku come from the rendering layer,

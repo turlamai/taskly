@@ -12,19 +12,27 @@
 - **Triggers**: one silent check shortly after launch (throttled: at most
   once per 4 hours, persisted as config key `last-update-check`, unix
   epoch seconds, host-owned via `get_setting`/`set_setting`), plus a
-  manual `检查更新… / Check for Updates…` menu item (family menu
-  convention: Help menu on Windows/Linux, App menu below About on macOS)
-  that bypasses the throttle.
+  manual `检查更新… / Check for Updates…` action (the glaze host: a
+  button in Settings → About → 软件更新 / Software updates; the retired
+  native hosts used a Help/App menu item) that bypasses the throttle.
 - **Auto-check toggle**: config key `auto-check-updates`, `"1"` (default)
   or `"0"`, exposed as a checkable 自动检查更新 / Automatically Check for
-  Updates item in the Settings menu. When `"0"`, the silent launch and
-  periodic checks skip; the manual item always checks and is unaffected
-  by the toggle or the throttle.
+  Updates row in Settings → About on the glaze host. When `"0"`, the
+  silent launch and periodic checks skip; the manual action always checks
+  and is unaffected by the toggle or the throttle.
 - **Silent mode**: network failure / rate limit → silently ignore (never
   nag). Manual mode reports every outcome.
-- **Newer version found** (semver compare, downgrades ignored) → dialog
-  with the new version: `立即更新 / Update` (download + install) or
-  `取消 / Cancel`. Up-to-date → `当前已是最新版本 / Up to date`.
+- **Newer version found** (semver compare, downgrades ignored):
+  - glaze host (current, #157): the sidebar shows a `新版本 / Update`
+    pill and the About row states the version with a 前往下载页 / Go to
+    downloads button that opens the releases page in the system browser.
+    The host **checks and hands over** — no in-app download or install.
+  - Native hosts (retired, kept as the contract for download/install):
+    dialog with the new version: `立即更新 / Update` (download + install)
+    or `取消 / Cancel`. Up-to-date → `当前已是最新版本 / Up to date`.
+  Manual checks render inline in the About row: 正在检查… / Checking…,
+  已是最新版本。/ You're on the latest version., or the failure with its
+  reason and a 重试 / Try again button.
 - **Download**: performed by the backend over the `check_updates` /
   `start_download` / `update_state` RPCs (rivet/distribution family
   pattern — Ed25519 manifest verify and sha256 artifact verify live in
