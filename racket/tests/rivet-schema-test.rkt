@@ -18,7 +18,15 @@
    (parameterize ([current-taskly-home temp-root])
      (define names
        (map (lambda (entry) (hash-ref entry 'name)) (record-schema)))
-     (check-equal? names '("BackupPreview" "QuickAddParse" "ReminderDecision" "Settings" "SmartCounts" "Snapshot" "Subtask" "Task" "TodoList" "UpdateCheck" "UpdateState"))
+     (check-equal? names '("AppInfo" "BackupPreview" "QuickAddParse" "ReminderDecision" "Settings" "SmartCounts" "Snapshot" "Subtask" "Task" "TodoList" "UpdateCheck" "UpdateState"))
+
+     ;; AppInfo (#157 About): five positional fields, read back by name.
+     (define info (AppInfo "0.0.0-test" "windows" "x64" "db.sqlite3" "config.ini"))
+     (check-equal? (record-ref info 'version) "0.0.0-test")
+     (check-equal? (record-ref info 'platform) "windows")
+     (check-equal? (record-ref info 'architecture) "x64")
+     (check-equal? (record-ref info 'database-path) "db.sqlite3")
+     (check-equal? (record-ref info 'config-path) "config.ini")
 
      ;; The Settings record grew the 数据-group fields (§2a): display name
      ;; and quick-add default list resolve from the persisted config.

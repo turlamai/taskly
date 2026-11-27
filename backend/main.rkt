@@ -194,8 +194,17 @@
   [(POST "api/rpc/update_state" #:returns GValue)
    (updateState)
    (rpc/json "update_state" (hasheq))]
+  [(POST "api/rpc/app_info" #:returns GValue)
+   (appInfo)
+   (rpc/json "app_info" (hasheq))]
 
   ;; ---- host capabilities (not engine RPCs; outside the surface gate) ----
+  ;; Open a Taskly link in the default browser (settings 关于 group, #157).
+  ;; Refuses everything that is not an allowlisted https URL, so the page
+  ;; cannot turn this into a general URL-handler primitive.
+  [(POST "api/host/open_url" #:returns GBool)
+   (openUrl [url GString])
+   (open-url url)]
   ;; Native pickers/reveal for the single web UI. Dialogs block their
   ;; request thread until the user picks; #f means cancelled.
   [(POST "api/host/pick_folder" #:returns GValue)
@@ -267,6 +276,34 @@
       [else (cond
               [(find-executable-path "xdg-open")
                (shell-spawn! "xdg-open" (list dir)) #t]
+              [else #f])])))
+
+;; The only destinations the 关于 group may hand to the browser: the
+;; product site (manual included) and this repository on GitHub.
+(define (taskly-link? url)
+  (define m (regexp-match #px"^https://([A-Za-z0-9.-]+)(:\\d+)?(/[^#?]*)?[#?]?$" url))
+  (and m
+       (let ([host (string-downcase (list-ref m 1))]
+             [path (or (list-ref m 3) "/")])
+         (or (string=? host "taskly.jrtx.site")
+             (and (string=? host "github.com")
+                  (let ([repo "/turlamai/taskly"])
+                    (or (string=? path repo)
+                        (string-prefix? path (string-append repo "/")))))))))
+
+;; Hand a Taskly link to the system browser. Same shape as reveal-path:
+;; #f when no opener exists or the launch fails; the UI keeps the URL
+;; visible so the user can still copy it.
+(define (open-url url)
+  (unless (taskly-link? url)
+    (bad-param "refused: only Taskly links over https can be opened"))
+  (with-handlers ([exn:fail? (lambda (_) #f)])
+    (case (system-type 'os)
+      [(windows) (shell-spawn! "rundll32" (list "url.dll,FileProtocolHandler" url)) #t]
+      [(macosx) (shell-spawn! "open" (list url)) #t]
+      [else (cond
+              [(find-executable-path "xdg-open")
+               (shell-spawn! "xdg-open" (list url)) #t]
               [else #f])])))
 
 ;; ---- thin host runtime (#141 slice 3) --------------------------------

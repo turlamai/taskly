@@ -45,7 +45,7 @@
 (check-equal?
  (sort (map (lambda (rpc) (hash-ref rpc 'name)) (rpc-schema)) string<?)
  (sort (map symbol->string
-            '(acknowledge_reminder add_task check_updates close_database create_database
+            '(acknowledge_reminder add_task app_info check_updates close_database create_database
               create_list default_database delete_list delete_task export_backup get_setting
               get_settings load_snapshot migrate_database open_database parse_due
               parse_quick_add preview_backup reminder_decisions restore_backup search_tasks
@@ -119,6 +119,18 @@
    (define-values (default-db _db-err) (call-rpc 'default_database))
    (check-true (string-prefix? default-db (path->string root))
                "default_database resolves under the taskly home")
+
+   ;; app_info (#157 About): record crosses the wire with its five fields in
+   ;; order and both paths land under the throwaway home.
+   (define-values (info _info-err) (call-rpc 'app_info))
+   (check-pred list? info)
+   (check-equal? (length info) 5)
+   (check-equal? (car info) app-version)
+   (check-not-false (member (cadr info) '("windows" "macos" "linux")))
+   (check-true (string-prefix? (list-ref info 3) (path->string root))
+               "app_info database path resolves under the taskly home")
+   (check-true (string-prefix? (list-ref info 4) (path->string root))
+               "app_info config path resolves under the taskly home")
 
    ;; parse_due: pure date stays a date; relative days resolve to a date;
    ;; garbage raises the validation error as an error frame.

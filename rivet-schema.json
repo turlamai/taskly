@@ -16,6 +16,46 @@
     {
       "fields": [
         {
+          "name": "version",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "platform",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "architecture",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "database-path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "config-path",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        }
+      ],
+      "name": "AppInfo"
+    },
+    {
+      "fields": [
+        {
           "name": "format",
           "type": {
             "kind": "scalar",
@@ -622,6 +662,14 @@
       "result": {
         "kind": "record",
         "name": "Task"
+      }
+    },
+    {
+      "arguments": [],
+      "name": "app_info",
+      "result": {
+        "kind": "record",
+        "name": "AppInfo"
       }
     },
     {

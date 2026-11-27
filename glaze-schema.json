@@ -121,6 +121,14 @@
     },
     {
       "method": "POST",
+      "path": "/api/rpc/app_info"
+    },
+    {
+      "method": "POST",
+      "path": "/api/host/open_url"
+    },
+    {
+      "method": "POST",
       "path": "/api/host/pick_folder"
     },
     {
@@ -273,6 +281,23 @@
           },
           {
             "name": "detail",
+            "type": {
+              "kind": "scalar",
+              "name": "String"
+            }
+          }
+        ],
+        "result": {
+          "kind": "scalar",
+          "name": "Bool"
+        }
+      },
+      {
+        "errors": [],
+        "name": "hostOpen_url",
+        "parameters": [
+          {
+            "name": "url",
             "type": {
               "kind": "scalar",
               "name": "String"
@@ -478,6 +503,15 @@
             }
           }
         ],
+        "result": {
+          "kind": "scalar",
+          "name": "Value"
+        }
+      },
+      {
+        "errors": [],
+        "name": "rpcApp_info",
+        "parameters": [],
         "result": {
           "kind": "scalar",
           "name": "Value"
