@@ -349,6 +349,10 @@ export const host = {
   reveal(path: string): Promise<boolean> {
     return apiPost('/api/host/reveal', { path });
   },
+  /** Open a Taskly link in the system browser; false when refused or unavailable. */
+  openUrl(url: string): Promise<boolean> {
+    return apiPost('/api/host/open_url', { url });
+  },
   shortcut(accelerator: string): Promise<{ ok: boolean; accelerator: string }> {
     return apiPost('/api/host/shortcut', { accelerator });
   },

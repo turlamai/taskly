@@ -12,7 +12,7 @@ import {
 import { initTheme, applyTheme } from './theme';
 import { initDatabaseFlow, setGateMode, refreshDatabaseUI } from './database-flow';
 import { initListEditor, openListEditor } from './list-editor';
-import { initSettings, openSettings } from './settings';
+import { initSettings, openSettings, silentUpdateCheck } from './settings';
 import { bootCapture } from './capture';
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string, r?: ParentNode) => (r || document).querySelector(s) as T | null;
@@ -683,6 +683,8 @@ async function main(): Promise<void> {
     setGateMode(result.mode, result.error);
   }
   render();
+  // Silent update check (#157): toggle + 4-hour stamp are engine config.
+  if (result.mode === 'ok') silentUpdateCheck();
   // Acceptance harness (#141 slice 5): same page, #e2e hash, host-gated.
   if (window.location.hash === '#e2e') {
     const { bootE2E } = await import('./e2e');

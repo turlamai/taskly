@@ -49,6 +49,167 @@ export async function openSettings(): Promise<void> {
   renderShortcut();
   $('settingsSheetWrap').hidden = false;
   $('settingsBack').focus();
+  void refreshAbout();
+}
+
+/* ---- About + update check (#157) ---- */
+// The web UI checks and hands over to the releases page; it never downloads
+// or installs. The engine owns `auto-check-updates` and the
+// `last-update-check` stamp (unix seconds, shared/spec/UPDATE.md), so this
+// module keeps nothing that has to survive a restart.
+type UpdState = 'idle' | 'checking' | 'up-to-date' | 'available' | 'error';
+interface UpdView { state: UpdState; error: string | null; version: string | null; publishedAt: string | null; }
+
+const RELEASES_URL = 'https://github.com/turlamai/taskly/releases/latest';
+const CHECK_THROTTLE_S = 4 * 60 * 60;
+
+let appInfo: rpc.AppInfo | null = null;
+let upd: UpdView = { state: 'idle', error: null, version: null, publishedAt: null };
+let lastCheckEpoch = 0;
+let diagText = '';
+
+function loadAppInfo(): Promise<rpc.AppInfo> {
+  if (appInfo) return Promise.resolve(appInfo);
+  return rpc.appInfo().then((info) => { appInfo = info; return info; });
+}
+
+function publishedOn(value: string | null): string {
+  return value && /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : (value || '—');
+}
+
+/** Open an https Taskly link in the system browser (host whitelist applies). */
+export async function openExternal(url: string): Promise<void> {
+  let ok = false;
+  try { ok = await store.host.openUrl(url); } catch { ok = false; }
+  if (!ok) announce(t('updOpenFailed', url));
+}
+
+export async function checkForUpdates(reason: 'manual' | 'silent'): Promise<void> {
+  if (upd.state === 'checking') return;
+  if (reason === 'silent') {
+    // Silent checks respect the toggle and the 4-hour stamp; manual ones always run.
+    try {
+      if ((await rpc.getSetting('auto-check-updates')) === '0') return;
+      const last = Number(await rpc.getSetting('last-update-check')) || 0;
+      if (Math.floor(Date.now() / 1000) - last < CHECK_THROTTLE_S) return;
+    } catch { return; }
+  }
+  upd = { state: 'checking', error: null, version: null, publishedAt: null };
+  renderUpdate();
+  try {
+    const r = await rpc.checkUpdates();
+    lastCheckEpoch = Math.floor(Date.now() / 1000);
+    if (r.status === 'available') {
+      upd = { state: 'available', error: null, version: r.availableVersion, publishedAt: r.publishedAt };
+    } else if (r.status === 'up-to-date') {
+      upd = { state: 'up-to-date', error: null, version: null, publishedAt: null };
+    } else {
+      upd = { state: 'error', error: r.error || r.status, version: null, publishedAt: null };
+    }
+  } catch (e) {
+    upd = { state: 'error', error: e instanceof Error ? e.message : String(e), version: null, publishedAt: null };
+  }
+  if (reason === 'silent') {
+    // Stamp only after a real attempt; failures count so an offline launch
+    // does not retry on every window.
+    try { await rpc.setSetting('last-update-check', String(lastCheckEpoch)); } catch { /* stamp is best-effort */ }
+  }
+  renderUpdate();
+  if (reason === 'manual') announce($('updHelp').textContent || '');
+}
+
+function renderUpdate(): void {
+  const help = $('updHelp');
+  const btn = $('updBtn') as HTMLButtonElement;
+  help.classList.remove('ok', 'err');
+  switch (upd.state) {
+    case 'checking':
+      btn.textContent = t('updChecking'); btn.disabled = true; help.textContent = t('updChecking'); break;
+    case 'up-to-date':
+      btn.textContent = t('menuCheckUpdates'); btn.disabled = false;
+      help.classList.add('ok'); help.textContent = t('updUpToDate'); break;
+    case 'available':
+      btn.textContent = t('updGoDownload'); btn.disabled = false;
+      help.textContent = t('updAvailableHelp', upd.version || '', publishedOn(upd.publishedAt)); break;
+    case 'error':
+      btn.textContent = t('updRetry'); btn.disabled = false;
+      help.classList.add('err'); help.textContent = t('updErrorHelp', upd.error || ''); break;
+    default:
+      btn.textContent = t('menuCheckUpdates'); btn.disabled = false; help.textContent = t('updIdleHelp');
+  }
+  $('updPill').hidden = upd.state !== 'available';
+}
+
+function buildDiagnostics(auto: string, last: string): string {
+  const i = appInfo;
+  return [
+    'Taskly ' + (i?.version ?? '?') + ' (' + (i?.platform ?? '?') + ' ' + (i?.architecture ?? '?') + ')',
+    'language: ' + (store.settings.language || 'system') + '  theme: ' + (store.settings.theme || 'system'),
+    'auto-check-updates: ' + auto + '  last-update-check: ' + (last || 'never'),
+    'database: ' + (i?.databasePath ?? '?'),
+    'config: ' + (i?.configPath ?? '?'),
+  ].join('\n');
+}
+
+async function refreshAbout(): Promise<void> {
+  let auto = '1';
+  let last = '';
+  let info: rpc.AppInfo | null = null;
+  try {
+    [auto, last] = await Promise.all([rpc.getSetting('auto-check-updates'), rpc.getSetting('last-update-check')]);
+  } catch { /* defaults above */ }
+  try { info = await loadAppInfo(); } catch { /* host without the route: leave blank */ }
+  $('aboutVer').textContent = info ? info.version : '';
+  $('aboutTag').innerHTML = esc(t('aboutContent')).replace(/\n/g, '<br>');
+  ($('updAutoChk') as HTMLInputElement).checked = auto !== '0';
+  lastCheckEpoch = Number(last) || 0;
+  diagText = buildDiagnostics(auto, last);
+  $('diagPre').textContent = diagText;
+  const copied = $('diagCopied');
+  copied.textContent = '';
+  renderUpdate();
+  if (upd.state === 'idle') {
+    const lastDate = lastCheckEpoch ? new Date(lastCheckEpoch * 1000).toLocaleString() : '';
+    if (lastDate) $('updHelp').textContent = t('diagLastCheck', lastDate);
+  }
+}
+
+async function copyDiagnostics(): Promise<void> {
+  const copied = $('diagCopied');
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(diagText);
+    } else {
+      const area = document.createElement('textarea');
+      area.value = diagText; area.setAttribute('readonly', ''); area.style.position = 'fixed'; area.style.opacity = '0';
+      document.body.appendChild(area); area.select();
+      document.execCommand('copy'); area.remove();
+    }
+    copied.textContent = t('diagCopied');
+  } catch {
+    copied.textContent = t('updateCopyError');
+  }
+  announce(copied.textContent || '');
+}
+
+function initAbout(): void {
+  $('aboutLinks').querySelectorAll<HTMLButtonElement>('[data-href]').forEach((b) => {
+    b.addEventListener('click', () => { void openExternal(b.dataset.href || ''); });
+  });
+  $('updBtn').addEventListener('click', () => {
+    if (upd.state === 'available') { void openExternal(RELEASES_URL); return; }
+    void checkForUpdates('manual');
+  });
+  $('updAutoChk').addEventListener('change', (e) => {
+    const on = (e.target as HTMLInputElement).checked;
+    void store.setSetting('auto-check-updates', on ? '1' : '0').then(() => { void refreshAbout(); });
+  });
+  $('diagCopy').addEventListener('click', () => { void copyDiagnostics(); });
+}
+
+/** Launch check: silent, throttled by the engine-stored stamp. */
+export function silentUpdateCheck(): void {
+  void checkForUpdates('silent');
 }
 
 function closeSettings(): void {
@@ -164,6 +325,7 @@ async function applyRestore(): Promise<void> {
 }
 
 export function initSettings(): void {
+  initAbout();
   $('settingsBack').addEventListener('click', closeSettings);
   $('settingsSheetWrap').addEventListener('pointerdown', (e) => {
     if (e.target === $('settingsSheetWrap')) closeSettings();
@@ -176,6 +338,7 @@ export function initSettings(): void {
     const value = (e.target as HTMLSelectElement).value;
     void store.setSetting('language', value).then(() => {
       setLang(value === 'zh' ? 'zh' : 'en');
+      void refreshAbout();
       store.emit();
     });
   });

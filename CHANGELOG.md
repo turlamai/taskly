@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Desktop (#157): Settings → 关于 / About — app version and license,
+  links to the website, manual, changelog and issue tracker, a manual
+  检查更新 / Check for Updates action, the 自动检查更新 toggle and a
+  collapsible diagnostics block with copy-to-clipboard. A silent check
+  runs after launch (at most once every 4 hours, off when the toggle is
+  off); a newer release shows a `新版本 / Update` pill in the sidebar.
+  The app checks and opens the releases page — it does not download or
+  install in place. New `app_info` RPC and a host `open_url` route
+  (https-only whitelist).
+
 ### Changed
 - Release pipeline (#80): macOS packages are Developer ID signed,
   notarized and stapled (`.app`, portable zip and DMG). A tag push without

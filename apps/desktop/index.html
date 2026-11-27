@@ -45,7 +45,7 @@
         <div id="tags"></div>
         <div class="sidebar-footer">
           <div class="database-identity"><strong data-db-name></strong><span data-i18n="sidebarDbManaged">数据库由你管理</span></div>
-          <button class="sidebar-settings" data-i18n="menuSettings">设置</button>
+          <span class="sidebar-settings-wrap"><button class="sidebar-settings" data-i18n="menuSettings">设置</button><span class="upd-pill" id="updPill" data-i18n="updPill" hidden>新版本</span></span>
         </div>
       </aside>
 
@@ -279,6 +279,36 @@
           </div>
           <p class="data-note" data-i18n="dbDataNote">数据库由你持有，不绑定账号或云服务。</p>
           <p class="data-feedback" id="dataFeedback" role="status"></p>
+        </div>
+        <div class="group">
+          <h3 class="gtitle" data-i18n="aboutGroup">关于</h3>
+          <div class="about">
+            <div class="about-name">Taskly<span class="about-ver" id="aboutVer"></span></div>
+            <p class="about-tag" id="aboutTag"></p>
+            <p class="about-legal"><span data-i18n="aboutCopyright">© 2026 Taskly Team</span> · <span data-i18n="aboutLicense">以 BUSL-1.1 授权发布（源码可得）</span></p>
+            <div class="about-links" id="aboutLinks">
+              <button class="linkbtn" type="button" data-href="https://taskly.jrtx.site" data-i18n="aboutWebsite">访问官网</button>
+              <button class="linkbtn" type="button" data-href="https://taskly.jrtx.site/manual.html" data-i18n="aboutManual">使用手册</button>
+              <button class="linkbtn" type="button" data-href="https://github.com/turlamai/taskly/blob/main/CHANGELOG.md" data-i18n="aboutChangelog">更新日志</button>
+              <button class="linkbtn" type="button" data-href="https://github.com/turlamai/taskly/issues" data-i18n="aboutReportIssue">问题反馈</button>
+            </div>
+          </div>
+          <div class="frow">
+            <div>
+              <div class="flabel" id="updLabel" data-i18n="updLabel">软件更新</div>
+              <div class="fhelp" id="updHelp">启动后自动检查，最多每四小时一次。</div>
+            </div>
+            <button class="btn" type="button" id="updBtn" aria-labelledby="updLabel" aria-describedby="updHelp">检查更新…</button>
+          </div>
+          <div class="frow">
+            <div><div class="flabel" id="updAutoLabel" data-i18n="settingsAutoCheckUpdates">自动检查更新</div><div class="fhelp" data-i18n="updAutoHelp">关闭后不再自动联网，只在你点击时检查</div></div>
+            <label class="checkrow"><input type="checkbox" id="updAutoChk" checked aria-labelledby="updAutoLabel"></label>
+          </div>
+          <details class="about-diag" id="diag">
+            <summary data-i18n="diagLabel">诊断信息</summary>
+            <pre id="diagPre"></pre>
+            <button class="linkbtn" type="button" id="diagCopy" data-i18n="aboutCopyDiagnostics">复制诊断信息</button><span class="fhelp" id="diagCopied" role="status" style="margin-left: 8px"></span>
+          </details>
         </div>
         <div class="setnote"><span data-i18n="settingsSavedNote">偏好保存在引擎设置中，随数据库同步。</span></div>
       </div>
