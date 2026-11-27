@@ -14,6 +14,12 @@
     return { active: null, records: [] };
   }
   let state = readRegistry();
+  // ?db-state=empty shows the first-run canvas without touching the registry.
+  if (scenario === 'empty') { state = { active: null, records: [] }; readRegistry = function () { return { active: null, records: [] }; }; }
+  // ?db-state=missing needs a recorded database to lose.
+  if (scenario === 'missing' && !state.records.length) {
+    state = { active: 'db-lost', records: [{ id: 'db-lost', name: '工作', path: 'D:\\Sync\\Taskly\\工作\\taskly.sqlite', tasks: [] }] };
+  }
   const defaultLists = {
     work:      { name: '工作', emoji: '💼', color: 'var(--list-cyan)' },
     home:      { name: '家',   emoji: '🏠', color: 'var(--list-green)' },
@@ -34,13 +40,32 @@
   }
   const canonical = function (path) { return path.trim().replace(/\\/g, '/').replace(/\/+$/, ''); };
 
-  const gate = document.createElement('section');
-  gate.className = 'database-gate';
-  gate.setAttribute('aria-labelledby', 'databaseWelcomeTitle');
-  gate.innerHTML = '<h1 id="databaseWelcomeTitle">打开任务数据库</h1>' +
-    '<div class="database-recovery" id="databaseRecovery" hidden><p id="databaseMissingPath"></p><div class="database-choice"><button class="btn primary" type="button" data-db-action="relocate">重新定位…</button><button class="btn" type="button" data-db-action="retry">重试</button></div></div>' +
-    '<div class="database-choice"><button class="btn primary" type="button" data-db-action="create">创建数据库…</button><button class="btn" type="button" data-db-action="open">打开已有数据库…</button></div>';
-  if (main) root.insertBefore(gate, root.querySelector('.app'));
+  // There is no separate gate page: the main window always shows, and the
+  // canvas carries the no-database state (first run / last one missing).
+  // Create / open live in that state, and once a database is open they sit
+  // behind the database name in the sidebar footer.
+  let menuTrigger = null;
+  const canvasState = document.createElement('div');
+  canvasState.className = 'dbstate';
+  canvasState.id = 'dbState';
+  canvasState.setAttribute('aria-labelledby', 'dbStateTitle');
+  canvasState.hidden = true;
+  canvasState.innerHTML = '<h2 id="dbStateTitle"></h2><p id="dbStateBody"></p>' +
+    '<p class="dbstate-path" id="dbStatePath" hidden></p>' +
+    '<p class="database-error" id="databaseGateError" role="alert" hidden></p>' +
+    '<div class="database-choice" id="dbStateActions"></div>';
+  if (main) root.querySelector('.pane').insertBefore(canvasState, root.querySelector('.statusbar'));
+  const CANVAS_ACTIONS = {
+    empty: [['create', '创建数据库…', 'primary'], ['open', '打开已有数据库…', '']],
+    blocked: [['relocate', '重新定位…', 'primary'], ['retry', '重试', ''], ['open', '打开已有数据库…', '']]
+  };
+  function closeMenu(restoreFocus) {
+    const menu = document.getElementById('dbMenu');
+    if (!menu || menu.hidden) return;
+    menu.hidden = true;
+    document.getElementById('dbMenuBtn').setAttribute('aria-expanded', 'false');
+    if (restoreFocus && menuTrigger) menuTrigger.focus();
+  }
 
   const dialog = document.createElement('dialog');
   dialog.className = 'database-dialog';
@@ -149,19 +174,48 @@
   dialog.addEventListener('close', function () { clearError(); if (trigger && trigger.isConnected) trigger.focus(); });
   dialog.addEventListener('input', clearError);
   document.addEventListener('click', function (event) {
+    const toggle = event.target.closest('#dbMenuBtn');
+    const menu = document.getElementById('dbMenu');
+    if (toggle && menu) {
+      menuTrigger = toggle;
+      if (menu.hidden) {
+        const db = current();
+        menu.querySelectorAll('[data-db-requires-open]').forEach(function (item) { item.hidden = !db; });
+        menu.hidden = false;
+        toggle.setAttribute('aria-expanded', 'true');
+        menu.querySelector('button:not([hidden])').focus();
+      } else closeMenu(true);
+      return;
+    }
+    if (menu && !menu.hidden && !menu.contains(event.target)) closeMenu(false);
     const button = event.target.closest('[data-db-action]');
-    if (button) select(button.dataset.dbAction, button);
+    if (button) { closeMenu(false); select(button.dataset.dbAction, button); }
   });
+  document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeMenu(true); });
   function update() {
     const db = current();
     if (main) {
-      root.querySelector('.app').hidden = !db;
-      gate.hidden = !!db;
-      const recovery = gate.querySelector('#databaseRecovery');
-      recovery.hidden = !blocked;
-      gate.querySelector('[data-db-action="create"]').classList.toggle('primary', !blocked);
-      gate.querySelector('#databaseMissingPath').textContent = last() ? last().path : '';
-      gate.querySelector('#databaseWelcomeTitle').textContent = blocked ? '找不到上次的数据库' : '打开任务数据库';
+      // No database: the task surfaces step aside and the canvas explains.
+      ['.phead', '#filterBar', '.quickadd', '.rows'].forEach(function (selector) {
+        const node = root.querySelector(selector); if (node) node.hidden = !db;
+      });
+      canvasState.hidden = !!db;
+      if (!db) {
+        const kind = blocked && last() ? 'blocked' : 'empty';
+        canvasState.querySelector('#dbStateTitle').textContent = kind === 'blocked' ? '找不到上次的数据库' : '还没有任务数据库';
+        canvasState.querySelector('#dbStateBody').textContent = kind === 'blocked'
+          ? '上次打开的数据库不在原位置。重新定位后继续，或者打开另一个。'
+          : '数据库是一个 SQLite 文件，放在你选择的文件夹里，由你保管。';
+        const path = canvasState.querySelector('#dbStatePath');
+        path.hidden = kind !== 'blocked';
+        path.textContent = kind === 'blocked' ? last().path : '';
+        canvasState.querySelector('#databaseGateError').hidden = true;
+        canvasState.querySelector('#dbStateActions').innerHTML = CANVAS_ACTIONS[kind].map(function (action) {
+          return '<button class="btn ' + action[2] + '" type="button" data-db-action="' + action[0] + '">' + action[1] + '</button>';
+        }).join('');
+      }
+      closeMenu(false);
+      root.querySelector('.sidebar').classList.toggle('no-database', !db);
     }
     document.querySelectorAll('[data-db-name]').forEach(function (node) { node.textContent = db ? db.name : '尚未打开数据库'; });
     document.querySelectorAll('[data-db-path]').forEach(function (node) { node.textContent = db ? db.path : '创建或打开数据库后显示位置'; });

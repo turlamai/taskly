@@ -52,7 +52,7 @@
 
         <div class="sect">标签</div>
         <div id="tags"></div>
-        <div class="sidebar-footer"><div class="database-identity"><strong data-db-name></strong></div><a class="sidebar-settings" href="settings.html">设置</a></div>
+        <div class="sidebar-footer"><div class="database-menu-wrap"><button class="database-identity" id="dbMenuBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="dbMenu" title="新建、打开或迁移数据库"><strong data-db-name></strong></button><div class="db-menu" id="dbMenu" role="menu" aria-labelledby="dbMenuBtn" hidden><button class="btn" type="button" role="menuitem" data-db-action="create">新建数据库…</button><button class="btn" type="button" role="menuitem" data-db-action="open">打开已有数据库…</button><button class="btn" type="button" role="menuitem" data-db-action="migrate" data-db-requires-open>迁移到其他文件夹…</button><button class="btn" type="button" role="menuitem" data-db-action="reveal" data-db-requires-open>所在文件夹</button></div></div><a class="sidebar-settings" href="settings.html">设置</a></div>
       </aside>
 
       <section class="pane">
