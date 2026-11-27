@@ -17,7 +17,7 @@
   --accent: #C94F30; --accent-ink: #FFFFFF; --accent-text: #B8432A;
   --today: #007AFF; --today-ink: #0060C0;
   --planned: #FF3B30; --gray-tile: #8E8E93;
-  --danger: #B3261E; --warn-ink: #B25E00; --success: #1B7F4B;
+  --danger: #B3261E; --warn-ink: #964F00; --success: #1B7F4B;
   --tag-bg: #EDEBE9; --tag-text: #4F4D4B;
   --scrim: rgba(29,29,31,.40);
   /* 清单 12 色：语义名 → 亮色基准 */
@@ -143,6 +143,8 @@ kbd {
 }
 .tile:hover { background: var(--hover); }
 .tile[aria-current="true"] { background: var(--sel); border-color: var(--divider-strong); }
+/* The count loses contrast on the selection tint; the selected tile states it in secondary ink. */
+.tile[aria-current="true"] .count { color: var(--ink2); }
 .tile .glyph { width: 20px; height: 20px; display: grid; place-items: center; flex: none; }
 .glyph.num { font-size: 12px; font-weight: 700; color: var(--today-ink); font-variant-numeric: tabular-nums; }
 .glyph.planned { color: var(--planned); }
