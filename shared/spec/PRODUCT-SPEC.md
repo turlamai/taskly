@@ -318,6 +318,7 @@ second spec). Journey ids refer to the in-page harness
 | Migrate success / failure / collision | core-contract (`core-test.rkt` copy-migrate cases) · web-ui-journeys j15 | ✅ all platforms |
 | Backup export / restore confirm / refused | core-contract (`core-test.rkt` backup cases) · web-ui-journeys j16 (stale preview refused; invalid file refused) | ✅ all platforms |
 | New-task default list | core-contract (`core-test.rkt` default-list targeting) · web-ui-journeys j17 | ✅ all platforms |
+| About + update check (#157) | web-ui-journeys j18 (identity + diagnostics, auto-check toggle, silent check skips when off, stamps once, 4-hour throttle, manual check bypasses it, outcome rendered with reason and next step) · `verify.rkt` open-url-refused (whitelist) · embedded-wire (`app_info`) | ✅ all platforms |
 
 Gaps are the acceptance queue: closing one means adding a requirement to
 `rivet-acceptance.rktd` — never softening existing ones.

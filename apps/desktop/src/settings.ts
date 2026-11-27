@@ -67,6 +67,12 @@ let appInfo: rpc.AppInfo | null = null;
 let upd: UpdView = { state: 'idle', error: null, version: null, publishedAt: null };
 let lastCheckEpoch = 0;
 let diagText = '';
+// Real network attempts (manual or unthrottled silent); acceptance reads it.
+let attempts = 0;
+
+/** Current update-check state (read-only view for acceptance). */
+export function updateView(): Readonly<UpdView> { return upd; }
+export function updateAttempts(): number { return attempts; }
 
 function loadAppInfo(): Promise<rpc.AppInfo> {
   if (appInfo) return Promise.resolve(appInfo);
@@ -94,6 +100,7 @@ export async function checkForUpdates(reason: 'manual' | 'silent'): Promise<void
       if (Math.floor(Date.now() / 1000) - last < CHECK_THROTTLE_S) return;
     } catch { return; }
   }
+  attempts += 1;
   upd = { state: 'checking', error: null, version: null, publishedAt: null };
   renderUpdate();
   try {

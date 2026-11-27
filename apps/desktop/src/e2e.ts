@@ -15,6 +15,8 @@
 // that into false journey failures (slice 6).
 import * as store from './store';
 import * as rpc from '@taskly/core';
+import { t } from './i18n';
+import { silentUpdateCheck, updateAttempts, updateView } from './settings';
 import { setGateMode, openDbDialog, refreshDatabaseUI } from './database-flow';
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T | null;
@@ -38,6 +40,19 @@ function change(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement |
   if (!el) throw new Error('missing field');
   el.value = v;
   el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+function setChecked(el: HTMLInputElement | null, on: boolean): void {
+  if (!el) throw new Error('missing checkbox');
+  el.checked = on;
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+// Poll an async reader (engine setting round-trips) until it settles.
+async function untilStr(read: () => Promise<string>, want: string, label: string, ms = 6000): Promise<void> {
+  const end = Date.now() + ms;
+  while ((await read()) !== want) {
+    if (Date.now() > end) throw new Error('timeout waiting for ' + label);
+    await wait(60);
+  }
 }
 const live = () => (id('live')?.textContent || '').trim();
 function assert(ok: boolean, msg: string): void { if (!ok) throw new Error(msg); }
@@ -398,6 +413,65 @@ export async function bootE2E(): Promise<void> {
     const t = store.taskById(tid);
     assert(!!t && t.listId === beta!.id, 'quick add ignored the default list');
     await store.setSetting('default-list-id', '0');
+  });
+
+  // #157: the check state machine is driven with engine-owned inputs only.
+  // verify.rkt pins the update feed to a closed port, so every real attempt
+  // ends in the error state; a dev run against the live feed may land on
+  // up-to-date / available instead, and the outcome assertions branch.
+  await run('j18-about-update-check', async () => {
+    click($('.sidebar-settings'));
+    await until(() => id('settingsSheetWrap')?.hidden === false, 'j18 settings open');
+    const info = await rpc.appInfo();
+    assert(!!info.version, 'j18 app_info returned no version');
+    await until(() => id('aboutVer')?.textContent === info.version, 'j18 version filled');
+    const diag = id('diagPre')?.textContent || '';
+    assert(diag.includes(info.version) && diag.includes(info.platform) && diag.includes(info.databasePath),
+      'j18 diagnostics lack release identity or data location: ' + diag.slice(0, 160));
+    await store.setSetting('last-update-check', '0');
+    const before = updateAttempts();
+    setChecked(id<HTMLInputElement>('updAutoChk'), false);
+    await untilStr(() => rpc.getSetting('auto-check-updates'), '0', 'j18 auto-check off persisted');
+    await silentUpdateCheck();
+    await wait(200);
+    assert(updateAttempts() === before, 'j18 silent check ran with auto-check off');
+    assert((await rpc.getSetting('last-update-check')) === '0', 'j18 stamp moved on a skipped check');
+    setChecked(id<HTMLInputElement>('updAutoChk'), true);
+    await untilStr(() => rpc.getSetting('auto-check-updates'), '1', 'j18 auto-check on persisted');
+    await silentUpdateCheck();
+    await until(() => updateAttempts() === before + 1, 'j18 unthrottled silent check ran');
+    await until(() => updateView().state !== 'checking', 'j18 silent check settled', 20000);
+    const stamp = await rpc.getSetting('last-update-check');
+    assert(/^\d+$/.test(stamp) && Number(stamp) > 0, 'j18 stamp not written after a real attempt: ' + stamp);
+    await silentUpdateCheck();
+    await wait(200);
+    assert(updateAttempts() === before + 1, 'j18 4-hour throttle did not hold');
+    click(id('updBtn'));
+    await until(() => updateAttempts() === before + 2, 'j18 manual check ran');
+    await until(() => updateView().state !== 'checking' && id<HTMLButtonElement>('updBtn')?.disabled === false,
+      'j18 manual check settled', 20000);
+    assert((await rpc.getSetting('last-update-check')) === stamp, 'j18 manual check moved the stamp');
+    const view = updateView();
+    const help = id('updHelp');
+    const label = id<HTMLButtonElement>('updBtn')?.textContent;
+    if (view.state === 'error') {
+      assert(help?.classList.contains('err') === true, 'j18 error not styled as error');
+      assert(!!view.error && (help?.textContent || '').includes(view.error), 'j18 error reason missing from help');
+      assert(label === t('updRetry'), 'j18 retry label missing: ' + label);
+      assert(id('updPill')?.hidden === true, 'j18 pill shown on error');
+    } else if (view.state === 'up-to-date') {
+      assert(help?.classList.contains('ok') === true && help?.textContent === t('updUpToDate'),
+        'j18 up-to-date message wrong: ' + help?.textContent);
+      assert(id('updPill')?.hidden === true, 'j18 pill shown when up to date');
+    } else if (view.state === 'available') {
+      assert(id('updPill')?.hidden === false, 'j18 pill hidden on available');
+      assert(label === t('updGoDownload'), 'j18 download label missing: ' + label);
+      assert(!!view.version && (help?.textContent || '').includes(view.version), 'j18 available text lacks version');
+    } else {
+      throw new Error('j18 unexpected state ' + view.state);
+    }
+    click(id('settingsBack'));
+    await until(() => id('settingsSheetWrap')?.hidden === true, 'j18 settings closed');
   });
 
   await report('done', true, '');

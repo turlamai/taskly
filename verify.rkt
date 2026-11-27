@@ -19,7 +19,8 @@
          racket/runtime-path
          racket/string
          "backend/main.rkt"
-         "racket/taskly/paths.rkt")
+         "racket/taskly/paths.rkt"
+         "racket/taskly/updater.rkt") ; current-update-base-url test seam
 
 (define-runtime-path frontend-dist "apps/desktop/dist")
 (define-runtime-path evidence-dir ".glaze/verify")
@@ -27,6 +28,10 @@
 ;; Isolation: the verifier never touches the real ~/.taskly — the serve
 ;; thread inherits this parameter (same pattern as the wire tests).
 (current-taskly-home (make-temporary-file "taskly-verify-~a" 'directory))
+;; The update feed is pinned to a closed port so journey j18 sees a real,
+;; deterministic failed attempt instead of the live manifest (same seam as
+;; backend-wire-test.rkt).
+(current-update-base-url "https://127.0.0.1:9/taskly")
 
 ;; Open the in-page journey harness gate for this verifier only.
 (putenv "TASKLY_E2E" "1")
@@ -127,6 +132,16 @@
      (define autostart (post-json url "api/host/autostart" (hasheq)))
      (define autostart-dev
        (post-json url "api/host/autostart_set" (hasheq 'enabled #t)))
+     ;; ---- #157: About links open through an https-only whitelist. Only
+     ;; refusals are driven here — an accepted URL would launch a browser
+     ;; in the CI session.
+     (define open-refused-lookalike
+       (post-json url "api/host/open_url" (hasheq 'url "https://taskly-evil.jrtx.site/")))
+     (define open-refused-file
+       (post-json url "api/host/open_url" (hasheq 'url "file:///etc/passwd")))
+     (define open-refused-other-repo
+       (post-json url "api/host/open_url"
+                  (hasheq 'url "https://github.com/other/repo/issues")))
      ;; Declared platform exception (PRODUCT-SPEC §6): macOS CI sessions
      ;; grant no global-hotkey trust (TCC / agent session), so live
      ;; registration is asserted on Windows + Linux; macOS asserts the
@@ -250,6 +265,10 @@
                  (cons 'e2e-j15 (e2e-ok? "j15-migrate-success-collision-failure"))
                  (cons 'e2e-j16 (e2e-ok? "j16-backup-export-restore-refused"))
                  (cons 'e2e-j17 (e2e-ok? "j17-new-task-default-list"))
+                 (cons 'e2e-j18 (e2e-ok? "j18-about-update-check"))
+                 (cons 'open-url-refused (and (not (eq? open-refused-lookalike #t))
+                                              (not (eq? open-refused-file #t))
+                                              (not (eq? open-refused-other-repo #t))))
                  (cons 'e2e-done (e2e-ok? "done"))
                  (cons 'e2e-shot (and saved-e2e-shot (> (file-size saved-e2e-shot) 0)))))
      (webview-close wv))))
